@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
-import 'react-day-picker/dist/style.css'
+import 'react-day-picker/style.css'
 
 import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
