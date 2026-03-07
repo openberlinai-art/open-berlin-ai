@@ -58,14 +58,10 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
     }
   }, [price, cats])
 
+  // Always fetch fresh data from Worker (initialEvents are for first-paint only)
   useEffect(() => {
-    if (date === initialDate && page === 1 && price === 'all' && cats.length === 0) {
-      setEvents(initialEvents)
-      setTotal(initialTotal)
-      return
-    }
     load(date, page)
-  }, [date, page, load, initialDate, initialEvents, initialTotal, price, cats])
+  }, [date, page, load])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
