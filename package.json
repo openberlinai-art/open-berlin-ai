@@ -1,0 +1,15 @@
+{
+  "name": "kulturpulse-berlin",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "worker"
+  ],
+  "scripts": {
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:worker": "cd worker && npm run dev",
+    "build:web": "cd apps/web && npm run build",
+    "deploy:worker": "cd worker && npx wrangler deploy",
+    "lint": "cd apps/web && npm run lint"
+  }
+}
