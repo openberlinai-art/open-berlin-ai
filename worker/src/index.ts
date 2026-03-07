@@ -2,6 +2,7 @@ import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
 import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
+import { geocode }      from './geocoder'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -60,14 +61,12 @@ app.get('/api/events/:id', async c => {
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', async c => {
-  const body = await c.req.json<ChatRequest>().catch(() => null)
-  if (!body?.message?.trim()) {
-    return c.json({ error: 'message is required' }, 400)
+  const body = await c.req.json<{ messages: { role: string; content: string }[]; date?: string }>().catch(() => null)
+  if (!body?.messages?.length) {
+    return c.json({ error: 'messages is required' }, 400)
   }
 
-  // Load today's events for context
-  const today = new Date()
-  const date  = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+  const date = body.date ?? new Date().toISOString().split('T')[0]
   const { events } = await getEvents(c.env.DB, { date, limit: 20 })
 
   const eventsContext = events.slice(0, 15).map(e => ({
@@ -90,8 +89,10 @@ app.post('/api/chat', async c => {
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
-    ...(body.history ?? []).slice(-10),            // keep last 10 messages
-    { role: 'user'   as const, content: body.message },
+    ...body.messages.slice(-10).map(m => ({
+      role:    m.role as 'user' | 'assistant',
+      content: m.content,
+    })),
   ]
 
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -100,14 +101,11 @@ app.post('/api/chat', async c => {
   }) as { response?: string }
 
   return c.json({
-    message: {
-      role:    'assistant',
-      content: aiResponse.response ?? 'Sorry, I could not generate a response.',
-    },
+    response: aiResponse.response ?? 'Sorry, I could not generate a response.',
   })
 })
 
-// ─── POST /api/ingest (manual trigger, protected) ────────────────────────────
+// ─── POST /api/ingest (protected) ─────────────────────────────────────────────
 
 app.post('/api/ingest', async c => {
   const auth = c.req.header('Authorization')
@@ -116,6 +114,40 @@ app.post('/api/ingest', async c => {
   }
   const count = await ingestEvents(c.env)
   return c.json({ ok: true, ingested: count })
+})
+
+// ─── POST /api/geocode-batch (protected) ──────────────────────────────────────
+// Geocodes up to 30 events that are missing coordinates.
+// Call repeatedly until { remaining: 0 }.
+
+app.post('/api/geocode-batch', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  // Fetch events without coordinates that have an address
+  const rows = await c.env.DB
+    .prepare(`SELECT id, address FROM events WHERE lat IS NULL AND address IS NOT NULL LIMIT 30`)
+    .all<{ id: string; address: string }>()
+
+  let geocoded = 0
+  for (const row of rows.results ?? []) {
+    const coords = await geocode(c.env.DB, row.address)
+    if (coords) {
+      await c.env.DB
+        .prepare(`UPDATE events SET lat = ?, lng = ? WHERE id = ?`)
+        .bind(coords.lat, coords.lng, row.id)
+        .run()
+      geocoded++
+    }
+  }
+
+  const remaining = await c.env.DB
+    .prepare(`SELECT COUNT(*) as n FROM events WHERE lat IS NULL AND address IS NOT NULL`)
+    .first<{ n: number }>()
+
+  return c.json({ geocoded, remaining: remaining?.n ?? 0 })
 })
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
