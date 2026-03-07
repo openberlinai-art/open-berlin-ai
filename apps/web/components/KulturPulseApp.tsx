@@ -67,7 +67,6 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
     load(date, page)
   }, [date, page, load, initialDate, initialEvents, initialTotal, price, cats])
 
-  // Close dropdowns on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (calRef.current && !calRef.current.contains(e.target as Node)) setCalOpen(false)
@@ -85,15 +84,19 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
   const selectedDay = date ? new Date(date + 'T00:00:00') : undefined
 
+  // Shared button classes
+  const btn = 'text-xs border-2 border-black px-2.5 py-1 bg-white text-black hover:bg-black hover:text-white'
+  const btnActive = 'text-xs border-2 border-black px-2.5 py-1 bg-black text-white'
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden font-sans">
+    <div className="flex h-screen w-screen overflow-hidden">
       {/* ── Left panel ─────────────────────────────────── */}
-      <div className="w-[400px] shrink-0 flex flex-col border-r border-gray-200 bg-white">
+      <div className="w-[380px] shrink-0 flex flex-col border-r-2 border-black bg-white">
 
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-          <h1 className="text-lg font-bold tracking-tight text-gray-900">KulturPulse</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Berlin culture events, live</p>
+        <div className="px-4 pt-4 pb-3 border-b-2 border-black">
+          <h1 className="text-lg font-bold tracking-tight">KulturPulse</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Berlin culture events, live</p>
 
           {/* Filter row */}
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -102,15 +105,15 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
             <div ref={calRef} className="relative">
               <button
                 onClick={() => setCalOpen(o => !o)}
-                className="flex items-center gap-1.5 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors"
+                className={calOpen ? btnActive : btn}
               >
-                <CalendarIcon size={12} className="text-gray-400" />
-                <span className="text-gray-700">
+                <span className="flex items-center gap-1">
+                  <CalendarIcon size={11} />
                   {date === todayISO() ? 'Today' : formatDate(date)}
                 </span>
               </button>
               {calOpen && (
-                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border border-gray-200 rounded-xl shadow-xl">
+                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000]">
                   <DayPicker
                     mode="single"
                     selected={selectedDay}
@@ -121,7 +124,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
                       setPage(1)
                       setCalOpen(false)
                     }}
-                    className="text-sm"
+                    className="text-sm p-2"
                   />
                 </div>
               )}
@@ -131,18 +134,16 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
             <div ref={catRef} className="relative">
               <button
                 onClick={() => setCatOpen(o => !o)}
-                className={`flex items-center gap-1 text-xs border rounded-lg px-2.5 py-1.5 transition-colors ${
-                  cats.length > 0
-                    ? 'border-violet-400 bg-violet-50 text-violet-700'
-                    : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
+                className={cats.length > 0 ? btnActive : btn}
               >
-                <Filter size={11} />
-                {cats.length > 0 ? cats.slice(0, 2).join(', ') + (cats.length > 2 ? ` +${cats.length - 2}` : '') : 'All Events'}
-                <ChevronDown size={11} />
+                <span className="flex items-center gap-1">
+                  <Filter size={10} />
+                  {cats.length > 0 ? cats.slice(0, 2).join(', ') + (cats.length > 2 ? ` +${cats.length - 2}` : '') : 'All Events'}
+                  <ChevronDown size={10} />
+                </span>
               </button>
               {catOpen && (
-                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border border-gray-200 rounded-xl shadow-xl w-44 py-1">
+                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000] w-44 py-1">
                   {CATEGORIES.map(c => {
                     const style   = getCategoryStyle(c)
                     const checked = cats.includes(c)
@@ -150,18 +151,18 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
                       <button
                         key={c}
                         onClick={() => toggleCat(c)}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-50 ${checked ? 'font-semibold' : ''}`}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-100 ${checked ? 'font-bold' : ''}`}
                       >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: style.hex }} />
+                        <span className="w-2 h-2 shrink-0 border border-gray-400" style={{ background: style.hex }} />
                         {c}
-                        {checked && <span className="ml-auto text-violet-500">✓</span>}
+                        {checked && <span className="ml-auto">✓</span>}
                       </button>
                     )
                   })}
                   {cats.length > 0 && (
                     <button
                       onClick={() => setCats([])}
-                      className="w-full text-left px-3 py-1.5 text-[10px] text-gray-400 hover:text-gray-600 border-t border-gray-100 mt-1 pt-1.5"
+                      className="w-full text-left px-3 py-1.5 text-[10px] text-gray-500 border-t-2 border-gray-200 mt-1 pt-1.5 hover:bg-gray-100"
                     >
                       Clear filters
                     </button>
@@ -175,13 +176,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
               <button
                 key={p}
                 onClick={() => { setPrice(p); setPage(1) }}
-                className={`text-xs rounded-lg px-2.5 py-1.5 border transition-colors ${
-                  price === p
-                    ? p === 'free' ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                    : p === 'paid' ? 'border-amber-400 bg-amber-50 text-amber-700'
-                    : 'border-violet-400 bg-violet-50 text-violet-700'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
+                className={price === p ? btnActive : btn}
               >
                 {p === 'all' ? 'Any price' : p.charAt(0).toUpperCase() + p.slice(1)}
               </button>
@@ -190,7 +185,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
         </div>
 
         {/* Event count */}
-        <div className="px-4 py-2 text-[11px] text-gray-400 border-b border-gray-100">
+        <div className="px-4 py-2 text-[11px] text-gray-500 border-b-2 border-black">
           {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}`}
         </div>
 
@@ -214,21 +209,21 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 text-xs text-gray-500">
+          <div className="flex items-center justify-between px-4 py-2 border-t-2 border-black text-xs">
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
-              className="flex items-center gap-1 disabled:opacity-30 hover:text-gray-800"
+              className="flex items-center gap-1 border-2 border-black px-2 py-1 disabled:opacity-30 hover:bg-black hover:text-white"
             >
-              <ChevronLeft size={14} /> Prev
+              <ChevronLeft size={12} /> Prev
             </button>
-            <span>{page} / {totalPages}</span>
+            <span className="font-semibold">{page} / {totalPages}</span>
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => p + 1)}
-              className="flex items-center gap-1 disabled:opacity-30 hover:text-gray-800"
+              className="flex items-center gap-1 border-2 border-black px-2 py-1 disabled:opacity-30 hover:bg-black hover:text-white"
             >
-              Next <ChevronRight size={14} />
+              Next <ChevronRight size={12} />
             </button>
           </div>
         )}

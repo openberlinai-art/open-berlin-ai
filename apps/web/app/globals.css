@@ -4,7 +4,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Leaflet layout fixes */
+/* ── Squeaks.dev design system ─────────────────────────────────────────────── */
+
+/* Font */
+body {
+  font-family: var(--font-franklin), "Franklin Gothic Medium", "Franklin Gothic", Arial Narrow, sans-serif;
+}
+
+/* Kill all border-radius */
+*, *::before, *::after {
+  border-radius: 0 !important;
+}
+
+/* Kill all transitions & animations */
+*, *::before, *::after {
+  transition-duration: 0s !important;
+  animation-duration:  0s !important;
+}
+
+/* ── Leaflet ──────────────────────────────────────────────────────────────── */
 .leaflet-container {
   height: 100%;
   width:  100%;
@@ -12,8 +30,7 @@
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.15);
   padding: 0;
 }
 .leaflet-popup-content {
@@ -22,7 +39,13 @@
 }
 .leaflet-popup-tip-container { margin-top: -1px; }
 
-/* Scrollbar */
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar       { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #000; }
+
+/* ── Day picker overrides ─────────────────────────────────────────────────── */
+.rdp-root {
+  --rdp-accent-color: #000 !important;
+  --rdp-accent-background-color: #000 !important;
+}

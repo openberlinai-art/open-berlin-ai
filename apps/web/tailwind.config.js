@@ -8,7 +8,10 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-franklin)', '"Franklin Gothic Medium"', 'Arial Narrow', 'sans-serif'],
+      },
+      borderWidth: {
+        DEFAULT: '2px',
       },
     },
   },

@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Libre_Franklin } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({
+const franklin = Libre_Franklin({
   subsets:  ['latin'],
-  variable: '--font-inter',
+  variable: '--font-franklin',
   display:  'swap',
+  weight:   ['400', '500', '600', '700', '800'],
 })
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={franklin.variable}>
       <body className="bg-white text-gray-900 antialiased font-sans">
         {children}
       </body>

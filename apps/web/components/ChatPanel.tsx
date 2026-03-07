@@ -51,20 +51,20 @@ export default function ChatPanel({ date }: Props) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-50 bg-violet-600 text-white rounded-full p-3 shadow-lg hover:bg-violet-700 transition-colors"
+          className="fixed bottom-5 right-5 z-50 bg-black text-white p-3 border-2 border-black shadow-[4px_4px_0_#555] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
           aria-label="Open chat"
         >
-          <MessageSquare size={22} />
+          <MessageSquare size={20} />
         </button>
       )}
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-5 right-5 z-50 w-80 max-h-[480px] flex flex-col bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-5 right-5 z-50 w-80 max-h-[480px] flex flex-col bg-white border-2 border-black shadow-[4px_4px_0_#000] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-violet-600">
-            <span className="text-sm font-semibold text-white">Ask about today's events</span>
-            <button onClick={() => setOpen(false)} className="text-white/80 hover:text-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-black bg-black text-white">
+            <span className="text-sm font-bold">Ask about today's events</span>
+            <button onClick={() => setOpen(false)} className="hover:opacity-70">
               <X size={16} />
             </button>
           </div>
@@ -73,15 +73,15 @@ export default function ChatPanel({ date }: Props) {
           <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm min-h-0">
             {messages.length === 0 && (
               <p className="text-gray-400 text-xs text-center mt-4">
-                Ask anything — "free music events tonight", "exhibitions in Mitte", etc.
+                Ask anything — "free music tonight", "exhibitions in Mitte"…
               </p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                 <div className={
                   m.role === 'user'
-                    ? 'bg-violet-600 text-white rounded-2xl rounded-br-sm px-3 py-2 max-w-[85%] text-xs'
-                    : 'bg-gray-100 text-gray-800 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[85%] text-xs'
+                    ? 'bg-black text-white px-3 py-2 max-w-[85%] text-xs border-2 border-black'
+                    : 'bg-gray-100 text-gray-900 px-3 py-2 max-w-[85%] text-xs border-2 border-black'
                 }>
                   {m.content}
                 </div>
@@ -89,7 +89,7 @@ export default function ChatPanel({ date }: Props) {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-400 rounded-2xl rounded-bl-sm px-3 py-2 text-xs">
+                <div className="bg-gray-100 text-gray-400 px-3 py-2 text-xs border-2 border-gray-300">
                   Thinking…
                 </div>
               </div>
@@ -98,18 +98,18 @@ export default function ChatPanel({ date }: Props) {
           </div>
 
           {/* Input */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
+          <div className="flex items-center gap-2 px-3 py-2 border-t-2 border-black">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && send()}
               placeholder="Ask about events…"
-              className="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-violet-400"
+              className="flex-1 text-xs border-2 border-black px-3 py-2 outline-none focus:bg-gray-50"
             />
             <button
               onClick={send}
               disabled={!input.trim() || loading}
-              className="p-2 rounded-lg bg-violet-600 text-white disabled:opacity-40 hover:bg-violet-700 transition-colors"
+              className="p-2 bg-black text-white border-2 border-black disabled:opacity-40 hover:bg-gray-800"
             >
               <Send size={14} />
             </button>
