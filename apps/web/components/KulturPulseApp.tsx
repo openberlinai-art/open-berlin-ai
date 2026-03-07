@@ -48,7 +48,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
         date:     d,
         page:     p,
         limit:    LIMIT,
-        price:    price !== 'all' ? price : undefined,
+        price_type: price !== 'all' ? price : undefined,
         category: cats.length === 1 ? cats[0] : undefined,
       })
       setEvents(res.data)
