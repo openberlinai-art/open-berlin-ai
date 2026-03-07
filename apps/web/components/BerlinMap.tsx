@@ -29,9 +29,12 @@ export default function BerlinMap({ events, activeId }: Props) {
       })
 
       const map = L.map(containerRef.current!, {
-        center:      [52.52, 13.405],
-        zoom:        11,
-        zoomControl: false,
+        center:           [52.52, 13.405],
+        zoom:             11,
+        zoomControl:      false,
+        scrollWheelZoom:  true,
+        zoomAnimation:    true,
+        markerZoomAnimation: true,
       })
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {

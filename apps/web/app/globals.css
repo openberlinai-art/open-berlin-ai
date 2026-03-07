@@ -16,8 +16,10 @@ body {
   border-radius: 0 !important;
 }
 
-/* Kill all transitions & animations */
-*, *::before, *::after {
+/* Kill all transitions & animations except Leaflet */
+*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *),
+*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *)::before,
+*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *)::after {
   transition-duration: 0s !important;
   animation-duration:  0s !important;
 }
