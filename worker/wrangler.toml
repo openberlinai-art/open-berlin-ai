@@ -7,9 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 crons = ["0 */6 * * *"]   # Ingest every 6 hours
 
 [[d1_databases]]
-binding      = "DB"
+binding       = "DB"
 database_name = "kulturpulse-db"
-database_id  = "REPLACE_WITH_YOUR_D1_DATABASE_ID"   # wrangler d1 create kulturpulse-db
+database_id   = "bf2f311c-ce80-43e2-8411-14aa544968f4"
 
 [ai]
 binding = "AI"
@@ -19,10 +19,4 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 
 # Secrets (set via: wrangler secret put SECRET_NAME)
 # INGEST_SECRET    — random token to protect the manual /api/ingest endpoint
-# ALLOWED_ORIGIN   — your Vercel deployment URL, e.g. https://kulturpulse.vercel.app
-
-[[d1_databases]]
-binding       = "DB"
-database_name = "kulturpulse-db-dev"
-database_id   = "REPLACE_WITH_YOUR_DEV_D1_ID"
-environment   = "dev"
+# ALLOWED_ORIGIN   — your Vercel deployment URL
