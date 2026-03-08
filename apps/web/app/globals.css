@@ -16,12 +16,22 @@ body {
   border-radius: 0 !important;
 }
 
-/* Kill all transitions & animations except Leaflet */
-*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *),
-*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *)::before,
-*:not(.leaflet-zoom-anim *):not(.leaflet-pan-anim *):not(.leaflet-fade-anim *)::after {
+/* Kill all transitions & animations */
+*, *::before, *::after {
   transition-duration: 0s !important;
   animation-duration:  0s !important;
+}
+
+/* Re-enable Leaflet zoom/pan/fade animations specifically */
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition-duration: 0.25s !important;
+  transition-timing-function: cubic-bezier(0,0,0.25,1) !important;
+}
+.leaflet-fade-anim .leaflet-popup {
+  transition-duration: 0.2s !important;
+}
+.leaflet-pan-anim .leaflet-tile {
+  transition-duration: 0s !important;
 }
 
 /* ── Leaflet ──────────────────────────────────────────────────────────────── */
@@ -40,6 +50,19 @@ body {
   min-width: 180px;
 }
 .leaflet-popup-tip-container { margin-top: -1px; }
+
+/* ── Transit stop tooltips ────────────────────────────────────────────────── */
+.leaflet-tooltip.transit-tooltip {
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  font-size: 10px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.leaflet-tooltip.transit-tooltip::before {
+  border-top-color: #334155;
+}
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar       { width: 4px; }

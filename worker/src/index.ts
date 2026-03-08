@@ -58,6 +58,26 @@ app.get('/api/events/:id', async c => {
   return c.json({ data: event })
 })
 
+// ─── GET /api/proxy/wfs ───────────────────────────────────────────────────────
+
+app.get('/api/proxy/wfs', async c => {
+  const typeName = c.req.query('typeName')
+  // Whitelist: only gruenanlagen: typenames allowed (prevent SSRF abuse)
+  if (!typeName || !typeName.startsWith('gruenanlagen:'))
+    return c.json({ error: 'Invalid typeName' }, 400)
+
+  const params = new URLSearchParams({
+    service: 'WFS',
+    version: '2.0.0',
+    request: 'GetFeature',
+    typeName,
+    outputFormat: 'application/json',
+  })
+  const res = await fetch(`https://gdi.berlin.de/services/wfs/gruenanlagen?${params}`)
+  if (!res.ok) return c.json({ error: `Upstream ${res.status}` }, 502)
+  return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } })
+})
+
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', async c => {

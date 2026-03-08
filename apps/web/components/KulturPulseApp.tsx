@@ -38,6 +38,9 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
   const catRef                  = useRef<HTMLDivElement>(null)
 
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [layers, setLayers] = useState<{ parks: boolean; playgrounds: boolean }>({
+    parks: false, playgrounds: false,
+  })
 
   const LIMIT = 50
 
@@ -71,6 +74,14 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // Auto-enable playgrounds layer when Kids category is active
+  useEffect(() => {
+    if (cats.includes('Kids')) {
+      setLayers(prev => prev.playgrounds ? prev : { ...prev, playgrounds: true })
+    }
+    // Intentionally never auto-disables — user controls the off state
+  }, [cats])
 
   function toggleCat(c: string) {
     setCats(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
@@ -185,6 +196,30 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
           {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}`}
         </div>
 
+        {/* Layer toggles */}
+        <div className="px-4 py-2 border-b-2 border-black flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mr-1">
+            Layers
+          </span>
+          <button
+            onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))}
+            className={layers.parks ? btnActive : btn}
+          >
+            Parks
+          </button>
+          <button
+            onClick={() => setLayers(l => ({ ...l, playgrounds: !l.playgrounds }))}
+            className={layers.playgrounds ? btnActive : btn}
+          >
+            Playgrounds
+          </button>
+          {activeId && (
+            <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">
+              Transit nearby
+            </span>
+          )}
+        </div>
+
         {/* Event list */}
         <div className="flex-1 overflow-y-auto">
           {loading && events.length === 0 ? (
@@ -227,7 +262,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
 
       {/* ── Map ─────────────────────────────────────────── */}
       <div className="flex-1 relative">
-        <BerlinMap events={events} activeId={activeId} />
+        <BerlinMap events={events} activeId={activeId} layers={layers} />
       </div>
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}
