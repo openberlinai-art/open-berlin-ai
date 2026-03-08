@@ -78,6 +78,17 @@ app.get('/api/proxy/wfs', async c => {
   return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } })
 })
 
+// ─── GET /api/proxy/vbb ───────────────────────────────────────────────────────
+
+app.get('/api/proxy/vbb', async c => {
+  const path = c.req.query('path')
+  if (!path || !path.startsWith('/stops'))
+    return c.json({ error: 'Invalid path' }, 400)
+  const res = await fetch(`https://v6.vbb.transport.rest${path}`)
+  if (!res.ok) return c.json({ error: `Upstream ${res.status}` }, 502)
+  return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } })
+})
+
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', async c => {

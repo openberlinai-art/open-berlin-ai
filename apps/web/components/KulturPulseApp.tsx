@@ -38,9 +38,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
   const catRef                  = useRef<HTMLDivElement>(null)
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [layers, setLayers] = useState<{ parks: boolean; playgrounds: boolean }>({
-    parks: false, playgrounds: false,
-  })
+  const [layers, setLayers] = useState({ parks: false, playgrounds: false, venues: false })
 
   const LIMIT = 50
 
@@ -212,6 +210,12 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
             className={layers.playgrounds ? btnActive : btn}
           >
             Playgrounds
+          </button>
+          <button
+            onClick={() => setLayers(l => ({ ...l, venues: !l.venues }))}
+            className={layers.venues ? btnActive : btn}
+          >
+            Venues
           </button>
           {activeId && (
             <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">
