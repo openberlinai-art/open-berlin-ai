@@ -2,7 +2,9 @@ import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
 import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
-import { geocode, geocodeAll } from './geocoder'
+import { geocodeAll, geocodeAllLocations } from './geocoder'
+import { ingestLocations } from './ingest-locations'
+import { refreshGeodata } from './geodata'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -29,12 +31,13 @@ app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker' }))
 // ─── GET /api/events ──────────────────────────────────────────────────────────
 
 app.get('/api/events', async c => {
-  const { date, category, price_type, page = '1', limit = '50' } = c.req.query()
+  const { date, category, price_type, bbox, page = '1', limit = '50' } = c.req.query()
 
   const result = await getEvents(c.env.DB, {
     date:       date       || undefined,
     category:   category   || undefined,
     price_type: price_type || undefined,
+    bbox:       bbox       || undefined,
     page:       Math.max(1, parseInt(page, 10)),
     limit:      Math.min(500, Math.max(1, parseInt(limit, 10))),
   })
@@ -58,11 +61,86 @@ app.get('/api/events/:id', async c => {
   return c.json({ data: event })
 })
 
+// ─── GET /api/locations ───────────────────────────────────────────────────────
+// ?bbox=minLon,minLat,maxLon,maxLat&category=museum&limit=500
+// Returns GeoJSON FeatureCollection of cultural venue locations.
+
+app.get('/api/locations', async c => {
+  const { bbox, category, limit = '500' } = c.req.query()
+
+  const conditions: string[] = ['lat IS NOT NULL', 'lng IS NOT NULL']
+  const params: (string | number)[] = []
+
+  if (bbox) {
+    const parts = bbox.split(',').map(Number)
+    if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+      const [minLng, minLat, maxLng, maxLat] = parts
+      conditions.push('lat BETWEEN ? AND ?')
+      conditions.push('lng BETWEEN ? AND ?')
+      params.push(minLat, maxLat, minLng, maxLng)
+    }
+  }
+
+  if (category) {
+    conditions.push('category = ?')
+    params.push(category)
+  }
+
+  const where = `WHERE ${conditions.join(' AND ')}`
+  const cap   = Math.min(500, Math.max(1, parseInt(limit, 10)))
+  const { results } = await c.env.DB
+    .prepare(`SELECT * FROM locations ${where} LIMIT ?`)
+    .bind(...params, cap)
+    .all<Record<string, unknown>>()
+
+  const features = results.map(loc => ({
+    type:       'Feature' as const,
+    geometry:   { type: 'Point' as const, coordinates: [loc.lng, loc.lat] },
+    properties: {
+      id:       loc.id,
+      name:     loc.name,
+      category: loc.category,
+      address:  loc.address,
+      borough:  loc.borough,
+      website:  loc.website,
+    },
+  }))
+
+  return c.json({ type: 'FeatureCollection', features })
+})
+
+// ─── GET /api/geodata/parks ───────────────────────────────────────────────────
+// Serves parks GeoJSON from R2 with 1h CDN cache.
+
+app.get('/api/geodata/parks', async c => {
+  const obj = await c.env.GEODATA.get('parks.geojson')
+  if (!obj) return c.json({ error: 'Not yet generated — trigger /api/refresh-geodata' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
+// ─── GET /api/geodata/playgrounds ─────────────────────────────────────────────
+
+app.get('/api/geodata/playgrounds', async c => {
+  const obj = await c.env.GEODATA.get('playgrounds.geojson')
+  if (!obj) return c.json({ error: 'Not yet generated — trigger /api/refresh-geodata' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
 // ─── GET /api/proxy/wfs ───────────────────────────────────────────────────────
+// Kept as fallback CORS proxy (for local dev / seeding).
 
 app.get('/api/proxy/wfs', async c => {
   const typeName = c.req.query('typeName')
-  // Whitelist: only gruenanlagen: typenames allowed (prevent SSRF abuse)
   if (!typeName || !typeName.startsWith('gruenanlagen:'))
     return c.json({ error: 'Invalid typeName' }, 400)
 
@@ -82,7 +160,7 @@ app.get('/api/proxy/wfs', async c => {
 
 app.get('/api/proxy/vbb', async c => {
   const path = c.req.query('path')
-  if (!path || !path.startsWith('/stops'))
+  if (!path || (!path.startsWith('/stops') && !path.startsWith('/locations')))
     return c.json({ error: 'Invalid path' }, 400)
   const res = await fetch(`https://v6.vbb.transport.rest${path}`)
   if (!res.ok) return c.json({ error: `Upstream ${res.status}` }, 502)
@@ -147,9 +225,29 @@ app.post('/api/ingest', async c => {
   return c.json({ ok: true, ingested: count })
 })
 
+// ─── POST /api/ingest-locations (protected) ───────────────────────────────────
+
+app.post('/api/ingest-locations', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const count = await ingestLocations(c.env)
+  return c.json({ ok: true, ingested: count })
+})
+
+// ─── POST /api/refresh-geodata (protected) ────────────────────────────────────
+
+app.post('/api/refresh-geodata', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  await refreshGeodata(c.env)
+  return c.json({ ok: true })
+})
+
 // ─── POST /api/geocode-batch (protected) ──────────────────────────────────────
-// Geocodes up to 30 events that are missing coordinates.
-// Call repeatedly until { remaining: 0 }.
 
 app.post('/api/geocode-batch', async c => {
   const auth = c.req.header('Authorization')
@@ -157,12 +255,21 @@ app.post('/api/geocode-batch', async c => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const geocoded = await geocodeAll(c.env.DB)
-  const remaining = await c.env.DB
+  // Run sequentially to stay within subrequest limits
+  const geocodedEvents    = await geocodeAll(c.env.DB)
+  const geocodedLocations = await geocodeAllLocations(c.env.DB)
+
+  const remainingEvents = await c.env.DB
     .prepare(`SELECT COUNT(*) as n FROM events WHERE lat IS NULL AND address IS NOT NULL`)
     .first<{ n: number }>()
+  const remainingLocations = await c.env.DB
+    .prepare(`SELECT COUNT(*) as n FROM locations WHERE lat IS NULL AND address IS NOT NULL`)
+    .first<{ n: number }>()
 
-  return c.json({ geocoded, remaining: remaining?.n ?? 0 })
+  return c.json({
+    geocoded: { events: geocodedEvents, locations: geocodedLocations },
+    remaining: { events: remainingEvents?.n ?? 0, locations: remainingLocations?.n ?? 0 },
+  })
 })
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
@@ -176,11 +283,24 @@ export default {
     ctx:   ExecutionContext
   ): Promise<void> {
     if (event.cron === '*/30 * * * *') {
-      // Geocode-only pass — runs frequently to catch up after ingest
+      // Geocode-only pass — runs frequently to catch up after ingest (events + locations)
       ctx.waitUntil(
-        geocodeAll(env.DB)
-          .then(n => console.log(`[geocode] geocoded ${n} events`))
-          .catch(err => console.error('[geocode] failed:', err))
+        Promise.all([
+          geocodeAll(env.DB)
+            .then(n => console.log(`[geocode] events: ${n}`))
+            .catch(err => console.error('[geocode:events]', err)),
+          geocodeAllLocations(env.DB)
+            .then(n => console.log(`[geocode] locations: ${n}`))
+            .catch(err => console.error('[geocode:locations]', err)),
+        ])
+      )
+    } else if (event.cron === '0 2 * * *') {
+      // Daily geodata refresh (R2) + location sync (D1)
+      ctx.waitUntil(
+        Promise.all([
+          refreshGeodata(env).catch(e => console.error('[geodata]', e)),
+          ingestLocations(env).catch(e => console.error('[locations]', e)),
+        ])
       )
     } else {
       // Full ingest every 6 hours

@@ -35,6 +35,26 @@ CREATE INDEX IF NOT EXISTS idx_events_date_cat   ON events(date_start, category)
 CREATE INDEX IF NOT EXISTS idx_events_borough    ON events(borough);
 CREATE INDEX IF NOT EXISTS idx_events_updated    ON events(updated_at);
 
+-- Cultural venue locations from kulturdaten.berlin
+CREATE TABLE IF NOT EXISTS locations (
+  id         TEXT PRIMARY KEY,
+  name       TEXT,
+  lat        REAL,
+  lng        REAL,
+  category   TEXT,   -- 'museum'|'gallery'|'theatre'|'library'|'other'
+  address    TEXT,
+  borough    TEXT,
+  website    TEXT,
+  tags       TEXT,   -- JSON array of raw kulturdaten tags
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_locations_geo      ON locations(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_locations_category ON locations(category);
+CREATE INDEX IF NOT EXISTS idx_locations_borough  ON locations(borough);
+
+-- Geo index on events for bbox queries
+CREATE INDEX IF NOT EXISTS idx_events_geo ON events(lat, lng);
+
 CREATE TABLE IF NOT EXISTS geocode_cache (
   address     TEXT    PRIMARY KEY,
   lat         REAL    NOT NULL,

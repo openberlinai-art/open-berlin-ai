@@ -11,7 +11,7 @@ export async function getEvents(
   db: D1Database,
   filters: EventFilters = {}
 ): Promise<EventsResult> {
-  const { date, category, price_type, page = 1, limit = 50 } = filters
+  const { date, category, price_type, bbox, page = 1, limit = 50 } = filters
   const offset = (page - 1) * limit
 
   const conditions: string[] = []
@@ -28,6 +28,15 @@ export async function getEvents(
   if (price_type && price_type !== 'all') {
     conditions.push('price_type = ?')
     params.push(price_type)
+  }
+  if (bbox) {
+    const parts = bbox.split(',').map(Number)
+    if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+      const [minLng, minLat, maxLng, maxLat] = parts
+      conditions.push('lat IS NOT NULL AND lat BETWEEN ? AND ?')
+      conditions.push('lng IS NOT NULL AND lng BETWEEN ? AND ?')
+      params.push(minLat, maxLat, minLng, maxLng)
+    }
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''

@@ -64,6 +64,32 @@ export async function geocodeAll(db: D1Database): Promise<number> {
   return total
 }
 
+/** Geocode all locations that have an address but no coordinates. */
+export async function geocodeAllLocations(db: D1Database): Promise<number> {
+  let total = 0
+  while (true) {
+    const rows = await db
+      .prepare(`SELECT id, address FROM locations WHERE lat IS NULL AND address IS NOT NULL AND LENGTH(address) > 5 LIMIT 10`)
+      .all<{ id: string; address: string }>()
+
+    if (!rows.results?.length) break
+
+    for (const row of rows.results) {
+      const coords = await geocode(db, row.address)
+      if (coords) {
+        await db
+          .prepare(`UPDATE locations SET lat = ?, lng = ? WHERE id = ?`)
+          .bind(coords.lat, coords.lng, row.id)
+          .run()
+        total++
+      }
+    }
+
+    if (rows.results.length < 30) break
+  }
+  return total
+}
+
 async function callPhoton(
   address: string
 ): Promise<{ lat: number; lng: number } | null> {

@@ -4,12 +4,14 @@ import { Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRigh
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
 
+import dynamic from 'next/dynamic'
 import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
-import BerlinMap                from './BerlinMap'
 import EventCard                from './EventCard'
 import ChatPanel                from './ChatPanel'
+
+const MapView = dynamic(() => import('./MapView'), { ssr: false })
 
 const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
@@ -266,7 +268,12 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
 
       {/* ── Map ─────────────────────────────────────────── */}
       <div className="flex-1 relative">
-        <BerlinMap events={events} activeId={activeId} layers={layers} />
+        <MapView
+          events={events}
+          activeId={activeId}
+          onEventSelect={setActiveId}
+          layers={layers}
+        />
       </div>
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}

@@ -7,7 +7,12 @@ compatibility_flags = ["nodejs_compat"]
 crons = [
   "0 */6 * * *",    # Ingest every 6 hours
   "*/30 * * * *",   # Geocode pass every 30 minutes
+  "0 2 * * *",      # Geodata + location refresh at 2am daily
 ]
+
+[[r2_buckets]]
+binding     = "GEODATA"
+bucket_name = "kulturpulse-geodata"
 
 [[d1_databases]]
 binding       = "DB"

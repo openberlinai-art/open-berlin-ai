@@ -3,6 +3,7 @@
 export interface Env {
   DB:                  D1Database
   AI:                  Ai
+  GEODATA:             R2Bucket
   KULTURDATEN_API_URL: string
   ALLOWED_ORIGIN:      string
   INGEST_SECRET:       string
@@ -41,6 +42,7 @@ export interface EventFilters {
   date?:       string
   category?:   string
   price_type?: string
+  bbox?:       string   // 'minLng,minLat,maxLng,maxLat'
   page?:       number
   limit?:      number
 }
@@ -79,6 +81,8 @@ export interface KulturdatenLocation {
   }
   borough?:   string
   geo?: { latitude?: number; longitude?: number }
+  tags?:      string[]
+  website?:   string
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
