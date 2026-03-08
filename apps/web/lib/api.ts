@@ -1,12 +1,12 @@
 import type { Event, EventsResponse, EventFilters } from './types'
 
 function getApiBase(): string {
-  // Server-side: use internal Worker URL (no CORS needed)
+  // Server-side: call worker directly
   if (typeof window === 'undefined') {
     return process.env.WORKER_API_URL ?? 'http://localhost:8787'
   }
-  // Client-side: use public URL
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+  // Client-side: use relative path — Next.js rewrites /api/* → worker
+  return ''
 }
 
 export async function fetchEvents(

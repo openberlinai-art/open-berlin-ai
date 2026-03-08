@@ -2,7 +2,7 @@ import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
 import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
-import { geocode }      from './geocoder'
+import { geocode, geocodeAll } from './geocoder'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -146,23 +146,7 @@ app.post('/api/geocode-batch', async c => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  // Fetch events without coordinates that have an address
-  const rows = await c.env.DB
-    .prepare(`SELECT id, address FROM events WHERE lat IS NULL AND address IS NOT NULL LIMIT 30`)
-    .all<{ id: string; address: string }>()
-
-  let geocoded = 0
-  for (const row of rows.results ?? []) {
-    const coords = await geocode(c.env.DB, row.address)
-    if (coords) {
-      await c.env.DB
-        .prepare(`UPDATE events SET lat = ?, lng = ? WHERE id = ?`)
-        .bind(coords.lat, coords.lng, row.id)
-        .run()
-      geocoded++
-    }
-  }
-
+  const geocoded = await geocodeAll(c.env.DB)
   const remaining = await c.env.DB
     .prepare(`SELECT COUNT(*) as n FROM events WHERE lat IS NULL AND address IS NOT NULL`)
     .first<{ n: number }>()
@@ -176,14 +160,24 @@ export default {
   fetch: app.fetch,
 
   async scheduled(
-    _event: ScheduledEvent,
-    env:    Env,
-    ctx:    ExecutionContext
+    event: ScheduledEvent,
+    env:   Env,
+    ctx:   ExecutionContext
   ): Promise<void> {
-    ctx.waitUntil(
-      ingestEvents(env).catch(err =>
-        console.error('[scheduled] ingest failed:', err)
+    if (event.cron === '*/30 * * * *') {
+      // Geocode-only pass — runs frequently to catch up after ingest
+      ctx.waitUntil(
+        geocodeAll(env.DB)
+          .then(n => console.log(`[geocode] geocoded ${n} events`))
+          .catch(err => console.error('[geocode] failed:', err))
       )
-    )
+    } else {
+      // Full ingest every 6 hours
+      ctx.waitUntil(
+        ingestEvents(env)
+          .then(n => console.log(`[ingest] done — ${n} events`))
+          .catch(err => console.error('[ingest] failed:', err))
+      )
+    }
   },
 }

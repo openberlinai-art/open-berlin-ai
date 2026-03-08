@@ -136,7 +136,9 @@ export async function upsertEvents(
           category = excluded.category, tags = excluded.tags,
           price_type = excluded.price_type,
           location_name = excluded.location_name, address = excluded.address,
-          borough = excluded.borough, lat = excluded.lat, lng = excluded.lng,
+          borough = excluded.borough,
+          lat = COALESCE(excluded.lat, lat),
+          lng = COALESCE(excluded.lng, lng),
           source_url = excluded.source_url, updated_at = datetime('now')
       `).bind(
         e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end,
