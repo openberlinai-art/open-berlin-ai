@@ -1,5 +1,6 @@
 'use client'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import Link from 'next/link'
 import Map, { Source, Layer, Popup, NavigationControl } from 'react-map-gl/maplibre'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
@@ -35,6 +36,7 @@ interface VenuePopupState {
   category: string
   address?: string
   website?: string
+  id?:      string
 }
 
 // ─── Transit popup content ────────────────────────────────────────────────────
@@ -228,6 +230,7 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
         category: (props.category as string) ?? 'other',
         address:  (props.address as string) ?? undefined,
         website:  (props.website as string) ?? undefined,
+        id:       (props.id as string) ?? undefined,
       })
       setTransitPopup(null)
       return
@@ -511,6 +514,14 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
                 >
                   {venuePopup.website.replace(/^https?:\/\//, '')}
                 </a>
+              )}
+              {venuePopup.id && (
+                <Link
+                  href={`/locations/${venuePopup.id}`}
+                  className="mt-1 text-blue-600 underline text-[10px] block"
+                >
+                  View details →
+                </Link>
               )}
             </div>
           </Popup>

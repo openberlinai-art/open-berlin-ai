@@ -1,5 +1,6 @@
 'use client'
 import { useState }          from 'react'
+import Link                  from 'next/link'
 import { MapPin, Clock, ExternalLink, Heart, Bell, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, formatDate, formatTime } from '@/lib/utils'
 import type { Event } from '@/lib/types'
@@ -76,7 +77,16 @@ export default function EventCard({ event, active, onClick }: Props) {
         <div className="flex items-start gap-1 mb-2.5">
           <MapPin size={10} className="text-gray-400 mt-0.5 shrink-0"/>
           <div>
-            <p className="text-xs text-gray-700 leading-tight">{event.location_name}</p>
+            {event.location_id
+              ? <Link
+                  href={`/locations/${event.location_id}`}
+                  onClick={e => e.stopPropagation()}
+                  className="text-xs text-gray-700 leading-tight hover:underline"
+                >
+                  {event.location_name}
+                </Link>
+              : <p className="text-xs text-gray-700 leading-tight">{event.location_name}</p>
+            }
             {event.borough && <p className="text-[10px] text-gray-400">{event.borough}</p>}
           </div>
         </div>

@@ -3,6 +3,8 @@
 // Venues           → Worker D1 (bbox query)
 // Transit/Departures → VBB API (via proxy fallback)
 
+import type { Location } from './types'
+
 const WORKER    = 'https://kulturpulse-worker.openberlinai.workers.dev'
 const VBB_BASE  = 'https://v6.vbb.transport.rest'
 const VBB_PROXY = '/api/proxy/vbb'
@@ -27,6 +29,15 @@ export async function fetchPlaygrounds(): Promise<GeoJSON.FeatureCollection> {
   const res = await fetch(`${WORKER}/api/geodata/playgrounds`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
+// ─── Location detail ──────────────────────────────────────────────────────────
+
+export async function fetchLocation(id: string): Promise<Location> {
+  const res = await fetch(`${WORKER}/api/locations/${id}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json() as { data: Location }
+  return json.data
 }
 
 // ─── Transit stops (VBB) ─────────────────────────────────────────────────────

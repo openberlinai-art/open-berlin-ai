@@ -23,6 +23,20 @@ export interface Event {
   updated_at:    string
 }
 
+export interface Location {
+  id:         string
+  name:       string | null
+  lat:        number | null
+  lng:        number | null
+  category:   string | null
+  address:    string | null
+  borough:    string | null
+  website:    string | null
+  tags:       string | null  // JSON array string
+  updated_at: string
+  events:     Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]
+}
+
 export interface EventsResponse {
   data:       Event[]
   pagination: {

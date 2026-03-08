@@ -109,6 +109,23 @@ app.get('/api/locations', async c => {
   return c.json({ type: 'FeatureCollection', features })
 })
 
+// ─── GET /api/locations/:id ───────────────────────────────────────────────────
+
+app.get('/api/locations/:id', async c => {
+  const id  = c.req.param('id')
+  const loc = await c.env.DB
+    .prepare(`SELECT * FROM locations WHERE id = ?`).bind(id)
+    .first<Record<string, unknown>>()
+  if (!loc) return c.json({ error: 'Not found' }, 404)
+
+  const { results: events } = await c.env.DB
+    .prepare(`SELECT id, title, date_start, time_start, category, price_type
+              FROM events WHERE location_id = ? ORDER BY date_start LIMIT 20`)
+    .bind(id).all<Record<string, unknown>>()
+
+  return c.json({ data: { ...loc, events } })
+})
+
 // ─── GET /api/geodata/parks ───────────────────────────────────────────────────
 // Serves parks GeoJSON from R2 with 1h CDN cache.
 
@@ -255,9 +272,10 @@ app.post('/api/geocode-batch', async c => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  // Run sequentially to stay within subrequest limits
-  const geocodedEvents    = await geocodeAll(c.env.DB)
-  const geocodedLocations = await geocodeAllLocations(c.env.DB)
+  const offset = parseInt(c.req.query('offset') ?? '0', 10)
+
+  const geocodedEvents    = await geocodeAll(c.env.DB, offset)
+  const geocodedLocations = await geocodeAllLocations(c.env.DB, offset)
 
   const remainingEvents = await c.env.DB
     .prepare(`SELECT COUNT(*) as n FROM events WHERE lat IS NULL AND address IS NOT NULL`)
