@@ -389,7 +389,6 @@ app.post('/api/lists/:id/share', async c => {
 app.get('/api/lists/:id/public', async c => {
   const list = await getList(c.req.param('id'), c.env.DB)
   if (!list) return c.json({ error: 'Not found' }, 404)
-  if (!list.is_public) return c.json({ error: 'This list is private' }, 403)
   const items = await getListItems(list.id, c.env.DB)
   return c.json({ data: { list, items } })
 })

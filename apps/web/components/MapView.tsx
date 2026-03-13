@@ -309,15 +309,14 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
         {layers.playgrounds && playgroundsData && (
           <Source id="playgrounds" type="geojson" data={playgroundsData}>
             <Layer
-              id="playgrounds-circle"
-              type="circle"
-              paint={{
-                'circle-radius':       5,
-                'circle-color':        '#f472b6',
-                'circle-stroke-color': '#9d174d',
-                'circle-stroke-width': 1,
-                'circle-opacity':      0.75,
-              }}
+              id="playgrounds-fill"
+              type="fill"
+              paint={{ 'fill-color': '#f472b6', 'fill-opacity': 0.3 }}
+            />
+            <Layer
+              id="playgrounds-outline"
+              type="line"
+              paint={{ 'line-color': '#9d174d', 'line-width': 1, 'line-opacity': 0.7 }}
             />
           </Source>
         )}

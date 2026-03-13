@@ -159,16 +159,13 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
               Tickets <ExternalLink size={8}/>
             </a>
           )}
-          {event.source_url
-            ? <a
-                href={event.source_url}
-                target="_blank" rel="noopener noreferrer"
-                className="text-xs text-gray-400 hover:text-black flex items-center gap-0.5"
-              >
-                More info <ExternalLink size={9}/>
-              </a>
-            : <span className="text-xs text-gray-200">More info</span>
-          }
+          <Link
+            href={`/events/${event.id}`}
+            onClick={e => e.stopPropagation()}
+            className="text-xs text-gray-400 hover:text-black flex items-center gap-0.5"
+          >
+            More info
+          </Link>
           <AddToListButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
         </div>
       </div>

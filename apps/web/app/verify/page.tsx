@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const WORKER    = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+const WORKER    = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
 const TOKEN_KEY = 'kp_token'
 
 function VerifyInner() {
