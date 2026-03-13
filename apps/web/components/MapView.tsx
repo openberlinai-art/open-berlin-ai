@@ -289,34 +289,54 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
       >
         <NavigationControl position="top-right" />
 
-        {/* ── Parks (polygon fill) ─────────────── */}
+        {/* ── Parks (polygon fill + centroid pin) ── */}
         {layers.parks && parksData && (
           <Source id="parks" type="geojson" data={parksData}>
             <Layer
               id="parks-fill"
               type="fill"
-              paint={{ 'fill-color': '#4ade80', 'fill-opacity': 0.25 }}
+              paint={{ 'fill-color': '#16a34a', 'fill-opacity': 0.35 }}
             />
             <Layer
               id="parks-outline"
               type="line"
-              paint={{ 'line-color': '#166534', 'line-width': 1, 'line-opacity': 0.6 }}
+              paint={{ 'line-color': '#14532d', 'line-width': 1.5, 'line-opacity': 0.7 }}
+            />
+            <Layer
+              id="parks-pin"
+              type="symbol"
+              layout={{
+                'text-field': '🌿',
+                'text-size': 14,
+                'text-allow-overlap': false,
+                'text-ignore-placement': false,
+              }}
             />
           </Source>
         )}
 
-        {/* ── Playgrounds ──────────────────────── */}
+        {/* ── Playgrounds (polygon fill + centroid pin) ── */}
         {layers.playgrounds && playgroundsData && (
           <Source id="playgrounds" type="geojson" data={playgroundsData}>
             <Layer
               id="playgrounds-fill"
               type="fill"
-              paint={{ 'fill-color': '#f472b6', 'fill-opacity': 0.3 }}
+              paint={{ 'fill-color': '#e879f9', 'fill-opacity': 0.4 }}
             />
             <Layer
               id="playgrounds-outline"
               type="line"
-              paint={{ 'line-color': '#9d174d', 'line-width': 1, 'line-opacity': 0.7 }}
+              paint={{ 'line-color': '#86198f', 'line-width': 1.5, 'line-opacity': 0.8 }}
+            />
+            <Layer
+              id="playgrounds-pin"
+              type="symbol"
+              layout={{
+                'text-field': '🛝',
+                'text-size': 14,
+                'text-allow-overlap': false,
+                'text-ignore-placement': false,
+              }}
             />
           </Source>
         )}
