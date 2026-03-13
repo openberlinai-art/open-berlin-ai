@@ -100,6 +100,11 @@ export async function sendMagicLink(email: string, env: Env): Promise<{ dev_link
 
   if (!res.ok) {
     const text = await res.text()
+    // Domain not yet verified — fall back to dev_link so auth still works
+    if (res.status === 403 && text.includes('domain is not verified')) {
+      console.warn('[auth] Resend domain not verified, falling back to dev_link')
+      return { dev_link: link }
+    }
     throw new Error(`Resend error ${res.status}: ${text}`)
   }
   return {}
