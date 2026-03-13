@@ -51,7 +51,7 @@ export default function ChatPanel({ date }: Props) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-50 bg-black text-white p-3 border-2 border-black shadow-[4px_4px_0_#555] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
+          className="fixed bottom-20 right-5 sm:bottom-5 z-50 bg-black text-white p-3 border-2 border-black shadow-[4px_4px_0_#555] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
           aria-label="Open chat"
         >
           <MessageSquare size={20} />
@@ -60,7 +60,7 @@ export default function ChatPanel({ date }: Props) {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-5 right-5 z-50 w-80 max-h-[480px] flex flex-col bg-white border-2 border-black shadow-[4px_4px_0_#000] overflow-hidden">
+        <div className="fixed bottom-20 right-5 sm:bottom-5 z-50 w-80 max-h-[480px] flex flex-col bg-white border-2 border-black shadow-[4px_4px_0_#000] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b-2 border-black bg-black text-white">
             <span className="text-sm font-bold">Ask about today's events</span>

@@ -12,6 +12,7 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
+import { useVenuesList } from '@/hooks/useCulturalData'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import { UserProvider, useUser } from '@/providers/UserProvider'
@@ -53,6 +54,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const [showAuth,   setShowAuth]   = useState(false)
   const [showLists,  setShowLists]  = useState(false)
+  const [mode,      setMode]      = useState<'events' | 'venues'>('events')
+  const [mapBbox,   setMapBbox]   = useState<string | null>(null)
+  const [venueCat,  setVenueCat]  = useState<string>('all')
+
+  const { data: venuesGeo, isFetching: venuesFetching } = useVenuesList(
+    mapBbox,
+    mode === 'venues',
+    venueCat === 'all' ? undefined : venueCat,
+  )
+
+  const venueFeatures = venuesGeo?.features ?? []
 
   const LIMIT = 50
 
@@ -227,11 +239,21 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}`}
         </div>
 
-        {/* Layer toggles */}
+        {/* Mode toggle + layer overlays */}
         <div className="px-4 py-2 border-b-2 border-black flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mr-1">
-            Layers
-          </span>
+          <button
+            onClick={() => setMode('events')}
+            className={mode === 'events' ? btnActive : btn}
+          >
+            Events
+          </button>
+          <button
+            onClick={() => setMode('venues')}
+            className={mode === 'venues' ? btnActive : btn}
+          >
+            Venues
+          </button>
+          <span className="text-[10px] text-gray-300 mx-0.5">|</span>
           <button
             onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))}
             className={layers.parks ? btnActive : btn}
@@ -244,52 +266,93 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           >
             Playgrounds
           </button>
-          <button
-            onClick={() => setLayers(l => ({ ...l, venues: !l.venues }))}
-            className={layers.venues ? btnActive : btn}
-          >
-            Venues
-          </button>
-          <button
-            onClick={() => setLayers(l => ({ ...l, galleries: !l.galleries }))}
-            className={layers.galleries ? btnActive : btn}
-          >
-            Galleries
-          </button>
-          <button
-            onClick={() => setLayers(l => ({ ...l, museums: !l.museums }))}
-            className={layers.museums ? btnActive : btn}
-          >
-            Museums
-          </button>
-          {activeId && (
+          {activeId && mode === 'events' && (
             <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">
               Transit nearby
             </span>
           )}
         </div>
 
-        {/* Event list */}
+        {/* Event list / Venue list */}
         <div className="flex-1 overflow-y-auto">
-          {loading && events.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
-          ) : events.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-sm text-gray-400">No events found</div>
+          {mode === 'events' ? (
+            loading && events.length === 0 ? (
+              <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
+            ) : events.length === 0 ? (
+              <div className="flex items-center justify-center h-32 text-sm text-gray-400">No events found</div>
+            ) : (
+              events.map(ev => (
+                <EventCard
+                  key={ev.id}
+                  event={ev}
+                  active={ev.id === activeId}
+                  onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
+                  onNeedAuth={() => setShowAuth(true)}
+                />
+              ))
+            )
           ) : (
-            events.map(ev => (
-              <EventCard
-                key={ev.id}
-                event={ev}
-                active={ev.id === activeId}
-                onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
-                onNeedAuth={() => setShowAuth(true)}
-              />
-            ))
+            <>
+              {/* Venue category filter */}
+              <div className="px-4 py-2 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
+                {(['all', 'museum', 'gallery', 'theatre', 'library', 'other'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setVenueCat(c)}
+                    className={venueCat === c ? btnActive : btn}
+                  >
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {/* Venue list */}
+              {venuesFetching && venueFeatures.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
+              ) : venueFeatures.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-gray-400">
+                  {mapBbox ? 'No venues in view' : 'Pan the map to load venues'}
+                </div>
+              ) : (
+                venueFeatures.map(f => {
+                  const p = f.properties as { id?: string; name?: string; category?: string; address?: string; borough?: string }
+                  return (
+                    <div
+                      key={p.id}
+                      className="px-4 py-3 border-b-2 border-black hover:bg-gray-50 cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-gray-900 leading-snug truncate">{p.name ?? 'Unnamed'}</p>
+                          {p.address && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{p.address}</p>}
+                          {p.borough && <p className="text-[10px] text-gray-400">{p.borough}</p>}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {p.category && p.category !== 'other' && (
+                            <span className="text-[10px] border-2 border-black px-1.5 py-0.5 font-bold bg-white">
+                              {p.category}
+                            </span>
+                          )}
+                          {p.id && (
+                            <a
+                              href={`/locations/${p.id}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                            >
+                              Details →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </>
           )}
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {mode === 'events' && totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-2 border-t-2 border-black text-xs">
             <button
               disabled={page <= 1}
@@ -316,7 +379,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           events={events}
           activeId={activeId}
           onEventSelect={setActiveId}
-          layers={layers}
+          layers={{
+            ...layers,
+            venues:    mode === 'venues',
+            galleries: mode === 'venues',
+            museums:   mode === 'venues',
+          }}
+          mode={mode}
+          onBboxChange={setMapBbox}
         />
       </div>
 

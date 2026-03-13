@@ -1,8 +1,11 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { X, Trash2, Link as LinkIcon, Plus, ChevronDown, ChevronUp, Mail } from 'lucide-react'
 import { useUser, type KPListItem } from '@/providers/UserProvider'
-import { formatDate, formatTime } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+
+interface ItemDetail { title: string; subtitle?: string }
 
 interface Props {
   onClose: () => void
@@ -19,6 +22,7 @@ export default function ListsDrawer({ onClose }: Props) {
   const [shareEmail,  setShareEmail]  = useState('')
   const [shareStatus, setShareStatus] = useState<Record<string, 'idle' | 'sending' | 'ok' | 'error'>>({})
   const [shareError,  setShareError]  = useState<Record<string, string>>({})
+  const [details,     setDetails]     = useState<Record<string, ItemDetail>>({})
 
   async function handleShare(listId: string, e: React.FormEvent) {
     e.preventDefault()
@@ -46,6 +50,28 @@ export default function ListsDrawer({ onClose }: Props) {
   useEffect(() => {
     if (expanded) loadItems(expanded)
   }, [expanded, loadItems])
+
+  // Fetch details (title, date) for each item when a list is expanded
+  useEffect(() => {
+    if (!expanded || !items[expanded]) return
+    const toFetch = items[expanded].filter(i => !details[i.item_id])
+    if (!toFetch.length) return
+    toFetch.forEach(async item => {
+      try {
+        const path = item.item_type === 'event'
+          ? `/api/events/${item.item_id}`
+          : `/api/locations/${item.item_id}`
+        const res = await fetch(path)
+        if (!res.ok) return
+        const json = await res.json() as { data: Record<string, unknown> }
+        const d = json.data
+        const title    = (item.item_type === 'event' ? d.title    : d.name)    as string ?? item.item_id
+        const subtitle = (item.item_type === 'event' ? formatDate(d.date_start as string) : d.category) as string | undefined
+        setDetails(prev => ({ ...prev, [item.item_id]: { title, subtitle } }))
+      } catch { /* ignore */ }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, expanded])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -186,22 +212,36 @@ export default function ListsDrawer({ onClose }: Props) {
                     ) : items[list.id].length === 0 ? (
                       <p className="text-[10px] text-gray-400 py-1">No items yet.</p>
                     ) : (
-                      items[list.id].map(item => (
-                        <div key={item.id} className="flex items-center justify-between gap-1 border border-gray-200 px-2 py-1">
-                          <div className="min-w-0">
-                            <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">{item.item_type}</span>
-                            <p className="text-[10px] font-mono truncate">{item.item_id}</p>
-                            {item.notes && <p className="text-[10px] text-gray-500 italic truncate">{item.notes}</p>}
+                      items[list.id].map(item => {
+                        const det  = details[item.item_id]
+                        const href = item.item_type === 'event'
+                          ? `/events/${item.item_id}`
+                          : `/locations/${item.item_id}`
+                        return (
+                          <div key={item.id} className="flex items-start justify-between gap-1.5 border border-gray-200 px-2 py-1.5">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[9px] uppercase tracking-wide text-gray-400 font-bold">{item.item_type}</span>
+                              <Link
+                                href={href}
+                                className="block text-xs font-bold text-gray-900 hover:underline leading-snug mt-0.5"
+                              >
+                                {det?.title ?? <span className="font-mono text-[10px] text-gray-400">{item.item_id}</span>}
+                              </Link>
+                              {det?.subtitle && (
+                                <p className="text-[10px] text-gray-500 mt-0.5">{det.subtitle}</p>
+                              )}
+                              {item.notes && <p className="text-[10px] text-gray-400 italic mt-0.5 truncate">"{item.notes}"</p>}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveItem(list.id, item.id)}
+                              className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center border border-gray-300 hover:border-black hover:bg-black hover:text-white text-gray-400"
+                              title="Remove"
+                            >
+                              <X size={9} />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => handleRemoveItem(list.id, item.id)}
-                            className="shrink-0 w-5 h-5 flex items-center justify-center border border-gray-300 hover:border-black hover:bg-black hover:text-white text-gray-400"
-                            title="Remove"
-                          >
-                            <X size={9} />
-                          </button>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 )}

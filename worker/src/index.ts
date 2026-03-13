@@ -163,6 +163,32 @@ app.get('/api/geodata/playgrounds', async c => {
   })
 })
 
+// ─── GET /api/geodata/parks-points ────────────────────────────────────────────
+
+app.get('/api/geodata/parks-points', async c => {
+  const obj = await c.env.GEODATA.get('parks-points.geojson')
+  if (!obj) return c.json({ error: 'Not yet generated — trigger /api/refresh-geodata' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
+// ─── GET /api/geodata/playgrounds-points ──────────────────────────────────────
+
+app.get('/api/geodata/playgrounds-points', async c => {
+  const obj = await c.env.GEODATA.get('playgrounds-points.geojson')
+  if (!obj) return c.json({ error: 'Not yet generated — trigger /api/refresh-geodata' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
 // ─── GET /api/proxy/wfs ───────────────────────────────────────────────────────
 // Kept as fallback CORS proxy (for local dev / seeding).
 

@@ -3,6 +3,7 @@ import {
   fetchParks,
   fetchPlaygrounds,
   fetchVenuesByBbox,
+  fetchVenuesList,
   fetchTransitStopsVBB,
   fetchDepartures,
 } from '@/lib/opendata'
@@ -51,5 +52,15 @@ export function useDepartures(stopId: string | null) {
     queryFn:   () => fetchDepartures(stopId!),
     enabled:   stopId !== null,
     staleTime: 300_000,
+  })
+}
+
+export function useVenuesList(bbox: string | null, enabled: boolean, category?: string) {
+  return useQuery({
+    queryKey:        ['venues-list', bbox, category ?? 'all'],
+    queryFn:         () => fetchVenuesList(bbox!, category),
+    enabled:         enabled && bbox !== null,
+    staleTime:       5 * 60_000,
+    placeholderData: keepPreviousData,
   })
 }

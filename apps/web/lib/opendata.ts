@@ -22,13 +22,21 @@ export async function fetchVenuesByBbox(bbox: string, category?: string): Promis
 // ─── Parks / Playgrounds (R2, CDN cached) ────────────────────────────────────
 
 export async function fetchParks(): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`${WORKER}/api/geodata/parks`)
+  const res = await fetch(`${WORKER}/api/geodata/parks-points`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }
 
 export async function fetchPlaygrounds(): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`${WORKER}/api/geodata/playgrounds`)
+  const res = await fetch(`${WORKER}/api/geodata/playgrounds-points`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
+export async function fetchVenuesList(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
+  const params = new URLSearchParams({ bbox, limit: '200' })
+  if (category) params.set('category', category)
+  const res = await fetch(`${WORKER}/api/locations?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }

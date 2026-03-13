@@ -21,6 +21,8 @@ interface Props {
   activeId:      string | null
   onEventSelect: (id: string | null) => void
   layers:        { parks: boolean; playgrounds: boolean; venues: boolean; galleries: boolean; museums: boolean }
+  mode:          'events' | 'venues'
+  onBboxChange:  (bbox: string) => void
 }
 
 interface TransitPopupState {
@@ -88,7 +90,7 @@ function TransitPopupContent({
 
 // ─── Main MapView component ───────────────────────────────────────────────────
 
-export default function MapView({ events, activeId, onEventSelect, layers }: Props) {
+export default function MapView({ events, activeId, onEventSelect, layers, mode, onBboxChange }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -158,10 +160,10 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
     if (!map) return
     const b = map.getBounds()
     if (!b) return
-    setBbox(
-      `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`,
-    )
-  }, [])
+    const bboxStr = `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`
+    setBbox(bboxStr)
+    onBboxChange(bboxStr)
+  }, [onBboxChange])
 
   const onLoad    = useCallback(() => updateBbox(), [updateBbox])
   const onMoveEnd = useCallback(() => {
@@ -289,53 +291,35 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
       >
         <NavigationControl position="top-right" />
 
-        {/* ── Parks (polygon fill + centroid pin) ── */}
+        {/* ── Parks (centroid points) ───────────── */}
         {layers.parks && parksData && (
           <Source id="parks" type="geojson" data={parksData}>
             <Layer
-              id="parks-fill"
-              type="fill"
-              paint={{ 'fill-color': '#16a34a', 'fill-opacity': 0.35 }}
-            />
-            <Layer
-              id="parks-outline"
-              type="line"
-              paint={{ 'line-color': '#14532d', 'line-width': 1.5, 'line-opacity': 0.7 }}
-            />
-            <Layer
-              id="parks-pin"
-              type="symbol"
-              layout={{
-                'text-field': '🌿',
-                'text-size': 14,
-                'text-allow-overlap': false,
-                'text-ignore-placement': false,
+              id="parks-point"
+              type="circle"
+              paint={{
+                'circle-radius':       6,
+                'circle-color':        '#16a34a',
+                'circle-stroke-color': '#14532d',
+                'circle-stroke-width': 1.5,
+                'circle-opacity':      0.85,
               }}
             />
           </Source>
         )}
 
-        {/* ── Playgrounds (polygon fill + centroid pin) ── */}
+        {/* ── Playgrounds (centroid points) ─────── */}
         {layers.playgrounds && playgroundsData && (
           <Source id="playgrounds" type="geojson" data={playgroundsData}>
             <Layer
-              id="playgrounds-fill"
-              type="fill"
-              paint={{ 'fill-color': '#e879f9', 'fill-opacity': 0.4 }}
-            />
-            <Layer
-              id="playgrounds-outline"
-              type="line"
-              paint={{ 'line-color': '#86198f', 'line-width': 1.5, 'line-opacity': 0.8 }}
-            />
-            <Layer
-              id="playgrounds-pin"
-              type="symbol"
-              layout={{
-                'text-field': '🛝',
-                'text-size': 14,
-                'text-allow-overlap': false,
-                'text-ignore-placement': false,
+              id="playgrounds-point"
+              type="circle"
+              paint={{
+                'circle-radius':       6,
+                'circle-color':        '#e879f9',
+                'circle-stroke-color': '#86198f',
+                'circle-stroke-width': 1.5,
+                'circle-opacity':      0.85,
               }}
             />
           </Source>
@@ -480,7 +464,7 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
         )}
 
         {/* ── Events (clustered, data-driven color) ─ */}
-        <Source
+        {mode === 'events' && <Source
           id="events"
           type="geojson"
           data={eventsGeoJSON}
@@ -524,7 +508,7 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
               'circle-opacity': 0.9,
             }}
           />
-        </Source>
+        </Source>}
 
         {/* ── Transit stops (when event selected) ── */}
         {activeId && (
