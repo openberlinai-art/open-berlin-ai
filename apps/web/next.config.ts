@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 
-const WORKER = process.env.WORKER_API_URL ?? 'http://localhost:8787'
+const WORKER = process.env.WORKER_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
 
 const config: NextConfig = {
   transpilePackages: ['maplibre-gl', 'react-map-gl'],

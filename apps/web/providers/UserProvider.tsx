@@ -4,7 +4,7 @@ import {
   type ReactNode,
 } from 'react'
 
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
 const TOKEN_KEY = 'kp_token'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
