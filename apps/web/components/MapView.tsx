@@ -20,7 +20,7 @@ interface Props {
   events:        Event[]
   activeId:      string | null
   onEventSelect: (id: string | null) => void
-  layers:        { parks: boolean; playgrounds: boolean; venues: boolean }
+  layers:        { parks: boolean; playgrounds: boolean; venues: boolean; galleries: boolean; museums: boolean }
 }
 
 interface TransitPopupState {
@@ -104,6 +104,8 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
   const { data: playgroundsData, isFetching: playgroundsFetching } = usePlaygrounds(layers.playgrounds)
   const { data: venuesData,     isFetching: venuesFetching,
           isError: venuesError }                                   = useVenuesByBbox(bbox, layers.venues)
+  const { data: galleriesData, isFetching: galleriesFetching }    = useVenuesByBbox(bbox, layers.galleries, 'gallery')
+  const { data: museumsData,   isFetching: museumsFetching }      = useVenuesByBbox(bbox, layers.museums, 'museum')
 
   const activeEvent = useMemo(
     () => events.find(e => e.id === activeId) ?? null,
@@ -185,7 +187,8 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
     }
 
     // Cluster → zoom in
-    if (layerId === 'event-clusters' || layerId === 'venue-clusters') {
+    if (layerId === 'event-clusters' || layerId === 'venue-clusters' ||
+        layerId === 'gallery-clusters' || layerId === 'museum-clusters') {
       const map = mapRef.current
       if (!map) return
       const clusterId  = feature.properties?.cluster_id as number
@@ -218,8 +221,8 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
       return
     }
 
-    // Venue marker → show info popup
-    if (layerId === 'venues-point') {
+    // Venue / gallery / museum marker → show info popup
+    if (layerId === 'venues-point' || layerId === 'galleries-point' || layerId === 'museums-point') {
       const props  = feature.properties
       if (!props) return
       const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
@@ -259,7 +262,7 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
     }
   }, [activeId])
 
-  const isFetching = parksFetching || playgroundsFetching || venuesFetching
+  const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -274,7 +277,9 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
         interactiveLayerIds={[
           'events-point', 'event-clusters',
           'transit-point',
-          'venues-point',  'venue-clusters',
+          'venues-point',    'venue-clusters',
+          'galleries-point', 'gallery-clusters',
+          'museums-point',   'museum-clusters',
         ]}
         onLoad={onLoad}
         onMoveEnd={onMoveEnd}
@@ -356,6 +361,98 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
                 'circle-radius':       6,
                 'circle-color':        '#b45309',
                 'circle-stroke-color': '#78350f',
+                'circle-stroke-width': 1.5,
+                'circle-opacity':      0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Galleries (D1 bbox, clustered) ───────── */}
+        {layers.galleries && galleriesData && (
+          <Source
+            id="galleries"
+            type="geojson"
+            data={galleriesData}
+            cluster={true}
+            clusterMaxZoom={14}
+            clusterRadius={40}
+          >
+            <Layer
+              id="gallery-clusters"
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={{
+                'circle-color':  '#6d28d9',
+                'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
+                'circle-opacity': 0.85,
+              }}
+            />
+            <Layer
+              id="gallery-cluster-count"
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={{
+                'text-field': '{point_count_abbreviated}',
+                'text-size':  11,
+                'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
+              }}
+              paint={{ 'text-color': '#fff' }}
+            />
+            <Layer
+              id="galleries-point"
+              type="circle"
+              filter={['!', ['has', 'point_count']]}
+              paint={{
+                'circle-radius':       6,
+                'circle-color':        '#7c3aed',
+                'circle-stroke-color': '#4c1d95',
+                'circle-stroke-width': 1.5,
+                'circle-opacity':      0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Museums (D1 bbox, clustered) ─────────── */}
+        {layers.museums && museumsData && (
+          <Source
+            id="museums"
+            type="geojson"
+            data={museumsData}
+            cluster={true}
+            clusterMaxZoom={14}
+            clusterRadius={40}
+          >
+            <Layer
+              id="museum-clusters"
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={{
+                'circle-color':  '#991b1b',
+                'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
+                'circle-opacity': 0.85,
+              }}
+            />
+            <Layer
+              id="museum-cluster-count"
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={{
+                'text-field': '{point_count_abbreviated}',
+                'text-size':  11,
+                'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
+              }}
+              paint={{ 'text-color': '#fff' }}
+            />
+            <Layer
+              id="museums-point"
+              type="circle"
+              filter={['!', ['has', 'point_count']]}
+              paint={{
+                'circle-radius':       6,
+                'circle-color':        '#b91c1c',
+                'circle-stroke-color': '#7f1d1d',
                 'circle-stroke-width': 1.5,
                 'circle-opacity':      0.85,
               }}
@@ -445,26 +542,43 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
             longitude={activeEvent.lng}
             latitude={activeEvent.lat}
             anchor="bottom"
-            closeButton={true}
+            closeButton={false}
             onClose={() => onEventSelect(null)}
-            maxWidth="240px"
+            maxWidth="260px"
           >
-            <div className="font-sans p-2 min-w-[160px] text-xs">
-              <p className="font-bold mb-1">{activeEvent.title}</p>
-              {activeEvent.location_name && (
-                <p className="text-gray-500 mb-0.5">{activeEvent.location_name}</p>
-              )}
-              {activeEvent.borough && (
-                <p className="text-gray-400 mb-1">{activeEvent.borough}</p>
-              )}
-              <p className="text-gray-600">
-                {[
-                  activeEvent.time_start?.slice(0, 5),
-                  activeEvent.price_type === 'free' ? 'Free'
-                    : activeEvent.price_type === 'paid' ? 'Paid'
-                    : null,
-                ].filter(Boolean).join(' · ')}
-              </p>
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
+              <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
+                <p className="font-bold text-gray-900 leading-snug">{activeEvent.title}</p>
+                <button
+                  onClick={() => onEventSelect(null)}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <div className="px-3 pb-2.5 space-y-0.5">
+                {activeEvent.location_name && (
+                  <p className="text-gray-500">{activeEvent.location_name}</p>
+                )}
+                {activeEvent.borough && (
+                  <p className="text-gray-400">{activeEvent.borough}</p>
+                )}
+                <p className="text-gray-600 pt-0.5">
+                  {[
+                    activeEvent.time_start?.slice(0, 5),
+                    activeEvent.price_type === 'free' ? 'Free'
+                      : activeEvent.price_type === 'paid' ? 'Paid'
+                      : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+                {activeEvent.location_id && (
+                  <Link
+                    href={`/locations/${activeEvent.location_id}`}
+                    className="inline-block mt-1 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                  >
+                    View venue →
+                  </Link>
+                )}
+              </div>
             </div>
           </Popup>
         )}
@@ -475,15 +589,27 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
             longitude={transitPopup.lng}
             latitude={transitPopup.lat}
             anchor="bottom"
-            closeButton={true}
+            closeButton={false}
             onClose={() => { setTransitPopup(null); setActiveTransitId(null) }}
-            maxWidth="280px"
+            maxWidth="300px"
           >
-            <TransitPopupContent
-              stop={transitPopup.stop}
-              departures={departures}
-              loading={depsLoading}
-            />
+            <div className="border-2 border-black bg-white shadow-[3px_3px_0_#000]">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200">
+                <span className="text-[10px] text-gray-400 uppercase tracking-wide">Transit</span>
+                <button
+                  onClick={() => { setTransitPopup(null); setActiveTransitId(null) }}
+                  className="w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <div className="px-3 py-2">
+                <TransitPopupContent
+                  stop={transitPopup.stop}
+                  departures={departures}
+                  loading={depsLoading}
+                />
+              </div>
+            </div>
           </Popup>
         )}
 
@@ -493,36 +619,47 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
             longitude={venuePopup.lng}
             latitude={venuePopup.lat}
             anchor="bottom"
-            closeButton={true}
+            closeButton={false}
             onClose={() => setVenuePopup(null)}
-            maxWidth="240px"
+            maxWidth="260px"
           >
-            <div className="font-sans p-2 min-w-[160px] text-xs">
-              <p className="font-bold mb-1">{venuePopup.name}</p>
-              {venuePopup.category && (
-                <p className="text-gray-500 capitalize mb-0.5">{venuePopup.category}</p>
-              )}
-              {venuePopup.address && (
-                <p className="text-gray-500 mb-1">{venuePopup.address}</p>
-              )}
-              {venuePopup.website && (
-                <a
-                  href={venuePopup.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline break-all"
-                >
-                  {venuePopup.website.replace(/^https?:\/\//, '')}
-                </a>
-              )}
-              {venuePopup.id && (
-                <Link
-                  href={`/locations/${venuePopup.id}`}
-                  className="mt-1 text-blue-600 underline text-[10px] block"
-                >
-                  View details →
-                </Link>
-              )}
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
+              <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
+                <div>
+                  <p className="font-bold text-gray-900 leading-snug">{venuePopup.name}</p>
+                  {venuePopup.category && (
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{venuePopup.category}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setVenuePopup(null)}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <div className="px-3 pb-2.5 space-y-1">
+                {venuePopup.address && (
+                  <p className="text-gray-500 font-mono text-[10px]">{venuePopup.address}</p>
+                )}
+                {venuePopup.website && (
+                  <a
+                    href={venuePopup.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-500 underline break-all text-[10px] block"
+                  >
+                    {venuePopup.website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+                {venuePopup.id && (
+                  <Link
+                    href={`/locations/${venuePopup.id}`}
+                    className="inline-block mt-0.5 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                  >
+                    View venue →
+                  </Link>
+                )}
+              </div>
             </div>
           </Popup>
         )}
@@ -544,6 +681,16 @@ export default function MapView({ events, activeId, onEventSelect, layers }: Pro
           {venuesFetching && (
             <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
               Loading venues…
+            </span>
+          )}
+          {galleriesFetching && (
+            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
+              Loading galleries…
+            </span>
+          )}
+          {museumsFetching && (
+            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
+              Loading museums…
             </span>
           )}
           {venuesError && (

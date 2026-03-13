@@ -28,3 +28,6 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 # Secrets (set via: wrangler secret put SECRET_NAME)
 # INGEST_SECRET    — random token to protect the manual /api/ingest endpoint
 # ALLOWED_ORIGIN   — your Vercel deployment URL
+# RESEND_API_KEY   — Resend API key for magic-link emails
+# JWT_SECRET       — random 32+ char string for signing session JWTs
+# FRONTEND_URL     — full URL of the Next.js app (e.g. https://kulturpulse.vercel.app)

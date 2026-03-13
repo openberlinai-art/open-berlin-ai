@@ -4,22 +4,28 @@ import Link                  from 'next/link'
 import { MapPin, Clock, ExternalLink, Heart, Bell, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, formatDate, formatTime } from '@/lib/utils'
 import type { Event } from '@/lib/types'
+import AddToListButton from './AddToListButton'
 
 interface Props {
-  event:    Event
-  active:   boolean
-  onClick:  () => void
+  event:      Event
+  active:     boolean
+  onClick:    () => void
+  onNeedAuth: () => void
 }
 
-export default function EventCard({ event, active, onClick }: Props) {
+export default function EventCard({ event, active, onClick, onNeedAuth }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [followed, setFollowed] = useState(false)
   const [reminded, setReminded] = useState(false)
 
-  const time    = formatTime(event.time_start)
-  const hasDesc = !!event.description
-  const desc    = expanded ? event.description : event.description?.slice(0, 140)
+  const time       = formatTime(event.time_start)
+  const doorTime   = event.door_time ? formatTime(event.door_time) : null
+  const hasDesc    = !!event.description
+  const desc       = expanded ? event.description : event.description?.slice(0, 140)
   const showEllipsis = !expanded && (event.description?.length ?? 0) > 140
+  const isCancelled  = event.schedule_status === 'cancelled'
+  const isPostponed  = event.schedule_status === 'postponed'
+  const isRescheduled = event.schedule_status === 'rescheduled'
 
   return (
     <div
@@ -32,10 +38,32 @@ export default function EventCard({ event, active, onClick }: Props) {
       {/* Date + badges */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
         <div>
-          <p className="text-xs font-bold text-gray-900">{formatDate(event.date_start)}</p>
-          {time && <p className="text-xs text-gray-500 mt-0.5">{time}</p>}
+          <p className={cn("text-xs font-bold", isCancelled ? "text-red-600 line-through" : "text-gray-900")}>
+            {formatDate(event.date_start)}
+          </p>
+          {time && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              {time}
+              {doorTime && doorTime !== time && <span className="text-gray-400"> · doors {doorTime}</span>}
+            </p>
+          )}
         </div>
         <div className="flex gap-1 flex-wrap justify-end">
+          {isCancelled && (
+            <span className="px-1.5 py-0.5 border-2 border-red-600 bg-red-600 text-white text-[10px] font-bold">
+              Cancelled
+            </span>
+          )}
+          {isPostponed && (
+            <span className="px-1.5 py-0.5 border-2 border-orange-500 bg-orange-500 text-white text-[10px] font-bold">
+              Postponed
+            </span>
+          )}
+          {isRescheduled && (
+            <span className="px-1.5 py-0.5 border-2 border-yellow-600 bg-yellow-100 text-yellow-800 text-[10px] font-bold">
+              Rescheduled
+            </span>
+          )}
           {event.category && (
             <span className="px-1.5 py-0.5 border-2 border-black text-[10px] font-bold bg-white">
               {event.category}
@@ -92,6 +120,13 @@ export default function EventCard({ event, active, onClick }: Props) {
         </div>
       )}
 
+      {/* Please note */}
+      {event.please_note && (
+        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 mb-2 leading-snug">
+          ⚠ {event.please_note}
+        </p>
+      )}
+
       {/* Actions */}
       <div className="flex items-center justify-between mt-1">
         <div className="flex gap-3">
@@ -114,17 +149,28 @@ export default function EventCard({ event, active, onClick }: Props) {
             <Bell size={11} fill={reminded ? 'currentColor' : 'none'}/> Remind
           </button>
         </div>
-        {event.source_url
-          ? <a
-              href={event.source_url}
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          {event.admission_link && (
+            <a
+              href={event.admission_link}
               target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="text-xs text-gray-400 hover:text-black flex items-center gap-0.5"
+              className="text-[10px] font-bold border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white flex items-center gap-0.5"
             >
-              More info <ExternalLink size={9}/>
+              Tickets <ExternalLink size={8}/>
             </a>
-          : <span className="text-xs text-gray-200">More info</span>
-        }
+          )}
+          {event.source_url
+            ? <a
+                href={event.source_url}
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs text-gray-400 hover:text-black flex items-center gap-0.5"
+              >
+                More info <ExternalLink size={9}/>
+              </a>
+            : <span className="text-xs text-gray-200">More info</span>
+          }
+          <AddToListButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
+        </div>
       </div>
     </div>
   )

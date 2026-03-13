@@ -11,8 +11,10 @@ const VBB_PROXY = '/api/proxy/vbb'
 
 // ─── Venue locations (D1 bbox query) ─────────────────────────────────────────
 
-export async function fetchVenuesByBbox(bbox: string): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`${WORKER}/api/locations?bbox=${encodeURIComponent(bbox)}&limit=500`)
+export async function fetchVenuesByBbox(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
+  const params = new URLSearchParams({ bbox, limit: '500' })
+  if (category) params.set('category', category)
+  const res = await fetch(`${WORKER}/api/locations?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }

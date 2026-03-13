@@ -25,11 +25,11 @@ export function usePlaygrounds(enabled: boolean) {
   })
 }
 
-/** Bbox-aware venues — refetches when map viewport changes. */
-export function useVenuesByBbox(bbox: string | null, enabled: boolean) {
+/** Bbox-aware venues — refetches when map viewport changes. Optional category filter. */
+export function useVenuesByBbox(bbox: string | null, enabled: boolean, category?: string) {
   return useQuery({
-    queryKey:        ['venues', bbox],
-    queryFn:         () => fetchVenuesByBbox(bbox!),
+    queryKey:        ['venues', bbox, category ?? 'all'],
+    queryFn:         () => fetchVenuesByBbox(bbox!, category),
     enabled:         enabled && bbox !== null,
     staleTime:       5 * 60_000,
     placeholderData: keepPreviousData,

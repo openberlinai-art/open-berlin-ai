@@ -125,16 +125,18 @@ export async function upsertEvents(
     const stmts = chunk.map(e =>
       db.prepare(`
         INSERT INTO events (
-          id, title, description, date_start, date_end, time_start, time_end,
-          category, tags, price_type, price_min, price_max,
+          id, title, description, date_start, date_end, time_start, time_end, door_time,
+          category, tags, price_type, price_min, price_max, admission_link,
           location_name, address, borough, lat, lng,
           source_url, attraction_id, location_id,
+          schedule_status, please_note,
           created_at, updated_at
         ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
           ?, ?, ?,
+          ?, ?,
           COALESCE((SELECT created_at FROM events WHERE id = ?), datetime('now')),
           datetime('now')
         )
@@ -142,18 +144,24 @@ export async function upsertEvents(
           title = excluded.title, description = excluded.description,
           date_start = excluded.date_start, date_end = excluded.date_end,
           time_start = excluded.time_start, time_end = excluded.time_end,
+          door_time = excluded.door_time,
           category = excluded.category, tags = excluded.tags,
           price_type = excluded.price_type,
+          admission_link = excluded.admission_link,
           location_name = excluded.location_name, address = excluded.address,
           borough = excluded.borough,
           lat = COALESCE(excluded.lat, lat),
           lng = COALESCE(excluded.lng, lng),
-          source_url = excluded.source_url, updated_at = datetime('now')
+          source_url = excluded.source_url,
+          schedule_status = excluded.schedule_status,
+          please_note = excluded.please_note,
+          updated_at = datetime('now')
       `).bind(
-        e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end,
-        e.category, e.tags, e.price_type, e.price_min, e.price_max,
+        e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end, e.door_time,
+        e.category, e.tags, e.price_type, e.price_min, e.price_max, e.admission_link,
         e.location_name, e.address, e.borough, e.lat, e.lng,
         e.source_url, e.attraction_id, e.location_id,
+        e.schedule_status, e.please_note,
         e.id
       )
     )

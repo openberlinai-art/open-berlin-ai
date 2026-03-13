@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { fetchLocation } from '@/lib/opendata'
-import { formatDate, formatTime } from '@/lib/utils'
+import { VenuePageClient } from '@/components/VenuePageClient'
+import type { OpeningHour } from '@/lib/types'
 
 export const revalidate = 86400
 
@@ -16,11 +17,54 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const loc = await fetchLocation(id)
     return {
       title:       `${loc.name ?? 'Venue'} — KulturPulse`,
-      description: [loc.category, loc.address, loc.borough].filter(Boolean).join(', '),
+      description: [loc.description, loc.category, loc.address, loc.borough].filter(Boolean).join(' · '),
     }
   } catch {
     return { title: 'Venue — KulturPulse' }
   }
+}
+
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+
+function OpeningHoursBlock({ json }: { json: string }) {
+  let hours: OpeningHour[] = []
+  try { hours = JSON.parse(json) } catch { return null }
+  if (!hours.length) return null
+  // Sort by standard day order
+  const sorted = [...hours].sort((a, b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek))
+  return (
+    <div className="border-2 border-black p-3 mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Opening Hours</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+        {sorted.map((h, i) => (
+          <div key={i} className="flex justify-between text-xs">
+            <span className="text-gray-500 w-24 shrink-0">{h.dayOfWeek.slice(0, 3)}</span>
+            <span className="font-mono text-gray-800">{h.opens}–{h.closes}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AccessibilityBlock({ json }: { json: string }) {
+  let items: string[] = []
+  try { items = JSON.parse(json) } catch { return null }
+  if (!items.length) return null
+  // Prettify codes like "WC_DIN_18024" → "WC DIN 18024", "Elevator" → "Elevator"
+  const pretty = items.map(s => s.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'))
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">Accessibility</p>
+      <div className="flex flex-wrap gap-1.5">
+        {pretty.map((label, i) => (
+          <span key={i} className="px-1.5 py-0.5 border border-black text-[10px] font-mono text-gray-700">
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default async function LocationPage({ params }: Props) {
@@ -32,7 +76,21 @@ export default async function LocationPage({ params }: Props) {
     notFound()
   }
 
-  const tags: string[] = loc.tags ? JSON.parse(loc.tags) : []
+  const tags:       string[] = loc.tags       ? JSON.parse(loc.tags)       : []
+  const extraLinks: Array<{ url: string; displayName?: string }> =
+    loc.extra_links ? JSON.parse(loc.extra_links) : []
+
+  // Normalize opening status label
+  const openStatusLabel =
+    loc.opening_status === 'location.opened'           ? 'Open'
+    : loc.opening_status === 'location.closed'          ? 'Closed'
+    : loc.opening_status === 'location.permanentlyClosed' ? 'Permanently Closed'
+    : null
+
+  const openStatusClass =
+    loc.opening_status === 'location.opened'
+      ? 'bg-black text-white border-black'
+      : 'bg-white text-black border-black'
 
   return (
     <main className="min-h-screen bg-white font-sans">
@@ -44,43 +102,84 @@ export default async function LocationPage({ params }: Props) {
         >
           ← Back to map
         </Link>
-        <span className="text-xs text-gray-400">Venue</span>
+        <span className="text-xs text-gray-400 capitalize">{loc.category ?? 'Venue'}</span>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* ── Name + category ── */}
+        {/* ── Name + category + opening status ── */}
         <div className="mb-4">
-          {loc.category && (
-            <span className="inline-block px-1.5 py-0.5 border-2 border-black text-[10px] font-bold bg-white mb-2 uppercase">
-              {loc.category}
-            </span>
-          )}
+          <div className="flex items-center gap-2 mb-2">
+            {loc.category && (
+              <span className="inline-block px-1.5 py-0.5 border-2 border-black text-[10px] font-bold bg-white uppercase">
+                {loc.category}
+              </span>
+            )}
+            {openStatusLabel && (
+              <span className={`inline-block px-1.5 py-0.5 border-2 text-[10px] font-bold ${openStatusClass}`}>
+                {openStatusLabel}
+              </span>
+            )}
+          </div>
           <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
             {loc.name ?? 'Unknown Venue'}
           </h1>
         </div>
 
-        {/* ── Address + borough ── */}
-        {(loc.address || loc.borough) && (
-          <div className="border-2 border-black p-3 mb-4 text-sm">
+        {/* ── Description ── */}
+        {loc.description && (
+          <p className="text-sm text-gray-600 leading-relaxed mb-4">
+            {loc.description}
+          </p>
+        )}
+
+        {/* ── Address + borough + phone ── */}
+        {(loc.address || loc.borough || loc.phone) && (
+          <div className="border-2 border-black p-3 mb-4 text-sm space-y-0.5">
             {loc.address && <p className="font-mono text-gray-700">{loc.address}</p>}
-            {loc.borough && <p className="text-xs text-gray-400 mt-0.5">{loc.borough}</p>}
+            {loc.borough && <p className="text-xs text-gray-400">{loc.borough}</p>}
+            {loc.phone && (
+              <a
+                href={`tel:${loc.phone.replace(/\s/g, '')}`}
+                className="text-xs text-gray-600 hover:text-black font-mono block mt-1"
+              >
+                📞 {loc.phone}
+              </a>
+            )}
           </div>
         )}
 
-        {/* ── Website ── */}
-        {loc.website && (
-          <div className="mb-4">
-            <a
-              href={loc.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 underline break-all hover:text-blue-800"
-            >
-              {loc.website.replace(/^https?:\/\//, '')}
-            </a>
+        {/* ── Website + extra links ── */}
+        {(loc.website || extraLinks.length > 0) && (
+          <div className="mb-4 flex flex-wrap gap-3">
+            {loc.website && (
+              <a
+                href={loc.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 underline break-all hover:text-blue-800"
+              >
+                {loc.website.replace(/^https?:\/\//, '')}
+              </a>
+            )}
+            {extraLinks.map((link, i) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-500 underline hover:text-black break-all"
+              >
+                {link.displayName ?? link.url.replace(/^https?:\/\//, '')}
+              </a>
+            ))}
           </div>
         )}
+
+        {/* ── Opening hours ── */}
+        {loc.opening_hours && <OpeningHoursBlock json={loc.opening_hours} />}
+
+        {/* ── Accessibility ── */}
+        {loc.accessibility && <AccessibilityBlock json={loc.accessibility} />}
 
         {/* ── Tags ── */}
         {tags.length > 0 && (
@@ -90,50 +189,20 @@ export default async function LocationPage({ params }: Props) {
                 key={tag}
                 className="px-1.5 py-0.5 border border-gray-300 text-[10px] text-gray-500 font-mono"
               >
-                {tag}
+                {tag.replace(/^location\.type\./i, '')}
               </span>
             ))}
           </div>
         )}
 
-        {/* ── Related events ── */}
-        <div>
-          <h2 className="text-sm font-bold border-b-2 border-black pb-1 mb-3 uppercase tracking-wide">
-            Upcoming Events
-          </h2>
-          {loc.events.length === 0 ? (
-            <p className="text-xs text-gray-400">No upcoming events found for this venue.</p>
-          ) : (
-            <div className="flex flex-col gap-0">
-              {loc.events.map(ev => (
-                <div key={ev.id} className="border-b border-gray-200 py-2.5 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      {formatDate(ev.date_start)}
-                      {ev.time_start && ` · ${formatTime(ev.time_start)}`}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    {ev.category && (
-                      <span className="px-1 py-0.5 border border-gray-300 text-[9px] font-bold text-gray-500">
-                        {ev.category}
-                      </span>
-                    )}
-                    <span className={[
-                      'px-1 py-0.5 border text-[9px] font-bold',
-                      ev.price_type === 'free'    ? 'border-black bg-black text-white'
-                      : ev.price_type === 'paid'  ? 'border-black bg-white text-black'
-                      : 'border-gray-300 text-gray-400',
-                    ].join(' ')}>
-                      {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* ── Client section: mini map + share + add-to-list + grouped events ── */}
+        <VenuePageClient
+          id={loc.id}
+          lat={loc.lat}
+          lng={loc.lng}
+          name={loc.name ?? ''}
+          events={loc.events}
+        />
       </div>
     </main>
   )

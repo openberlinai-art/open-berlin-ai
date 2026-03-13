@@ -1,6 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight,
+  BookMarked, User,
+} from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
 
@@ -10,8 +13,12 @@ import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
 import ChatPanel                from './ChatPanel'
+import NotificationsBell        from './NotificationsBell'
+import { UserProvider, useUser } from '@/providers/UserProvider'
 
-const MapView = dynamic(() => import('./MapView'), { ssr: false })
+const MapView     = dynamic(() => import('./MapView'),     { ssr: false })
+const AuthModal   = dynamic(() => import('./AuthModal'),   { ssr: false })
+const ListsDrawer = dynamic(() => import('./ListsDrawer'), { ssr: false })
 
 const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
@@ -24,7 +31,9 @@ interface Props {
   initialDate:   string
 }
 
-export default function KulturPulseApp({ initialEvents, initialTotal, initialDate }: Props) {
+function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
+  const { user, unreadCount } = useUser()
+
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
   const [page,     setPage]     = useState(1)
@@ -40,7 +49,10 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
   const catRef                  = useRef<HTMLDivElement>(null)
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [layers, setLayers] = useState({ parks: false, playgrounds: false, venues: false })
+  const [layers, setLayers] = useState({ parks: false, playgrounds: false, venues: false, galleries: false, museums: false })
+
+  const [showAuth,   setShowAuth]   = useState(false)
+  const [showLists,  setShowLists]  = useState(false)
 
   const LIMIT = 50
 
@@ -102,8 +114,27 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
 
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b-2 border-black">
-          <h1 className="text-lg font-bold tracking-tight">KulturPulse</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Berlin culture events, live</p>
+          <div className="flex items-center justify-between mb-0.5">
+            <h1 className="text-lg font-bold tracking-tight">KulturPulse</h1>
+            <div className="flex items-center gap-1">
+              {user && <NotificationsBell />}
+              <button
+                onClick={() => { if (user) setShowLists(true); else setShowAuth(true) }}
+                title="My Lists"
+                className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+              >
+                <BookMarked size={14} />
+              </button>
+              <button
+                onClick={() => setShowAuth(true)}
+                title={user ? user.display_name ?? user.email : 'Sign in'}
+                className={`flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white ${user ? 'bg-black text-white' : ''}`}
+              >
+                <User size={14} />
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">Berlin culture events, live</p>
 
           {/* Filter row */}
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -219,6 +250,18 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
           >
             Venues
           </button>
+          <button
+            onClick={() => setLayers(l => ({ ...l, galleries: !l.galleries }))}
+            className={layers.galleries ? btnActive : btn}
+          >
+            Galleries
+          </button>
+          <button
+            onClick={() => setLayers(l => ({ ...l, museums: !l.museums }))}
+            className={layers.museums ? btnActive : btn}
+          >
+            Museums
+          </button>
           {activeId && (
             <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">
               Transit nearby
@@ -239,6 +282,7 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
                 event={ev}
                 active={ev.id === activeId}
                 onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
+                onNeedAuth={() => setShowAuth(true)}
               />
             ))
           )}
@@ -278,6 +322,18 @@ export default function KulturPulseApp({ initialEvents, initialTotal, initialDat
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}
       <ChatPanel date={date} />
+
+      {/* ── Modals / drawers ────────────────────────────── */}
+      {showAuth  && <AuthModal   onClose={() => setShowAuth(false)}  />}
+      {showLists && <ListsDrawer onClose={() => setShowLists(false)} />}
     </div>
+  )
+}
+
+export default function KulturPulseApp(props: Props) {
+  return (
+    <UserProvider>
+      <AppInner {...props} />
+    </UserProvider>
   )
 }

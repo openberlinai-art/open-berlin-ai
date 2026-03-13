@@ -131,27 +131,41 @@ function transformEvent(
   const lat = location?.geo?.latitude  ?? coords?.lat ?? null
   const lng = location?.geo?.longitude ?? coords?.lng ?? null
 
+  // Normalize scheduleStatus: strip 'event.' prefix
+  const scheduleStatus = raw.scheduleStatus
+    ? raw.scheduleStatus.replace(/^event\./i, '')  // 'event.cancelled' → 'cancelled'
+    : null
+
+  const pleaseNote = (
+    raw.pleaseNote?.de ?? raw.pleaseNote?.en ??
+    attraction?.pleaseNote?.de ?? attraction?.pleaseNote?.en ?? null
+  )
+
   return {
-    id:            raw.identifier,
+    id:              raw.identifier,
     title,
-    description:   description || null,
-    date_start:    raw.schedule.startDate,
-    date_end:      raw.schedule.endDate || null,
-    time_start:    raw.schedule.startTime || null,
-    time_end:      raw.schedule.endTime   || null,
+    description:     description || null,
+    date_start:      raw.schedule.startDate,
+    date_end:        raw.schedule.endDate || null,
+    time_start:      raw.schedule.startTime || null,
+    time_end:        raw.schedule.endTime   || null,
+    door_time:       raw.schedule.doorTime  || null,
     category,
-    tags:          JSON.stringify(tags.slice(0, 10)),
+    tags:            JSON.stringify(tags.slice(0, 10)),
     price_type,
-    price_min:     raw.admission?.priceMin ?? null,
-    price_max:     raw.admission?.priceMax ?? null,
-    location_name: location?.title?.de ?? location?.title?.en ?? raw.locations[0]?.referenceLabel?.de ?? null,
-    address:       address || null,
-    borough:       location?.borough ?? null,
+    price_min:       raw.admission?.priceMin     ?? null,
+    price_max:       raw.admission?.priceMax     ?? null,
+    admission_link:  raw.admission?.admissionLink ?? null,
+    location_name:   location?.title?.de ?? location?.title?.en ?? raw.locations[0]?.referenceLabel?.de ?? null,
+    address:         address || null,
+    borough:         location?.borough ?? null,
     lat,
     lng,
-    source_url:    attraction?.website ?? null,
-    attraction_id: raw.attractions[0]?.referenceId ?? null,
-    location_id:   raw.locations[0]?.referenceId   ?? null,
+    source_url:      attraction?.website ?? null,
+    attraction_id:   raw.attractions[0]?.referenceId ?? null,
+    location_id:     raw.locations[0]?.referenceId   ?? null,
+    schedule_status: scheduleStatus,
+    please_note:     pleaseNote,
   }
 }
 

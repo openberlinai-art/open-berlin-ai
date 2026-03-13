@@ -9,12 +9,14 @@ CREATE TABLE IF NOT EXISTS events (
   date_end        TEXT,
   time_start      TEXT,                      -- HH:MM:SS
   time_end        TEXT,
+  door_time       TEXT,                      -- doors-open time (HH:MM:SS)
   category        TEXT,
   tags            TEXT,                      -- JSON array
   price_type      TEXT    DEFAULT 'free'
                   CHECK(price_type IN ('free','paid','unknown')),
   price_min       REAL,
   price_max       REAL,
+  admission_link  TEXT,                      -- ticket purchase URL
   location_name   TEXT,
   address         TEXT,
   borough         TEXT,
@@ -23,10 +25,17 @@ CREATE TABLE IF NOT EXISTS events (
   source_url      TEXT,
   attraction_id   TEXT,
   location_id     TEXT,
+  schedule_status TEXT,                      -- 'cancelled'|'postponed'|'rescheduled'|'scheduled'
+  please_note     TEXT,                      -- important attendee info
   raw_json        TEXT,                      -- full source for debugging
   created_at      TEXT    DEFAULT (datetime('now')),
   updated_at      TEXT    DEFAULT (datetime('now'))
 );
+-- Migration: add new columns if they don't exist
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN door_time TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_link TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN schedule_status TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN please_note TEXT"
 
 CREATE INDEX IF NOT EXISTS idx_events_date_start ON events(date_start);
 CREATE INDEX IF NOT EXISTS idx_events_category   ON events(LOWER(category));
@@ -37,17 +46,30 @@ CREATE INDEX IF NOT EXISTS idx_events_updated    ON events(updated_at);
 
 -- Cultural venue locations from kulturdaten.berlin
 CREATE TABLE IF NOT EXISTS locations (
-  id         TEXT PRIMARY KEY,
-  name       TEXT,
-  lat        REAL,
-  lng        REAL,
-  category   TEXT,   -- 'museum'|'gallery'|'theatre'|'library'|'other'
-  address    TEXT,
-  borough    TEXT,
-  website    TEXT,
-  tags       TEXT,   -- JSON array of raw kulturdaten tags
-  updated_at TEXT DEFAULT (datetime('now'))
+  id             TEXT PRIMARY KEY,
+  name           TEXT,
+  lat            REAL,
+  lng            REAL,
+  category       TEXT,   -- 'museum'|'gallery'|'theatre'|'library'|'other'
+  address        TEXT,
+  borough        TEXT,
+  website        TEXT,
+  tags           TEXT,   -- JSON array of raw kulturdaten tags
+  description    TEXT,
+  phone          TEXT,
+  accessibility  TEXT,   -- JSON array of accessibility codes
+  opening_hours  TEXT,   -- JSON array of {dayOfWeek, opens, closes, validFrom?, validThrough?}
+  opening_status TEXT,   -- 'location.opened'|'location.closed'|'location.permanentlyClosed'
+  extra_links    TEXT,   -- JSON array of {url, displayName?}
+  updated_at     TEXT DEFAULT (datetime('now'))
 );
+-- Migration: add new columns if they don't exist (safe to run multiple times)
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN description TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN phone TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN accessibility TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_hours TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_status TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN extra_links TEXT"
 CREATE INDEX IF NOT EXISTS idx_locations_geo      ON locations(lat, lng);
 CREATE INDEX IF NOT EXISTS idx_locations_category ON locations(category);
 CREATE INDEX IF NOT EXISTS idx_locations_borough  ON locations(borough);
@@ -61,3 +83,53 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
   lng         REAL    NOT NULL,
   cached_at   TEXT    DEFAULT (datetime('now'))
 );
+
+-- ─── User accounts (magic-link auth) ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS users (
+  id           TEXT PRIMARY KEY,               -- UUID
+  email        TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  created_at   TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  token      TEXT PRIMARY KEY,
+  email      TEXT NOT NULL,
+  expires_at TEXT NOT NULL                     -- ISO timestamp, 15 min TTL
+);
+
+-- ─── Lists ────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS lists (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  description TEXT,
+  is_public   INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lists_user ON lists(user_id);
+
+CREATE TABLE IF NOT EXISTS list_items (
+  id        TEXT PRIMARY KEY,
+  list_id   TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
+  item_id   TEXT NOT NULL,
+  notes     TEXT,
+  added_at  TEXT DEFAULT (datetime('now')),
+  UNIQUE(list_id, item_type, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_list_items_list ON list_items(list_id);
+
+-- ─── Notifications ────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,    -- 'list_shared' | 'invite'
+  data       TEXT NOT NULL,    -- JSON payload
+  read       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);

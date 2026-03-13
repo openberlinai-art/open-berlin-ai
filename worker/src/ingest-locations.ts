@@ -46,26 +46,45 @@ export async function ingestLocations(env: Env): Promise<number> {
     // Upsert in batches of 50
     const stmt = env.DB.prepare(`
       INSERT OR REPLACE INTO locations
-        (id, name, lat, lng, category, address, borough, website, tags, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        (id, name, lat, lng, category, address, borough, website, tags,
+         description, phone, accessibility, opening_hours, opening_status, extra_links,
+         updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `)
 
     for (let i = 0; i < locations.length; i += 50) {
       const batch = locations.slice(i, i + 50)
       await env.DB.batch(batch.map(loc => {
-        const name     = loc.title?.de ?? loc.title?.en ?? null
-        const lat      = loc.geo?.latitude  ?? null
-        const lng      = loc.geo?.longitude ?? null
-        const category = mapCategory(loc.tags)
-        const address  = loc.address
+        const name          = loc.title?.de ?? loc.title?.en ?? null
+        const lat           = loc.geo?.latitude  ?? null
+        const lng           = loc.geo?.longitude ?? null
+        const category      = mapCategory(loc.tags)
+        const address       = loc.address
           ? [loc.address.streetAddress, loc.address.postalCode, loc.address.addressLocality]
               .filter(Boolean).join(', ')
           : null
-        const borough  = loc.borough  ?? null
-        const website  = loc.website  ?? null
-        const tags     = JSON.stringify(loc.tags ?? [])
+        const borough       = loc.borough        ?? null
+        const website       = loc.website        ?? null
+        const tags          = JSON.stringify(loc.tags ?? [])
+        const description   = loc.description?.de ?? loc.description?.en ?? null
+        const phone         = loc.contact?.telephone ?? null
+        const accessibility = loc.accessibility?.length
+          ? JSON.stringify(loc.accessibility.map(a =>
+              a.replace(/^location\.accessibility\./i, '')
+            ))
+          : null
+        const openingHours  = loc.openingHours?.length
+          ? JSON.stringify(loc.openingHours)
+          : null
+        const openingStatus = loc.openingStatus ?? null
+        const extraLinks    = loc.externalLinks?.length
+          ? JSON.stringify(loc.externalLinks)
+          : null
 
-        return stmt.bind(loc.identifier, name, lat, lng, category, address, borough, website, tags)
+        return stmt.bind(
+          loc.identifier, name, lat, lng, category, address, borough, website, tags,
+          description, phone, accessibility, openingHours, openingStatus, extraLinks,
+        )
       }))
 
       ingested += batch.length

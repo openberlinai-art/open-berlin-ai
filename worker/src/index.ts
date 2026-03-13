@@ -5,6 +5,15 @@ import { ingestEvents } from './ingest'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
+import {
+  sendMagicLink, verifyMagicToken, getOrCreateUser,
+  getUserFromHeader, signJWT,
+} from './auth'
+import {
+  getLists, getList, createList, updateList, deleteList,
+  getListItems, addListItem, removeListItem,
+  getNotifications, markNotificationRead, markAllNotificationsRead,
+} from './lists'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -20,7 +29,7 @@ app.use('*', cors({
     return allowed
   },
   allowHeaders:  ['Content-Type', 'Authorization'],
-  allowMethods:  ['GET', 'POST', 'OPTIONS'],
+  allowMethods:  ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   maxAge:        86400,
 }))
 
@@ -229,6 +238,158 @@ app.post('/api/chat', async c => {
   return c.json({
     response: aiResponse.response ?? 'Sorry, I could not generate a response.',
   })
+})
+
+// ─── POST /api/auth/magic-link ────────────────────────────────────────────────
+
+app.post('/api/auth/magic-link', async c => {
+  const body = await c.req.json<{ email?: string }>().catch(() => null)
+  if (!body?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    return c.json({ error: 'Valid email required' }, 400)
+  }
+  try {
+    const result = await sendMagicLink(body.email.toLowerCase(), c.env)
+    return c.json({ ok: true, ...result })
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500)
+  }
+})
+
+// ─── GET /api/auth/verify ─────────────────────────────────────────────────────
+
+app.get('/api/auth/verify', async c => {
+  const token = c.req.query('token')
+  if (!token) return c.json({ error: 'token required' }, 400)
+  const email = await verifyMagicToken(token, c.env.DB)
+  if (!email) return c.json({ error: 'Invalid or expired token' }, 400)
+  const user = await getOrCreateUser(email, c.env.DB)
+  const jwt  = await signJWT(
+    { sub: user.id, email: user.email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
+    c.env.JWT_SECRET,
+  )
+  return c.json({ token: jwt, user })
+})
+
+// ─── POST /api/auth/profile ───────────────────────────────────────────────────
+
+app.post('/api/auth/profile', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ display_name?: string }>().catch(() => null)
+  if (!body?.display_name) return c.json({ error: 'display_name required' }, 400)
+  await c.env.DB.prepare(`UPDATE users SET display_name = ? WHERE id = ?`)
+    .bind(body.display_name, auth.sub).run()
+  return c.json({ ok: true })
+})
+
+// ─── GET /api/lists ───────────────────────────────────────────────────────────
+
+app.get('/api/lists', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const rows = await getLists(auth.sub, c.env.DB)
+  // Attach item_count
+  const withCount = await Promise.all(rows.map(async l => {
+    const cnt = await c.env.DB
+      .prepare(`SELECT COUNT(*) as n FROM list_items WHERE list_id = ?`).bind(l.id)
+      .first<{ n: number }>()
+    return { ...l, item_count: cnt?.n ?? 0 }
+  }))
+  return c.json({ data: withCount })
+})
+
+// ─── POST /api/lists ──────────────────────────────────────────────────────────
+
+app.post('/api/lists', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ name?: string; description?: string; is_public?: boolean }>().catch(() => null)
+  if (!body?.name) return c.json({ error: 'name required' }, 400)
+  const list = await createList(auth.sub, body.name, body.description ?? null, !!body.is_public, c.env.DB)
+  return c.json({ data: { ...list, item_count: 0 } }, 201)
+})
+
+// ─── PUT /api/lists/:id ───────────────────────────────────────────────────────
+
+app.put('/api/lists/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ name?: string; description?: string; is_public?: boolean }>().catch(() => null)
+  if (!body) return c.json({ error: 'body required' }, 400)
+  const ok = await updateList(c.req.param('id'), auth.sub, body, c.env.DB)
+  return ok ? c.json({ ok: true }) : c.json({ error: 'Not found' }, 404)
+})
+
+// ─── DELETE /api/lists/:id ────────────────────────────────────────────────────
+
+app.delete('/api/lists/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const ok = await deleteList(c.req.param('id'), auth.sub, c.env.DB)
+  return ok ? c.json({ ok: true }) : c.json({ error: 'Not found' }, 404)
+})
+
+// ─── GET /api/lists/:id/items ─────────────────────────────────────────────────
+
+app.get('/api/lists/:id/items', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const items = await getListItems(c.req.param('id'), c.env.DB)
+  return c.json({ data: items })
+})
+
+// ─── POST /api/lists/:id/items ────────────────────────────────────────────────
+
+app.post('/api/lists/:id/items', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ item_type?: string; item_id?: string; notes?: string | null }>().catch(() => null)
+  if (!body?.item_type || !body.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
+  if (body.item_type !== 'event' && body.item_type !== 'location') return c.json({ error: 'invalid item_type' }, 400)
+  const item = await addListItem(c.req.param('id'), body.item_type, body.item_id, body.notes ?? null, c.env.DB)
+  return c.json({ data: item }, 201)
+})
+
+// ─── DELETE /api/lists/:id/items/:itemId ──────────────────────────────────────
+
+app.delete('/api/lists/:id/items/:itemId', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const ok = await removeListItem(c.req.param('itemId'), c.req.param('id'), c.env.DB)
+  return ok ? c.json({ ok: true }) : c.json({ error: 'Not found' }, 404)
+})
+
+// ─── GET /api/lists/:id/public (no auth — public lists only) ─────────────────
+
+app.get('/api/lists/:id/public', async c => {
+  const list = await getList(c.req.param('id'), c.env.DB)
+  if (!list) return c.json({ error: 'Not found' }, 404)
+  if (!list.is_public) return c.json({ error: 'This list is private' }, 403)
+  const items = await getListItems(list.id, c.env.DB)
+  return c.json({ data: { list, items } })
+})
+
+// ─── GET /api/notifications ───────────────────────────────────────────────────
+
+app.get('/api/notifications', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const data = await getNotifications(auth.sub, c.env.DB)
+  return c.json({ data })
+})
+
+// ─── PATCH /api/notifications/:id ────────────────────────────────────────────
+
+app.patch('/api/notifications/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const id = c.req.param('id')
+  if (id === 'all') {
+    await markAllNotificationsRead(auth.sub, c.env.DB)
+  } else {
+    await markNotificationRead(id, auth.sub, c.env.DB)
+  }
+  return c.json({ ok: true })
 })
 
 // ─── POST /api/ingest (protected) ─────────────────────────────────────────────
