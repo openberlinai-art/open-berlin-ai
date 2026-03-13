@@ -7,7 +7,8 @@ export interface Env {
   KULTURDATEN_API_URL: string
   ALLOWED_ORIGIN:      string
   INGEST_SECRET:       string
-  RESEND_API_KEY:      string
+  BREVO_API_KEY:       string
+  BREVO_SENDER_EMAIL:  string
   JWT_SECRET:          string
   FRONTEND_URL:        string
 }

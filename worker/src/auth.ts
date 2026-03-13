@@ -76,21 +76,21 @@ export async function sendMagicLink(email: string, env: Env): Promise<{ dev_link
   const link = `${frontendUrl}/verify?token=${token}`
 
   // Dev mode: no email configured — return link directly
-  if (!env.RESEND_API_KEY) {
+  if (!env.BREVO_API_KEY) {
     return { dev_link: link }
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method:  'POST',
     headers: {
-      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type':  'application/json',
+      'api-key':      env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from:    'KulturPulse <noreply@kulturpulse.berlin>',
-      to:      [email],
-      subject: 'Your KulturPulse sign-in link',
-      html: `
+      sender:      { name: 'KulturPulse', email: env.BREVO_SENDER_EMAIL },
+      to:          [{ email }],
+      subject:     'Your KulturPulse sign-in link',
+      htmlContent: `
         <p>Click the link below to sign in to KulturPulse. It expires in 15 minutes.</p>
         <p><a href="${link}" style="font-weight:bold">${link}</a></p>
         <p style="color:#9ca3af;font-size:12px">If you didn't request this, you can ignore this email.</p>
@@ -100,12 +100,7 @@ export async function sendMagicLink(email: string, env: Env): Promise<{ dev_link
 
   if (!res.ok) {
     const text = await res.text()
-    // Domain not yet verified — fall back to dev_link so auth still works
-    if (res.status === 403 && text.includes('domain is not verified')) {
-      console.warn('[auth] Resend domain not verified, falling back to dev_link')
-      return { dev_link: link }
-    }
-    throw new Error(`Resend error ${res.status}: ${text}`)
+    throw new Error(`Brevo error ${res.status}: ${text}`)
   }
   return {}
 }
