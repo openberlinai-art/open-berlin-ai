@@ -60,6 +60,7 @@ interface UserContextValue {
   getListItems:      (listId: string) => Promise<KPListItem[]>
   markNotificationRead: (id: string | 'all') => Promise<void>
   updateDisplayName: (name: string) => Promise<void>
+  shareList:         (listId: string, email: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const UserContext = createContext<UserContextValue | null>(null)
@@ -104,6 +105,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
       setToken(stored)
       setUser({ id: payload.sub, email: payload.email, display_name: null })
+      // Auto-refresh if expiry is within 7 days
+      if (payload.exp - Date.now() / 1000 < 7 * 86400) {
+        fetch(`${WORKER}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${stored}` },
+        })
+          .then(r => r.json())
+          .then((json: { token?: string }) => {
+            if (json.token) {
+              localStorage.setItem(TOKEN_KEY, json.token)
+              setToken(json.token)
+            }
+          })
+          .catch(() => {})
+      }
     } catch { localStorage.removeItem(TOKEN_KEY) }
   }, [])
 
@@ -213,6 +229,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUser(u => u ? { ...u, display_name: name } : u)
   }, [token])
 
+  const shareList = useCallback(async (listId: string, email: string): Promise<{ ok: boolean; error?: string }> => {
+    const res = await apiFetch(`/api/lists/${listId}/share`, token!, {
+      method: 'POST',
+      body:   JSON.stringify({ email }),
+    })
+    return res.json() as Promise<{ ok: boolean; error?: string }>
+  }, [token])
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
@@ -224,6 +248,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       addToList, removeFromList, getListItems,
       markNotificationRead,
       updateDisplayName,
+      shareList,
     }}>
       {children}
     </UserContext.Provider>

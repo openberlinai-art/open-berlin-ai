@@ -13,6 +13,7 @@ import {
   getLists, getList, createList, updateList, deleteList,
   getListItems, addListItem, removeListItem,
   getNotifications, markNotificationRead, markAllNotificationsRead,
+  shareList,
 } from './lists'
 import type { Env, ChatRequest } from './types'
 
@@ -270,6 +271,18 @@ app.get('/api/auth/verify', async c => {
   return c.json({ token: jwt, user })
 })
 
+// ─── POST /api/auth/refresh ───────────────────────────────────────────────────
+
+app.post('/api/auth/refresh', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const token = await signJWT(
+    { sub: auth.sub, email: auth.email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
+    c.env.JWT_SECRET,
+  )
+  return c.json({ token })
+})
+
 // ─── POST /api/auth/profile ───────────────────────────────────────────────────
 
 app.post('/api/auth/profile', async c => {
@@ -357,6 +370,18 @@ app.delete('/api/lists/:id/items/:itemId', async c => {
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const ok = await removeListItem(c.req.param('itemId'), c.req.param('id'), c.env.DB)
   return ok ? c.json({ ok: true }) : c.json({ error: 'Not found' }, 404)
+})
+
+// ─── POST /api/lists/:id/share ────────────────────────────────────────────────
+
+app.post('/api/lists/:id/share', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ email?: string }>().catch(() => null)
+  if (!body?.email) return c.json({ error: 'email required' }, 400)
+  const result = await shareList(c.req.param('id'), auth.sub, body.email, c.env.DB)
+  if (!result.ok) return c.json({ error: result.error }, result.error === 'Not authorised' ? 403 : 404)
+  return c.json({ ok: true })
 })
 
 // ─── GET /api/lists/:id/public (no auth — public lists only) ─────────────────

@@ -3,7 +3,7 @@
 // Venues           → Worker D1 (bbox query)
 // Transit/Departures → VBB API (via proxy fallback)
 
-import type { Location } from './types'
+import type { Location, Event } from './types'
 
 const WORKER    = 'https://kulturpulse-worker.openberlinai.workers.dev'
 const VBB_BASE  = 'https://v6.vbb.transport.rest'
@@ -39,6 +39,15 @@ export async function fetchLocation(id: string): Promise<Location> {
   const res = await fetch(`${WORKER}/api/locations/${id}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const json = await res.json() as { data: Location }
+  return json.data
+}
+
+// ─── Event detail ─────────────────────────────────────────────────────────────
+
+export async function fetchEvent(id: string): Promise<Event> {
+  const res = await fetch(`${WORKER}/api/events/${id}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json() as { data: Event }
   return json.data
 }
 

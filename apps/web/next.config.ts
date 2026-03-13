@@ -4,7 +4,7 @@ const WORKER = process.env.WORKER_API_URL ?? 'http://localhost:8787'
 
 const config: NextConfig = {
   transpilePackages: ['maplibre-gl', 'react-map-gl'],
-  reactStrictMode:   true,
+  reactStrictMode:   false,
 
   // Proxy /api/* → worker so the browser never needs CORS or public env vars
   async rewrites() {

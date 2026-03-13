@@ -11,11 +11,13 @@ interface Props {
 
 export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props) {
   const { user, lists, addToList, createList } = useUser()
-  const [open,     setOpen]     = useState(false)
-  const [loading,  setLoading]  = useState<string | null>(null)
-  const [added,    setAdded]    = useState<Set<string>>(new Set())
-  const [newName,  setNewName]  = useState('')
-  const [creating, setCreating] = useState(false)
+  const [open,          setOpen]          = useState(false)
+  const [loading,       setLoading]       = useState<string | null>(null)
+  const [added,         setAdded]         = useState<Set<string>>(new Set())
+  const [newName,       setNewName]       = useState('')
+  const [creating,      setCreating]      = useState(false)
+  const [pendingListId, setPendingListId] = useState<string | null>(null)
+  const [notes,         setNotes]         = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -32,14 +34,26 @@ export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props)
     setOpen(o => !o)
   }
 
-  async function handleAdd(listId: string) {
+  async function handleAdd(listId: string, noteText?: string) {
     setLoading(listId)
     try {
-      await addToList(listId, itemType, itemId)
+      await addToList(listId, itemType, itemId, noteText || undefined)
       setAdded(prev => new Set([...prev, listId]))
+      setPendingListId(null)
+      setNotes('')
     } finally {
       setLoading(null)
     }
+  }
+
+  function selectList(listId: string) {
+    setPendingListId(listId)
+    setNotes('')
+  }
+
+  function cancelPending() {
+    setPendingListId(null)
+    setNotes('')
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -72,18 +86,47 @@ export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props)
           {lists.length === 0 ? (
             <p className="text-[10px] text-gray-400 px-3 py-2">No lists yet. Create one:</p>
           ) : (
-            <div className="py-1 max-h-40 overflow-y-auto">
+            <div className="py-1 max-h-48 overflow-y-auto">
               {lists.map(list => (
-                <button
-                  key={list.id}
-                  onClick={() => handleAdd(list.id)}
-                  disabled={loading === list.id || added.has(list.id)}
-                  className="w-full text-left px-3 py-1.5 text-[11px] flex items-center justify-between hover:bg-gray-100 disabled:opacity-50"
-                >
-                  <span className="truncate">{list.name}</span>
-                  {added.has(list.id) && <span className="text-[9px] ml-1 shrink-0">✓</span>}
-                  {loading === list.id && <span className="text-[9px] ml-1 shrink-0 text-gray-400">…</span>}
-                </button>
+                <div key={list.id}>
+                  <button
+                    onClick={() => added.has(list.id) ? undefined : selectList(list.id)}
+                    disabled={loading === list.id || added.has(list.id)}
+                    className="w-full text-left px-3 py-1.5 text-[11px] flex items-center justify-between hover:bg-gray-100 disabled:opacity-50"
+                  >
+                    <span className="truncate">{list.name}</span>
+                    {added.has(list.id) && <span className="text-[9px] ml-1 shrink-0">✓</span>}
+                    {loading === list.id && <span className="text-[9px] ml-1 shrink-0 text-gray-400">…</span>}
+                  </button>
+                  {pendingListId === list.id && (
+                    <div className="px-3 pb-2 border-t border-gray-100">
+                      <textarea
+                        autoFocus
+                        placeholder="Add a note… (optional)"
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        rows={2}
+                        className="w-full text-[10px] border border-black px-1.5 py-1 outline-none resize-none mt-1"
+                        onClick={e => e.stopPropagation()}
+                      />
+                      <div className="flex gap-1 mt-1">
+                        <button
+                          onClick={() => handleAdd(list.id, notes)}
+                          disabled={loading === list.id}
+                          className="flex-1 text-[10px] border border-black px-1.5 py-1 bg-black text-white hover:bg-white hover:text-black disabled:opacity-40"
+                        >
+                          {loading === list.id ? '…' : 'Add'}
+                        </button>
+                        <button
+                          onClick={cancelPending}
+                          className="text-[10px] border border-gray-300 px-1.5 py-1 hover:border-black"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

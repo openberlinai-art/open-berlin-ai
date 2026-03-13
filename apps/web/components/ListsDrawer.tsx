@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { X, Trash2, Link as LinkIcon, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Trash2, Link as LinkIcon, Plus, ChevronDown, ChevronUp, Mail } from 'lucide-react'
 import { useUser, type KPListItem } from '@/providers/UserProvider'
 import { formatDate, formatTime } from '@/lib/utils'
 
@@ -9,12 +9,34 @@ interface Props {
 }
 
 export default function ListsDrawer({ onClose }: Props) {
-  const { lists, deleteList, removeFromList, createList, getListItems } = useUser()
-  const [expanded,   setExpanded]   = useState<string | null>(null)
-  const [items,      setItems]      = useState<Record<string, KPListItem[]>>({})
-  const [newName,    setNewName]    = useState('')
-  const [creating,   setCreating]   = useState(false)
-  const [showCreate, setShowCreate] = useState(false)
+  const { lists, deleteList, removeFromList, createList, getListItems, shareList } = useUser()
+  const [expanded,    setExpanded]    = useState<string | null>(null)
+  const [items,       setItems]       = useState<Record<string, KPListItem[]>>({})
+  const [newName,     setNewName]     = useState('')
+  const [creating,    setCreating]    = useState(false)
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [shareListId, setShareListId] = useState<string | null>(null)
+  const [shareEmail,  setShareEmail]  = useState('')
+  const [shareStatus, setShareStatus] = useState<Record<string, 'idle' | 'sending' | 'ok' | 'error'>>({})
+  const [shareError,  setShareError]  = useState<Record<string, string>>({})
+
+  async function handleShare(listId: string, e: React.FormEvent) {
+    e.preventDefault()
+    if (!shareEmail.trim()) return
+    setShareStatus(p => ({ ...p, [listId]: 'sending' }))
+    const result = await shareList(listId, shareEmail.trim())
+    if (result.ok) {
+      setShareStatus(p => ({ ...p, [listId]: 'ok' }))
+      setShareEmail('')
+      setTimeout(() => {
+        setShareStatus(p => ({ ...p, [listId]: 'idle' }))
+        setShareListId(null)
+      }, 2000)
+    } else {
+      setShareStatus(p => ({ ...p, [listId]: 'error' }))
+      setShareError(p => ({ ...p, [listId]: result.error ?? 'Failed' }))
+    }
+  }
 
   const loadItems = useCallback(async (listId: string) => {
     const data = await getListItems(listId)
@@ -114,10 +136,47 @@ export default function ListsDrawer({ onClose }: Props) {
                   <button onClick={() => copyShareLink(list.id)} className={btn} title="Copy share link">
                     <LinkIcon size={9} />
                   </button>
+                  <button
+                    onClick={() => { setShareListId(shareListId === list.id ? null : list.id); setShareEmail(''); setShareStatus(p => ({ ...p, [list.id]: 'idle' })) }}
+                    className={btn}
+                    title="Share by email"
+                  >
+                    <Mail size={9} />
+                  </button>
                   <button onClick={() => deleteList(list.id)} className={`${btn} text-red-600 hover:bg-red-600 hover:text-white border-red-600`} title="Delete list">
                     <Trash2 size={9} />
                   </button>
                 </div>
+
+                {/* Share by email form */}
+                {shareListId === list.id && (
+                  <div className="px-3 pb-2">
+                    {shareStatus[list.id] === 'ok' ? (
+                      <p className="text-[10px] text-green-600 font-bold py-1">Shared!</p>
+                    ) : (
+                      <form onSubmit={e => handleShare(list.id, e)} className="flex gap-1">
+                        <input
+                          autoFocus
+                          type="email"
+                          placeholder="Email address…"
+                          value={shareEmail}
+                          onChange={e => setShareEmail(e.target.value)}
+                          className="flex-1 text-[10px] border border-black px-1.5 py-1 outline-none min-w-0"
+                        />
+                        <button
+                          type="submit"
+                          disabled={shareStatus[list.id] === 'sending' || !shareEmail.trim()}
+                          className="text-[10px] border border-black px-1.5 py-1 bg-black text-white hover:bg-white hover:text-black disabled:opacity-40 shrink-0"
+                        >
+                          {shareStatus[list.id] === 'sending' ? '…' : 'Send'}
+                        </button>
+                      </form>
+                    )}
+                    {shareStatus[list.id] === 'error' && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{shareError[list.id]}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Items */}
                 {expanded === list.id && (

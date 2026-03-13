@@ -164,3 +164,33 @@ export async function markAllNotificationsRead(userId: string, db: D1Database): 
     .bind(userId)
     .run()
 }
+
+// ─── List sharing ─────────────────────────────────────────────────────────────
+
+export async function shareList(
+  listId:     string,
+  fromUserId: string,
+  toEmail:    string,
+  db:         D1Database,
+): Promise<{ ok: boolean; error?: string }> {
+  const list = await db
+    .prepare(`SELECT id, name FROM lists WHERE id = ? AND user_id = ?`)
+    .bind(listId, fromUserId)
+    .first<{ id: string; name: string }>()
+  if (!list) return { ok: false, error: 'Not authorised' }
+
+  const fromUser = await db
+    .prepare(`SELECT display_name, email FROM users WHERE id = ?`)
+    .bind(fromUserId)
+    .first<{ display_name: string | null; email: string }>()
+
+  const toUser = await db
+    .prepare(`SELECT id FROM users WHERE email = ?`)
+    .bind(toEmail.toLowerCase())
+    .first<{ id: string }>()
+  if (!toUser) return { ok: false, error: 'User not found' }
+
+  const from_name = fromUser?.display_name ?? fromUser?.email ?? 'Someone'
+  await createNotification(toUser.id, 'list_shared', { from_name, list_name: list.name, list_id: list.id }, db)
+  return { ok: true }
+}
