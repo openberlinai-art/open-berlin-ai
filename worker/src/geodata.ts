@@ -5,7 +5,7 @@ const WFS_BASE = 'https://gdi.berlin.de/services/wfs/gruenanlagen'
 // WFS 2.0 uses 'typeNames' (plural). Build URL without URLSearchParams to avoid
 // percent-encoding of : and / that some WFS servers reject.
 function buildWFSUrl(typeName: string): string {
-  return `${WFS_BASE}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${typeName}&outputFormat=application/json`
+  return `${WFS_BASE}?service=WFS&version=2.0.0&request=GetFeature&typeNames=${typeName}&outputFormat=application/json&SRSNAME=EPSG:4326`
 }
 
 async function fetchWFS(typeName: string): Promise<string> {

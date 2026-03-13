@@ -1,18 +1,13 @@
 import type { Env, KulturdatenLocation } from './types'
 
-// Maps kulturdaten tag strings → location categories
-const CATEGORY_MAP: Record<string, string> = {
-  'location.type.museum':  'museum',
-  'location.type.gallery': 'gallery',
-  'location.type.theatre': 'theatre',
-  'location.type.library': 'library',
-}
-
-function mapCategory(tags: string[] | undefined): string {
-  if (!tags) return 'other'
-  for (const tag of tags) {
-    if (CATEGORY_MAP[tag]) return CATEGORY_MAP[tag]
-  }
+// Derive category from German location name keywords
+function mapCategory(name: string | null | undefined): string {
+  if (!name) return 'other'
+  const n = name.toLowerCase()
+  if (/museum|ausstellung|sammlung|kunsthalle/.test(n))       return 'museum'
+  if (/galerie|gallery/.test(n))                             return 'gallery'
+  if (/theater|theatre|bühne|spielstätte|oper|varieté/.test(n)) return 'theatre'
+  if (/bibliothek|bücherei|stadtbücherei/.test(n))           return 'library'
   return 'other'
 }
 
@@ -58,7 +53,7 @@ export async function ingestLocations(env: Env): Promise<number> {
         const name          = loc.title?.de ?? loc.title?.en ?? null
         const lat           = loc.geo?.latitude  ?? null
         const lng           = loc.geo?.longitude ?? null
-        const category      = mapCategory(loc.tags)
+        const category      = mapCategory(name)
         const address       = loc.address
           ? [loc.address.streetAddress, loc.address.postalCode, loc.address.addressLocality]
               .filter(Boolean).join(', ')
