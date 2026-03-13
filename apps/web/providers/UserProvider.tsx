@@ -49,7 +49,7 @@ interface UserContextValue {
   lists:             KPList[]
   notifications:     KPNotification[]
   unreadCount:       number
-  login:             (email: string) => Promise<void>
+  login:             (email: string) => Promise<{ dev_link?: string }>
   logout:            () => void
   refreshLists:      () => Promise<void>
   refreshNotifications: () => Promise<void>
@@ -152,7 +152,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     refreshNotifications()
   }, [token, refreshLists, refreshNotifications])
 
-  const login = useCallback(async (email: string) => {
+  const login = useCallback(async (email: string): Promise<{ dev_link?: string }> => {
     const res = await apiFetch('/api/auth/magic-link', null, {
       method: 'POST',
       body:   JSON.stringify({ email }),
@@ -162,14 +162,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       try {
         const json = await res.json() as { error?: string }
         message = json.error ?? message
-      } catch { /* non-JSON response (e.g. 404 HTML before route is deployed) */ }
+      } catch { /* non-JSON response */ }
       throw new Error(message)
     }
-    // Dev mode: worker returns magic link directly when RESEND_API_KEY is not set
     try {
       const json = await res.json() as { ok: boolean; dev_link?: string }
-      if (json.dev_link) console.info('[dev] Magic link:', json.dev_link)
-    } catch { /* ignore */ }
+      return { dev_link: json.dev_link }
+    } catch { return {} }
   }, [])
 
   const logout = useCallback(() => {

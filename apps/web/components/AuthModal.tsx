@@ -9,11 +9,12 @@ interface Props {
 
 export default function AuthModal({ onClose }: Props) {
   const { login, logout, user, updateDisplayName } = useUser()
-  const [email,    setEmail]    = useState('')
-  const [name,     setName]     = useState(user?.display_name ?? '')
-  const [step,     setStep]     = useState<'email' | 'sent' | 'profile'>(() => user ? 'profile' : 'email')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [email,     setEmail]     = useState('')
+  const [name,      setName]      = useState(user?.display_name ?? '')
+  const [step,      setStep]      = useState<'email' | 'sent' | 'profile'>(() => user ? 'profile' : 'email')
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
+  const [magicLink, setMagicLink] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { inputRef.current?.focus() }, [step])
@@ -23,7 +24,8 @@ export default function AuthModal({ onClose }: Props) {
     setError('')
     setLoading(true)
     try {
-      await login(email.trim().toLowerCase())
+      const result = await login(email.trim().toLowerCase())
+      setMagicLink(result.dev_link ?? null)
       setStep('sent')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -85,11 +87,28 @@ export default function AuthModal({ onClose }: Props) {
 
         {step === 'sent' && (
           <div className="space-y-3">
-            <p className="text-xs font-semibold">Check your inbox!</p>
-            <p className="text-xs text-gray-500">
-              We sent a sign-in link to <strong>{email}</strong>. Click it to sign in — it expires in 15 minutes.
-            </p>
-            <button onClick={() => setStep('email')} className={btn}>
+            {magicLink ? (
+              <>
+                <p className="text-xs font-semibold">Your sign-in link is ready</p>
+                <p className="text-xs text-gray-500">
+                  Click below to sign in as <strong>{email}</strong>. Expires in 15 minutes.
+                </p>
+                <a
+                  href={magicLink}
+                  className={`${btnPrimary} w-full block text-center`}
+                >
+                  Sign in →
+                </a>
+              </>
+            ) : (
+              <>
+                <p className="text-xs font-semibold">Check your inbox!</p>
+                <p className="text-xs text-gray-500">
+                  We sent a sign-in link to <strong>{email}</strong>. Click it to sign in — it expires in 15 minutes.
+                </p>
+              </>
+            )}
+            <button onClick={() => { setStep('email'); setMagicLink(null) }} className={btn}>
               Use a different email
             </button>
           </div>
