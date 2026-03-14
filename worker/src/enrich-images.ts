@@ -118,11 +118,11 @@ export async function enrichLocationsWithImages(db: D1Database): Promise<number>
     return 0
   }
 
-  // Load locations that haven't been enriched yet
+  // Load locations that haven't been enriched yet, OR have no website (for website backfill)
   const { results: locs } = await db.prepare(`
     SELECT id, lat, lng, website
     FROM   locations
-    WHERE  image_urls IS NULL
+    WHERE  (image_urls IS NULL OR website IS NULL)
     AND    (lat IS NOT NULL OR website IS NOT NULL)
   `).all<{ id: string; lat: number | null; lng: number | null; website: string | null }>()
 
@@ -173,7 +173,13 @@ export async function enrichLocationsWithImages(db: D1Database): Promise<number>
 
       if (best) matched++
 
-      return db.prepare('UPDATE locations SET image_urls = ? WHERE id = ?')
+      // Also backfill website from Wikidata if the location has none
+      const wikidataWebsite = best?.website ?? null
+      if (wikidataWebsite && !loc.website) {
+        return db.prepare('UPDATE locations SET image_urls = ?, website = COALESCE(website, ?) WHERE id = ?')
+          .bind(imageUrls, wikidataWebsite, loc.id)
+      }
+      return db.prepare('UPDATE locations SET image_urls = COALESCE(image_urls, ?) WHERE id = ?')
         .bind(imageUrls, loc.id)
     })
 

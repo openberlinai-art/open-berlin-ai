@@ -38,13 +38,32 @@ export async function ingestLocations(env: Env): Promise<number> {
     const locations = body.data.locations
     if (!locations?.length) break
 
-    // Upsert in batches of 50
+    // Upsert in batches of 50.
+    // Use ON CONFLICT DO UPDATE (not INSERT OR REPLACE) so that enriched columns
+    // like image_urls are preserved across ingest runs.
+    // website uses COALESCE so a Wikidata-enriched website is never overwritten by NULL.
     const stmt = env.DB.prepare(`
-      INSERT OR REPLACE INTO locations
+      INSERT INTO locations
         (id, name, lat, lng, category, address, borough, website, tags,
          description, phone, accessibility, opening_hours, opening_status, extra_links,
          updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET
+        name           = excluded.name,
+        lat            = excluded.lat,
+        lng            = excluded.lng,
+        category       = excluded.category,
+        address        = excluded.address,
+        borough        = excluded.borough,
+        website        = COALESCE(locations.website, excluded.website),
+        tags           = excluded.tags,
+        description    = excluded.description,
+        phone          = excluded.phone,
+        accessibility  = excluded.accessibility,
+        opening_hours  = excluded.opening_hours,
+        opening_status = excluded.opening_status,
+        extra_links    = excluded.extra_links,
+        updated_at     = datetime('now')
     `)
 
     for (let i = 0; i < locations.length; i += 50) {

@@ -100,7 +100,7 @@ export async function fetchTransitStopsVBB(
     id:       string
     name:     string
     location: { latitude: number; longitude: number }
-    products: { suburban?: boolean; subway?: boolean; tram?: boolean }
+    products: { suburban?: boolean; subway?: boolean; tram?: boolean; bus?: boolean }
   }>
 
   const seen  = new Set<string>()
@@ -109,7 +109,9 @@ export async function fetchTransitStopsVBB(
   for (const stop of data) {
     if (seen.has(stop.id)) continue
     seen.add(stop.id)
-    const { subway, suburban } = stop.products ?? {}
+    const { subway, suburban, tram: isTram } = stop.products ?? {}
+    // Skip bus-only stops that may slip through despite bus=false query param
+    if (!subway && !suburban && !isTram) continue
     const type: VBBStop['type'] = subway ? 'subway' : suburban ? 'suburban' : 'tram'
     stops.push({
       id:   stop.id,
