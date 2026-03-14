@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, CalendarDays, CalendarX, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 
@@ -64,10 +64,47 @@ export default function CalendarPanel({ onClose }: Props) {
   const [view,     setView]     = useState<CalendarView>('list')
   const [viewDate, setViewDate] = useState(new Date())
 
+  // Persistent cache so already-enriched items aren't re-fetched on each change
+  const enrichedCache = useRef(new Map<string, EnrichedItem>())
+
   useEffect(() => {
-    if (!attendance.length) { setLoading(false); return }
+    let cancelled = false
+
+    if (!attendance.length) {
+      enrichedCache.current.clear()
+      setEnriched([])
+      setLoading(false)
+      return
+    }
+
+    const currentIds = new Set(attendance.map(a => `${a.item_type}:${a.item_id}`))
+
+    // Prune items no longer attended
+    for (const key of [...enrichedCache.current.keys()]) {
+      if (!currentIds.has(key)) enrichedCache.current.delete(key)
+    }
+
+    // Only fetch items not already in cache
+    const toEnrich = attendance.filter(a => !enrichedCache.current.has(`${a.item_type}:${a.item_id}`))
+
+    // Show currently cached items immediately (handles removals instantly)
+    setEnriched(Array.from(enrichedCache.current.values()))
+
+    if (!toEnrich.length) { setLoading(false); return }
+
     setLoading(true)
-    enrichItems(attendance).then(items => { setEnriched(items); setLoading(false) })
+    enrichItems(toEnrich).then(fresh => {
+      if (cancelled) return
+      fresh.forEach(f => enrichedCache.current.set(`${f.item_type}:${f.item_id}`, f))
+      // Re-prune in case attendance changed while fetching
+      for (const key of [...enrichedCache.current.keys()]) {
+        if (!currentIds.has(key)) enrichedCache.current.delete(key)
+      }
+      setEnriched(Array.from(enrichedCache.current.values()))
+      setLoading(false)
+    }).catch(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
   }, [attendance])
 
   const today = isoDate(new Date())
