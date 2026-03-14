@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS events (
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN please_note TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_note TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN source_links TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN registration_type TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN languages TEXT"
 
 CREATE INDEX IF NOT EXISTS idx_events_date_start ON events(date_start);
 CREATE INDEX IF NOT EXISTS idx_events_category   ON events(LOWER(category));
@@ -74,6 +76,8 @@ CREATE TABLE IF NOT EXISTS locations (
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_hours TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_status TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN extra_links TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN contact_email TEXT"
 CREATE INDEX IF NOT EXISTS idx_locations_geo      ON locations(lat, lng);
 CREATE INDEX IF NOT EXISTS idx_locations_category ON locations(category);
 CREATE INDEX IF NOT EXISTS idx_locations_borough  ON locations(borough);

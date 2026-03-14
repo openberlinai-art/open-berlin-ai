@@ -21,12 +21,14 @@ export interface Event {
   source_url:      string | null
   attraction_id:   string | null
   location_id:     string | null
-  schedule_status: string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
-  please_note:     string | null
-  admission_note:  string | null
-  source_links:    string | null  // JSON: Array<{url: string; displayName?: string}>
-  created_at:      string
-  updated_at:      string
+  schedule_status:   string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
+  please_note:       string | null
+  admission_note:    string | null
+  source_links:      string | null  // JSON: Array<{url: string; displayName?: string}>
+  registration_type: string | null  // 'required' | 'notRequired'
+  languages:         string | null  // JSON: string[] e.g. ["de","en"]
+  created_at:        string
+  updated_at:        string
 }
 
 export interface OpeningHour {
@@ -54,6 +56,8 @@ export interface Location {
   opening_status: string | null
   extra_links:    string | null  // JSON array of {url, displayName?}
   image_urls:     string | null  // JSON array of Wikimedia Commons image URLs
+  is_virtual:     number         // 0 | 1
+  contact_email:  string | null
   updated_at:     string
   events:         Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]
   pastEvents:     Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]

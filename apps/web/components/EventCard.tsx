@@ -26,6 +26,9 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
   const isCancelled  = event.schedule_status === 'cancelled'
   const isPostponed  = event.schedule_status === 'postponed'
   const isRescheduled = event.schedule_status === 'rescheduled'
+  const needsRegistration = event.registration_type === 'required'
+  const langs: string[] = (() => { try { return event.languages ? JSON.parse(event.languages) : [] } catch { return [] } })()
+  const nonDeLangs = langs.filter(l => l !== 'de')
 
   return (
     <div
@@ -62,6 +65,16 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
           {isRescheduled && (
             <span className="px-1.5 py-0.5 border-2 border-yellow-600 bg-yellow-100 text-yellow-800 text-[10px] font-bold">
               Rescheduled
+            </span>
+          )}
+          {nonDeLangs.map(l => (
+            <span key={l} className="px-1.5 py-0.5 border-2 border-blue-600 text-blue-700 text-[10px] font-bold bg-blue-50">
+              {l.toUpperCase()}
+            </span>
+          ))}
+          {needsRegistration && (
+            <span className="px-1.5 py-0.5 border-2 border-orange-500 text-orange-700 text-[10px] font-bold bg-orange-50">
+              Register
             </span>
           )}
           {event.category && (

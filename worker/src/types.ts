@@ -38,12 +38,14 @@ export interface EventRow {
   source_url:      string | null
   attraction_id:   string | null
   location_id:     string | null
-  schedule_status: string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
-  please_note:     string | null
-  admission_note:  string | null  // per-event admission note
-  source_links:    string | null  // JSON: Array<{url: string; displayName?: string}>
-  created_at:      string
-  updated_at:      string
+  schedule_status:   string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
+  please_note:       string | null
+  admission_note:    string | null  // per-event admission note
+  source_links:      string | null  // JSON: Array<{url: string; displayName?: string}>
+  registration_type: string | null  // 'required' | 'notRequired'
+  languages:         string | null  // JSON: string[] e.g. ["de","en"]
+  created_at:        string
+  updated_at:        string
 }
 
 // ─── DB query options ─────────────────────────────────────────────────────────
@@ -77,7 +79,7 @@ export interface KulturdatenEvent {
     priceMin?:         number
     priceMax?:         number
     admissionLink?:    string
-    registrationType?: string
+    registrationType?: string  // 'registrationType.required' | 'registrationType.notRequired'
     note?:             { de?: string; en?: string }   // e.g. age restrictions, booking info
   }
   pleaseNote?:  { de?: string; en?: string }
@@ -86,12 +88,13 @@ export interface KulturdatenEvent {
 }
 
 export interface KulturdatenAttraction {
-  identifier:   string
-  title?:       { de?: string; en?: string }
-  description?: { de?: string; en?: string }
-  pleaseNote?:  { de?: string; en?: string }
-  tags?:        string[]
-  website?:     string
+  identifier:    string
+  title?:        { de?: string; en?: string }
+  description?:  { de?: string; en?: string }
+  pleaseNote?:   { de?: string; en?: string }
+  tags?:         string[]
+  website?:      string
+  inLanguages?:  string[]   // e.g. ["de"] or ["de","en"]
   externalLinks?: Array<{ url: string; displayName?: string }>
 }
 
@@ -119,7 +122,7 @@ export interface KulturdatenLocation {
   contact?: {
     name?:      string
     telephone?: string
-    email?:     string
+    email?:     string   // venue contact email
   }
   accessibility?:  string[]
   openingHours?:   KulturdatenOpeningHour[]

@@ -46,8 +46,9 @@ export async function ingestLocations(env: Env): Promise<number> {
       INSERT INTO locations
         (id, name, lat, lng, category, address, borough, website, tags,
          description, phone, accessibility, opening_hours, opening_status, extra_links,
+         is_virtual, contact_email,
          updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(id) DO UPDATE SET
         name           = excluded.name,
         lat            = excluded.lat,
@@ -63,6 +64,8 @@ export async function ingestLocations(env: Env): Promise<number> {
         opening_hours  = excluded.opening_hours,
         opening_status = excluded.opening_status,
         extra_links    = excluded.extra_links,
+        is_virtual     = excluded.is_virtual,
+        contact_email  = excluded.contact_email,
         updated_at     = datetime('now')
     `)
 
@@ -94,10 +97,13 @@ export async function ingestLocations(env: Env): Promise<number> {
         const extraLinks    = loc.externalLinks?.length
           ? JSON.stringify(loc.externalLinks)
           : null
+        const isVirtual     = loc.isVirtual ? 1 : 0
+        const contactEmail  = loc.contact?.email ?? null
 
         return stmt.bind(
           loc.identifier, name, lat, lng, category, address, borough, website, tags,
           description, phone, accessibility, openingHours, openingStatus, extraLinks,
+          isVirtual, contactEmail,
         )
       }))
 

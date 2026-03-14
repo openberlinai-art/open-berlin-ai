@@ -122,6 +122,11 @@ export default async function LocationPage({ params }: Props) {
                 {openStatusLabel}
               </span>
             )}
+            {loc.is_virtual === 1 && (
+              <span className="inline-block px-1.5 py-0.5 border-2 border-blue-600 text-blue-700 text-[10px] font-bold bg-blue-50">
+                Online
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
             {loc.name ?? 'Unknown Venue'}
@@ -173,6 +178,14 @@ export default async function LocationPage({ params }: Props) {
                 className="text-xs text-gray-600 hover:text-black font-mono block mt-1"
               >
                 📞 {loc.phone}
+              </a>
+            )}
+            {loc.contact_email && (
+              <a
+                href={`mailto:${loc.contact_email}`}
+                className="text-xs text-gray-600 hover:text-black font-mono block mt-0.5"
+              >
+                ✉ {loc.contact_email}
               </a>
             )}
           </div>

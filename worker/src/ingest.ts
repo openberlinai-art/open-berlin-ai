@@ -115,7 +115,7 @@ function transformEvent(
     'Untitled'
 
   const description =
-    ((attraction?.description?.de ?? attraction?.description?.en) ?? '').slice(0, 500)
+    ((attraction?.description?.de ?? attraction?.description?.en) ?? '').slice(0, 2000)
 
   const isFree = raw.admission?.ticketType === 'ticketType.freeOfCharge'
   const price_type: 'free' | 'paid' | 'unknown' = raw.admission
@@ -149,6 +149,15 @@ function transformEvent(
     ? JSON.stringify(attraction.externalLinks)
     : null
 
+  // Strip 'registrationType.' prefix → 'required' | 'notRequired'
+  const registrationType = raw.admission?.registrationType
+    ? raw.admission.registrationType.replace(/^registrationType\./i, '')
+    : null
+
+  const languages = attraction?.inLanguages?.length
+    ? JSON.stringify(attraction.inLanguages)
+    : null
+
   return {
     id:              raw.identifier,
     title,
@@ -172,10 +181,12 @@ function transformEvent(
     source_url:      attraction?.website ?? null,
     attraction_id:   raw.attractions[0]?.referenceId ?? null,
     location_id:     raw.locations[0]?.referenceId   ?? null,
-    schedule_status: scheduleStatus,
-    please_note:     pleaseNote,
-    admission_note:  admissionNote,
-    source_links:    sourceLinks,
+    schedule_status:   scheduleStatus,
+    please_note:       pleaseNote,
+    admission_note:    admissionNote,
+    source_links:      sourceLinks,
+    registration_type: registrationType,
+    languages,
   }
 }
 

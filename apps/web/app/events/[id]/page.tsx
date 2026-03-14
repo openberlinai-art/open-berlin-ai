@@ -65,6 +65,9 @@ export default async function EventPage({ params }: Props) {
           ? 'Paid'
           : null
 
+  const langs: string[] = (() => { try { return ev.languages ? JSON.parse(ev.languages) : [] } catch { return [] } })()
+  const nonDeLangs = langs.filter(l => l !== 'de')
+
   return (
     <main className="min-h-screen bg-white font-sans">
       {/* Nav bar */}
@@ -97,6 +100,16 @@ export default async function EventPage({ params }: Props) {
                 {priceLabel}
               </span>
             )}
+            {ev.registration_type === 'required' && (
+              <span className="inline-block px-1.5 py-0.5 border-2 border-orange-500 text-orange-700 text-[10px] font-bold bg-orange-50">
+                Registration required
+              </span>
+            )}
+            {nonDeLangs.map(l => (
+              <span key={l} className="inline-block px-1.5 py-0.5 border-2 border-blue-600 text-blue-700 text-[10px] font-bold bg-blue-50 uppercase">
+                {l}
+              </span>
+            ))}
           </div>
           <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
             {ev.title ?? 'Untitled Event'}
