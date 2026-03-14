@@ -768,8 +768,13 @@ app.post('/api/ingest', async c => {
   if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  const count = await ingestEvents(c.env)
-  return c.json({ ok: true, ingested: count })
+  const days = Number(c.req.query('days') ?? 365)
+  c.executionCtx.waitUntil(
+    ingestEvents(c.env, days)
+      .then(n => console.log(`[ingest:manual] done — ${n} events`))
+      .catch(err => console.error('[ingest:manual] failed:', err))
+  )
+  return c.json({ ok: true, message: `Ingest started for ${days} days` })
 })
 
 // ─── POST /api/ingest-locations (protected) ───────────────────────────────────
@@ -870,10 +875,17 @@ export default {
           .then(() => console.log('[digest] done'))
           .catch(err => console.error('[digest] failed:', err))
       )
-    } else {
-      // Full ingest every 6 hours
+    } else if (event.cron === '0 3 * * *') {
+      // Full 365-day sweep — runs once daily at 3am to catch far-future events
       ctx.waitUntil(
-        ingestEvents(env)
+        ingestEvents(env, 365)
+          .then(n => console.log(`[ingest:full] done — ${n} events`))
+          .catch(err => console.error('[ingest:full] failed:', err))
+      )
+    } else {
+      // Hourly ingest — next 30 days, fast (~7 pages)
+      ctx.waitUntil(
+        ingestEvents(env, 30)
           .then(n => console.log(`[ingest] done — ${n} events`))
           .catch(err => console.error('[ingest] failed:', err))
       )

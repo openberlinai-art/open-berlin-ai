@@ -5,9 +5,10 @@ compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = [
-  "0 */6 * * *",    # Ingest every 6 hours
+  "0 * * * *",      # Ingest next 30 days — hourly
   "*/30 * * * *",   # Geocode pass every 30 minutes
   "0 2 * * *",      # Geodata + location refresh at 2am daily
+  "0 3 * * *",      # Full 365-day event sweep — 3am daily
   "0 8 * * 1",      # Weekly digest — Monday 8am UTC
 ]
 

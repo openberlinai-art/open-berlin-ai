@@ -212,9 +212,9 @@ export default function CalendarPanel({ onClose }: Props) {
                       {itemsForDate(isoDate(viewDate)).map(item => {
                         const time = getItemTime(item)
                         return (
-                          <div key={`${item.item_type}:${item.item_id}`} className="flex gap-2 items-start">
+                          <div key={`${item.item_type}:${item.item_id}`} className="flex gap-2 items-start min-w-0">
                             <span className="text-[10px] font-mono text-gray-400 w-10 shrink-0 pt-2.5">{time ? time.slice(0, 5) : '—'}</span>
-                            <div className="flex-1"><CalendarRow item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} hideDate /></div>
+                            <div className="flex-1 min-w-0 overflow-hidden"><CalendarRow item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} hideDate /></div>
                           </div>
                         )
                       })}
