@@ -115,7 +115,11 @@ function transformEvent(
     'Untitled'
 
   const description =
-    ((attraction?.description?.de ?? attraction?.description?.en) ?? '').slice(0, 2000)
+    attraction?.description?.de ??
+    attraction?.description?.en ??
+    attraction?.shortDescription?.de ??
+    attraction?.shortDescription?.en ??
+    null
 
   const isFree = raw.admission?.ticketType === 'ticketType.freeOfCharge'
   const price_type: 'free' | 'paid' | 'unknown' = raw.admission
@@ -158,6 +162,12 @@ function transformEvent(
     ? JSON.stringify(attraction.inLanguages)
     : null
 
+  const imageUrls: string[] = (attraction?.media ?? [])
+    .filter(m => m.encodingFormat?.startsWith('image/') || m.type?.toLowerCase() === 'imageobject')
+    .map(m => m.contentUrl ?? m.url)
+    .filter((u): u is string => !!u)
+    .slice(0, 6)
+
   return {
     id:              raw.identifier,
     title,
@@ -187,6 +197,7 @@ function transformEvent(
     source_links:      sourceLinks,
     registration_type: registrationType,
     languages,
+    image_urls: imageUrls.length ? JSON.stringify(imageUrls) : null,
   }
 }
 

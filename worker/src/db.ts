@@ -139,7 +139,7 @@ export async function upsertEvents(
           location_name, address, borough, lat, lng,
           source_url, attraction_id, location_id,
           schedule_status, please_note, admission_note, source_links,
-          registration_type, languages,
+          registration_type, languages, image_urls,
           created_at, updated_at
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?,
@@ -147,7 +147,7 @@ export async function upsertEvents(
           ?, ?, ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?,
+          ?, ?, ?,
           COALESCE((SELECT created_at FROM events WHERE id = ?), datetime('now')),
           datetime('now')
         )
@@ -170,6 +170,7 @@ export async function upsertEvents(
           source_links = excluded.source_links,
           registration_type = excluded.registration_type,
           languages = excluded.languages,
+          image_urls = excluded.image_urls,
           updated_at = datetime('now')
       `).bind(
         e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end, e.door_time,
@@ -177,7 +178,7 @@ export async function upsertEvents(
         e.location_name, e.address, e.borough, e.lat, e.lng,
         e.source_url, e.attraction_id, e.location_id,
         e.schedule_status, e.please_note, e.admission_note, e.source_links,
-        e.registration_type, e.languages,
+        e.registration_type, e.languages, e.image_urls,
         e.id
       )
     )

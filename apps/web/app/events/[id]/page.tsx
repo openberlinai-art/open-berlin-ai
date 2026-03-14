@@ -67,6 +67,7 @@ export default async function EventPage({ params }: Props) {
 
   const langs: string[] = (() => { try { return ev.languages ? JSON.parse(ev.languages) : [] } catch { return [] } })()
   const nonDeLangs = langs.filter(l => l !== 'de')
+  const imageUrls: string[] = (() => { try { return ev.image_urls ? JSON.parse(ev.image_urls) : [] } catch { return [] } })()
 
   return (
     <main className="min-h-screen bg-white font-sans">
@@ -148,6 +149,30 @@ export default async function EventPage({ params }: Props) {
                 {[ev.address, ev.borough].filter(Boolean).join(', ')}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Photo collage */}
+        {imageUrls.length > 0 && (
+          <div className={`mb-5 gap-1 ${imageUrls.length === 1 ? 'block' : 'grid grid-cols-2'}`}>
+            {imageUrls.map((src, i) => (
+              <a
+                key={i}
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={imageUrls.length === 3 && i === 0 ? 'row-span-2' : ''}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`${ev.title ?? 'Event'} photo ${i + 1}`}
+                  loading="lazy"
+                  className="w-full h-40 object-cover border-2 border-black hover:opacity-90 transition-opacity"
+                  style={imageUrls.length === 3 && i === 0 ? { height: '100%' } : {}}
+                />
+              </a>
+            ))}
           </div>
         )}
 

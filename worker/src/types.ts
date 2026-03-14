@@ -44,6 +44,7 @@ export interface EventRow {
   source_links:      string | null  // JSON: Array<{url: string; displayName?: string}>
   registration_type: string | null  // 'required' | 'notRequired'
   languages:         string | null  // JSON: string[] e.g. ["de","en"]
+  image_urls:        string | null  // JSON: string[] from attraction media
   created_at:        string
   updated_at:        string
 }
@@ -88,14 +89,16 @@ export interface KulturdatenEvent {
 }
 
 export interface KulturdatenAttraction {
-  identifier:    string
-  title?:        { de?: string; en?: string }
-  description?:  { de?: string; en?: string }
-  pleaseNote?:   { de?: string; en?: string }
-  tags?:         string[]
-  website?:      string
-  inLanguages?:  string[]   // e.g. ["de"] or ["de","en"]
-  externalLinks?: Array<{ url: string; displayName?: string }>
+  identifier:        string
+  title?:            { de?: string; en?: string }
+  description?:      { de?: string; en?: string }
+  shortDescription?: { de?: string; en?: string }
+  pleaseNote?:       { de?: string; en?: string }
+  tags?:             string[]
+  website?:          string
+  inLanguages?:      string[]
+  externalLinks?:    Array<{ url: string; displayName?: string }>
+  media?:            Array<{ url?: string; contentUrl?: string; type?: string; encodingFormat?: string }>
 }
 
 export interface KulturdatenOpeningHour {

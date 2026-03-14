@@ -27,6 +27,7 @@ export interface Event {
   source_links:      string | null  // JSON: Array<{url: string; displayName?: string}>
   registration_type: string | null  // 'required' | 'notRequired'
   languages:         string | null  // JSON: string[] e.g. ["de","en"]
+  image_urls:        string | null  // JSON: string[]
   created_at:        string
   updated_at:        string
 }
