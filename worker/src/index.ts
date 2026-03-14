@@ -43,7 +43,7 @@ app.use('*', cors({
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
-app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker', v: 'osm-route-fix' }))
+app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker' }))
 
 // ─── GET /api/events ──────────────────────────────────────────────────────────
 
