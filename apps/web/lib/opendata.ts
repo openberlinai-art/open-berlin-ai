@@ -193,8 +193,10 @@ export interface JourneyLeg {
   departure:   string
   arrival:     string
   line:        string | null
+  product:     string | null  // subway | suburban | tram | bus | regional | express
   direction:   string | null
   walking:     boolean
+  distance:    number | null  // metres (walking legs only)
 }
 
 export interface Journey {
@@ -241,9 +243,10 @@ export async function fetchJourney(
         destination?: { name?: string }
         departure?:   string
         arrival?:     string
-        line?:        { name?: string }
+        line?:        { name?: string; product?: string }
         direction?:   string
         walking?:     boolean
+        distance?:    number | null
       }>
     }>
   }
@@ -254,9 +257,11 @@ export async function fetchJourney(
       destination: leg.destination?.name ?? '',
       departure:   leg.departure ?? '',
       arrival:     leg.arrival ?? '',
-      line:        leg.line?.name ?? null,
-      direction:   leg.direction ?? null,
-      walking:     leg.walking ?? false,
+      line:        leg.line?.name    ?? null,
+      product:     leg.line?.product ?? null,
+      direction:   leg.direction     ?? null,
+      walking:     leg.walking       ?? false,
+      distance:    leg.distance      ?? null,
     }))
 
     const firstLeg = j.legs[0]
