@@ -1,6 +1,7 @@
 name            = "kulturpulse-worker"
 main            = "src/index.ts"
 compatibility_date  = "2024-09-23"
+account_id      = "eb357bda433d42f080b28175226b588b"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
