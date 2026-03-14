@@ -27,15 +27,25 @@ out center;`,
 out center;`,
 
   cafe: `[out:json][timeout:25];
-(node[amenity=cafe](${BBOX});
- way[amenity=cafe](${BBOX}););
+(node[amenity=cafe][roastery=yes](${BBOX});
+ way[amenity=cafe][roastery=yes](${BBOX});
+ node[craft=roasting](${BBOX});
+ way[craft=roasting](${BBOX}););
 out center;`,
 
   craft_beer: `[out:json][timeout:25];
-(node[amenity=bar][craft_beer=yes](${BBOX});
- node[amenity=bar][name~"brau|craft",i](${BBOX});
- way[amenity=bar][craft_beer=yes](${BBOX});
- way[amenity=bar][name~"brau|craft",i](${BBOX}););
+(node[amenity=bar]["drink:craft_beer"=yes](${BBOX});
+ node[amenity=pub]["drink:craft_beer"=yes](${BBOX});
+ node[amenity=bar][microbrewery=yes](${BBOX});
+ node[amenity=pub][microbrewery=yes](${BBOX});
+ node[craft=brewery](${BBOX});
+ node[amenity=bar][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
+ node[amenity=pub][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
+ way[amenity=bar]["drink:craft_beer"=yes](${BBOX});
+ way[amenity=pub]["drink:craft_beer"=yes](${BBOX});
+ way[craft=brewery](${BBOX});
+ way[amenity=bar][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
+ way[amenity=pub][name~"brauerei|taproom|bierbar|brewing",i](${BBOX}););
 out center;`,
 
   tattoo: `[out:json][timeout:25];
@@ -49,15 +59,20 @@ out center;`,
 out center;`,
 
   vegan: `[out:json][timeout:25];
-(node[amenity=restaurant]["diet:vegan"=yes](${BBOX});
- node[amenity=restaurant]["diet:vegetarian"=yes](${BBOX});
- way[amenity=restaurant]["diet:vegan"=yes](${BBOX});
- way[amenity=restaurant]["diet:vegetarian"=yes](${BBOX}););
+(node["diet:vegan"=only](${BBOX});
+ way["diet:vegan"=only](${BBOX}););
 out center;`,
 
   street_art: `[out:json][timeout:25];
 (node[tourism=artwork][artwork_type=mural](${BBOX});
- way[tourism=artwork][artwork_type=mural](${BBOX}););
+ node[tourism=artwork][artwork_type=graffiti](${BBOX});
+ node[tourism=artwork][artwork_type=mosaic](${BBOX});
+ node[tourism=artwork][artwork_type=sculpture](${BBOX});
+ node[tourism=artwork][artwork_type=street_installation](${BBOX});
+ way[tourism=artwork][artwork_type=mural](${BBOX});
+ way[tourism=artwork][artwork_type=graffiti](${BBOX});
+ way[tourism=artwork][artwork_type=mosaic](${BBOX});
+ way[tourism=artwork][artwork_type=sculpture](${BBOX}););
 out center;`,
 }
 
