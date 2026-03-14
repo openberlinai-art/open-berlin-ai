@@ -23,7 +23,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci --workspace=worker
+        run: npm ci
 
       - name: Apply D1 migrations
         working-directory: worker
