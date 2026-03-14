@@ -126,7 +126,7 @@ export async function fetchTransitStopsVBB(
 // ─── OSM hipster venues (R2, CDN cached) ─────────────────────────────────────
 
 export async function fetchOSMVenues(category: string): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`${WORKER}/api/geodata/osm-${category}`)
+  const res = await fetch(`${WORKER}/api/geodata/osm/${category}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }

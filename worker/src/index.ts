@@ -205,9 +205,9 @@ app.get('/api/geodata/playgrounds-points', async c => {
   })
 })
 
-// ─── GET /api/geodata/osm-:category ───────────────────────────────────────────
+// ─── GET /api/geodata/osm/:category ───────────────────────────────────────────
 
-app.get('/api/geodata/osm-:category', async c => {
+app.get('/api/geodata/osm/:category', async c => {
   const cat = c.req.param('category') ?? ''
   if (!OSM_CATEGORIES.has(cat)) return c.json({ error: 'Unknown category' }, 400)
   const obj = await c.env.GEODATA.get(`osm-${cat}.geojson`)
@@ -741,23 +741,55 @@ app.patch('/api/notifications/:id', async c => {
 
 // ─── GET /api/search ─────────────────────────────────────────────────────────
 
+// Strip diacritics from a query string in JS (NFD decomposition)
+function normalizeQ(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+// Build a SQLite REPLACE chain that strips common diacritics from a column
+function normSql(col: string): string {
+  const pairs: [string, string][] = [
+    ['ä','a'],['ö','o'],['ü','u'],
+    ['ș','s'],['ş','s'],['ț','t'],['ţ','t'],['ă','a'],['â','a'],['î','i'],
+    ['é','e'],['è','e'],['ê','e'],['ë','e'],
+    ['à','a'],['á','a'],['ã','a'],
+    ['ì','i'],['í','i'],['ï','i'],
+    ['ò','o'],['ó','o'],['ô','o'],['õ','o'],
+    ['ù','u'],['ú','u'],['û','u'],
+    ['ý','y'],['ÿ','y'],
+    ['ñ','n'],['ç','c'],
+    ['ę','e'],['ą','a'],['ś','s'],['ź','z'],['ż','z'],['ć','c'],['ń','n'],['ł','l'],
+    ['ğ','g'],['ı','i'],
+  ]
+  let expr = `LOWER(${col})`
+  for (const [from, to] of pairs) {
+    expr = `REPLACE(${expr},'${from}','${to}')`
+  }
+  return expr
+}
+
 app.get('/api/search', async c => {
-  const q = (c.req.query('q') ?? '').trim()
-  if (q.length < 2) return c.json({ events: [], locations: [] })
-  const pattern = `%${q}%`
+  const raw = (c.req.query('q') ?? '').trim()
+  if (raw.length < 2) return c.json({ events: [], locations: [] })
+  const norm    = normalizeQ(raw)
+  const pattern = `%${norm}%`
 
   const [evRes, locRes] = await Promise.all([
     c.env.DB.prepare(`
       SELECT id, title, date_start, time_start, category, price_type,
              location_name, borough, lat, lng
       FROM events
-      WHERE title LIKE ? OR location_name LIKE ? OR borough LIKE ?
+      WHERE ${normSql('title')} LIKE ?
+         OR ${normSql('location_name')} LIKE ?
+         OR ${normSql('borough')} LIKE ?
       ORDER BY date_start ASC LIMIT 15
     `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),
     c.env.DB.prepare(`
       SELECT id, name, category, address, borough, lat, lng
       FROM locations
-      WHERE (name LIKE ? OR address LIKE ? OR borough LIKE ?)
+      WHERE (${normSql('name')} LIKE ?
+          OR ${normSql('address')} LIKE ?
+          OR ${normSql('borough')} LIKE ?)
         AND lat IS NOT NULL
       LIMIT 15
     `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),

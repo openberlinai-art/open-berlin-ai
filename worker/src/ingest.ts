@@ -201,11 +201,11 @@ function transformEvent(
   }
 }
 
-export async function ingestEvents(env: Env, days = 30): Promise<number> {
+export async function ingestEvents(env: Env, days = 30, offsetDays = 0): Promise<number> {
   const apiBase  = env.KULTURDATEN_API_URL
   const today    = new Date()
-  const start    = fmtDate(today)
-  const end      = fmtDate(new Date(today.getTime() + days * 864e5))
+  const start    = fmtDate(new Date(today.getTime() + offsetDays * 864e5))
+  const end      = fmtDate(new Date(today.getTime() + (offsetDays + days) * 864e5))
 
   let page  = 1
   let total = 0
