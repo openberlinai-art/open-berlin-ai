@@ -16,6 +16,7 @@ import {
   shareList,
 } from './lists'
 import { sendWeeklyDigest } from './digest'
+import { enrichLocationsWithImages } from './enrich-images'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -603,6 +604,17 @@ app.post('/api/ingest-locations', async c => {
   return c.json({ ok: true, ingested: count })
 })
 
+// ─── POST /api/enrich-images (protected) ──────────────────────────────────────
+
+app.post('/api/enrich-images', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const count = await enrichLocationsWithImages(c.env.DB)
+  return c.json({ ok: true, matched: count })
+})
+
 // ─── POST /api/refresh-geodata (protected) ────────────────────────────────────
 
 app.post('/api/refresh-geodata', async c => {
@@ -663,11 +675,13 @@ export default {
         ])
       )
     } else if (event.cron === '0 2 * * *') {
-      // Daily geodata refresh (R2) + location sync (D1)
+      // Daily geodata refresh (R2) + location sync (D1) + image enrichment
       ctx.waitUntil(
         Promise.all([
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
-          ingestLocations(env).catch(e => console.error('[locations]', e)),
+          ingestLocations(env)
+            .then(() => enrichLocationsWithImages(env.DB))
+            .catch(e => console.error('[locations/enrich]', e)),
         ])
       )
     } else if (event.cron === '0 8 * * 1') {

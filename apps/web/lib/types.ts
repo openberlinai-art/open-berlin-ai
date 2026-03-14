@@ -53,6 +53,7 @@ export interface Location {
   opening_hours:  string | null  // JSON array of OpeningHour
   opening_status: string | null
   extra_links:    string | null  // JSON array of {url, displayName?}
+  image_urls:     string | null  // JSON array of Wikimedia Commons image URLs
   updated_at:     string
   events:         Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]
   pastEvents:     Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]

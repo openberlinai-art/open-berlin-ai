@@ -79,6 +79,9 @@ export default async function LocationPage({ params }: Props) {
   const tags:       string[] = loc.tags       ? JSON.parse(loc.tags)       : []
   const extraLinks: Array<{ url: string; displayName?: string }> =
     loc.extra_links ? JSON.parse(loc.extra_links) : []
+  const imageUrls:  string[] = (() => {
+    try { return loc.image_urls ? JSON.parse(loc.image_urls) : [] } catch { return [] }
+  })()
 
   // Normalize opening status label
   const openStatusLabel =
@@ -124,6 +127,33 @@ export default async function LocationPage({ params }: Props) {
             {loc.name ?? 'Unknown Venue'}
           </h1>
         </div>
+
+        {/* ── Photo collage (Wikimedia Commons) ── */}
+        {imageUrls.length > 0 && (
+          <div className={`mb-5 gap-1 ${imageUrls.length === 1 ? 'block' : 'grid grid-cols-2'}`}>
+            {imageUrls.map((src, i) => (
+              <a
+                key={i}
+                href={src.replace('?width=800', '')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={imageUrls.length === 3 && i === 0 ? 'row-span-2' : ''}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`${loc.name ?? 'Venue'} photo ${i + 1}`}
+                  loading="lazy"
+                  className="w-full h-40 object-cover border-2 border-black hover:opacity-90 transition-opacity"
+                  style={imageUrls.length === 3 && i === 0 ? { height: '100%' } : {}}
+                />
+              </a>
+            ))}
+            <p className="col-span-2 text-[9px] text-gray-300 mt-0.5">
+              Photos via Wikimedia Commons
+            </p>
+          </div>
+        )}
 
         {/* ── Description ── */}
         {loc.description && (
