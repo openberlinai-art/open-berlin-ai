@@ -141,7 +141,7 @@ export default function CalendarPanel({ onClose }: Props) {
   // List view groupings
   const allUpcoming = enriched.filter(i => { const d = getItemDate(i); return d && d >= today })
     .sort((a, b) => (getItemDate(a) ?? '').localeCompare(getItemDate(b) ?? ''))
-  const unsched     = enriched.filter(i => i.item_type === 'location' && !i.scheduled_for)
+  const unsched     = enriched.filter(i => !getItemDate(i))
   const allPast     = enriched.filter(i => { const d = getItemDate(i); return d && d < today })
     .sort((a, b) => (getItemDate(b) ?? '').localeCompare(getItemDate(a) ?? ''))
 
@@ -202,7 +202,7 @@ export default function CalendarPanel({ onClose }: Props) {
                   )}
                   {unsched.length > 0 && (
                     <section className="mb-5">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Saved Venues ({unsched.length})</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Saved ({unsched.length})</p>
                       <div className="flex flex-col gap-1">
                         {unsched.map(item => <CalendarRow key={`${item.item_type}:${item.item_id}`} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />)}
                       </div>
