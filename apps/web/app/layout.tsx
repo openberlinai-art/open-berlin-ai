@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Libre_Franklin } from 'next/font/google'
 import QueryProvider from '@/providers/QueryProvider'
+import { UserProvider } from '@/providers/UserProvider'
 import './globals.css'
 
 const franklin = Libre_Franklin({
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={franklin.variable} suppressHydrationWarning>
       <body className="bg-white text-gray-900 antialiased font-sans" suppressHydrationWarning>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider><UserProvider>{children}</UserProvider></QueryProvider>
       </body>
     </html>
   )

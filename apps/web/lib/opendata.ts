@@ -124,6 +124,22 @@ export async function fetchTransitStopsVBB(
   return stops
 }
 
+// ─── OSM hipster venues (R2, CDN cached) ─────────────────────────────────────
+
+export async function fetchOSMVenues(category: string): Promise<GeoJSON.FeatureCollection> {
+  const res = await fetch(`${WORKER}/api/geodata/osm-${category}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
+// ─── Weather (Open-Meteo via worker proxy) ────────────────────────────────────
+
+export async function fetchWeather(): Promise<Record<string, unknown>> {
+  const res = await fetch(`${WORKER}/api/weather`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<Record<string, unknown>>
+}
+
 // ─── Departures (VBB) ────────────────────────────────────────────────────────
 
 export interface Departure {

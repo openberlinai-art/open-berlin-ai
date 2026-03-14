@@ -1,4 +1,5 @@
 import type { Env } from './types'
+import { enrichOSMVenues } from './osm-venues'
 
 const WFS_BASE = 'https://gdi.berlin.de/services/wfs/gruenanlagen'
 
@@ -83,4 +84,6 @@ export async function refreshGeodata(env: Env): Promise<void> {
   ])
 
   console.log('[geodata] parks and playgrounds refreshed in R2')
+
+  await enrichOSMVenues(env)
 }

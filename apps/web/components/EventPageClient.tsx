@@ -2,8 +2,8 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
-import { UserProvider, useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
+import AttendButton from './AttendButton'
 
 const EventMapSection = dynamic(() => import('./EventMapSection'), { ssr: false })
 
@@ -26,7 +26,6 @@ function ShareButton() {
 }
 
 function EventActions({ id }: { id: string }) {
-  const { user } = useUser()
   const [showAuth, setShowAuth] = useState(false)
   const [AuthModal, setAuthModal] = useState<React.ComponentType<{ onClose: () => void }> | null>(null)
 
@@ -39,6 +38,7 @@ function EventActions({ id }: { id: string }) {
     <>
       <div className="flex items-center gap-2">
         <ShareButton />
+        <AttendButton itemType="event" itemId={id} onNeedAuth={openAuth} />
         <AddToListButton itemType="event" itemId={id} onNeedAuth={openAuth} />
       </div>
       {showAuth && AuthModal && <AuthModal onClose={() => setShowAuth(false)} />}
@@ -48,9 +48,9 @@ function EventActions({ id }: { id: string }) {
 
 export function EventPageClient({ id, lat, lng }: { id: string; lat?: number; lng?: number }) {
   return (
-    <UserProvider>
+    <>
       {lat && lng && <EventMapSection lat={lat} lng={lng} />}
       <EventActions id={id} />
-    </UserProvider>
+    </>
   )
 }

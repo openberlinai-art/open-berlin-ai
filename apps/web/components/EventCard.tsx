@@ -5,6 +5,7 @@ import { MapPin, Clock, ExternalLink, Heart, Bell, ChevronDown, ChevronUp } from
 import { cn, formatDate, formatTime } from '@/lib/utils'
 import type { Event } from '@/lib/types'
 import AddToListButton from './AddToListButton'
+import AttendButton from './AttendButton'
 
 interface Props {
   event:      Event
@@ -179,6 +180,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
           >
             More info
           </Link>
+          <AttendButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
           <AddToListButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
         </div>
       </div>

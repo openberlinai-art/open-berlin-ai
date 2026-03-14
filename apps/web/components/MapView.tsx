@@ -9,18 +9,44 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { getCategoryHex } from '@/lib/utils'
 import type { Event }     from '@/lib/types'
 import {
-  useParks, usePlaygrounds, useVenuesByBbox, useTransitStops, useDepartures,
+  useParks, usePlaygrounds, useVenuesByBbox, useTransitStops, useDepartures, useOSMVenues,
 } from '@/hooks/useCulturalData'
 import type { VBBStop, Departure } from '@/lib/opendata'
+import VibeCheck from './VibeCheck'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
 const INITIAL_VIEW = { longitude: 13.405, latitude: 52.52, zoom: 11 }
+
+// ─── OSM category config ───────────────────────────────────────────────────────
+
+const OSM_CATS = [
+  { key: 'vintage',    color: '#d97706', stroke: '#92400e' },
+  { key: 'vinyl',      color: '#7c3aed', stroke: '#4c1d95' },
+  { key: 'books',      color: '#0369a1', stroke: '#0c4a6e' },
+  { key: 'cafe',       color: '#b45309', stroke: '#78350f' },
+  { key: 'craft_beer', color: '#c2410c', stroke: '#7c2d12' },
+  { key: 'tattoo',     color: '#be123c', stroke: '#881337' },
+  { key: 'bike',       color: '#15803d', stroke: '#14532d' },
+  { key: 'vegan',      color: '#65a30d', stroke: '#365314' },
+  { key: 'street_art', color: '#e879f9', stroke: '#a21caf' },
+] as const
+
+type OsmKey = typeof OSM_CATS[number]['key']
+
+const OSM_POINT_LAYERS   = new Set(OSM_CATS.map(c => `osm-${c.key}-point`))
+const OSM_CLUSTER_LAYERS = new Set(OSM_CATS.map(c => `osm-${c.key}-clusters`))
 
 interface Props {
   events:        Event[]
   activeId:      string | null
   onEventSelect: (id: string | null) => void
-  layers:        { parks: boolean; playgrounds: boolean; venues: boolean; galleries: boolean; museums: boolean }
+  layers: {
+    parks: boolean; playgrounds: boolean
+    venues: boolean; galleries: boolean; museums: boolean
+    vintage: boolean; vinyl: boolean; books: boolean; cafe: boolean
+    craft_beer: boolean; tattoo: boolean; bike: boolean; vegan: boolean
+    street_art: boolean
+  }
   mode:          'events' | 'venues'
   venueCat?:     string
   onBboxChange:  (bbox: string) => void
@@ -41,6 +67,7 @@ interface VenuePopupState {
   address?: string
   website?: string
   id?:      string
+  borough?: string
 }
 
 interface GreenspacePopupState {
@@ -48,10 +75,10 @@ interface GreenspacePopupState {
   lng:      number
   name:     string
   type:     'park' | 'playground'
-  kind:     string | null   // objartname
-  borough:  string | null   // bezirkname
-  hood:     string | null   // ortstlname
-  built:    string | null   // baujahr
+  kind:     string | null
+  borough:  string | null
+  hood:     string | null
+  built:    string | null
 }
 
 // ─── Transit popup content ────────────────────────────────────────────────────
@@ -107,33 +134,55 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const [bbox,          setBbox]          = useState<string | null>(null)
-  const [transitPopup,    setTransitPopup]    = useState<TransitPopupState | null>(null)
-  const [venuePopup,      setVenuePopup]      = useState<VenuePopupState | null>(null)
-  const [greenspacePopup, setGreenspacePopup] = useState<GreenspacePopupState | null>(null)
-  const [activeTransitId, setActiveTransitId] = useState<string | null>(null)
-  const [cursor,        setCursor]        = useState('grab')
+  const [bbox,             setBbox]             = useState<string | null>(null)
+  const [transitPopup,     setTransitPopup]     = useState<TransitPopupState | null>(null)
+  const [venuePopup,       setVenuePopup]       = useState<VenuePopupState | null>(null)
+  const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
+  const [activeTransitId,  setActiveTransitId]  = useState<string | null>(null)
+  const [cursor,           setCursor]           = useState('grab')
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
-  const { data: parksData,      isFetching: parksFetching }      = useParks(layers.parks)
+  const { data: parksData,       isFetching: parksFetching }       = useParks(layers.parks)
   const { data: playgroundsData, isFetching: playgroundsFetching } = usePlaygrounds(layers.playgrounds)
-  // For the venues layer: when a specific non-museum/gallery category is selected, pass it as a filter
+
   const venuesBboxCat = venueCat && venueCat !== 'all' && !['museum', 'gallery'].includes(venueCat)
     ? venueCat
     : undefined
 
-  const { data: venuesData,     isFetching: venuesFetching,
-          isError: venuesError }                                   = useVenuesByBbox(bbox, layers.venues, venuesBboxCat)
-  const { data: galleriesData, isFetching: galleriesFetching }    = useVenuesByBbox(bbox, layers.galleries, 'gallery')
-  const { data: museumsData,   isFetching: museumsFetching }      = useVenuesByBbox(bbox, layers.museums, 'museum')
+  const { data: venuesData,    isFetching: venuesFetching,
+          isError: venuesError }                                    = useVenuesByBbox(bbox, layers.venues, venuesBboxCat)
+  const { data: galleriesData, isFetching: galleriesFetching }     = useVenuesByBbox(bbox, layers.galleries, 'gallery')
+  const { data: museumsData,   isFetching: museumsFetching }       = useVenuesByBbox(bbox, layers.museums, 'museum')
+
+  // OSM hipster venue layers
+  const { data: vintageData }    = useOSMVenues('vintage',    layers.vintage)
+  const { data: vinylData }      = useOSMVenues('vinyl',      layers.vinyl)
+  const { data: booksData }      = useOSMVenues('books',      layers.books)
+  const { data: cafeData }       = useOSMVenues('cafe',       layers.cafe)
+  const { data: craftBeerData }  = useOSMVenues('craft_beer', layers.craft_beer)
+  const { data: tattooData }     = useOSMVenues('tattoo',     layers.tattoo)
+  const { data: bikeData }       = useOSMVenues('bike',       layers.bike)
+  const { data: veganData }      = useOSMVenues('vegan',      layers.vegan)
+  const { data: streetArtData }  = useOSMVenues('street_art', layers.street_art)
+
+  const osmDataMap: Record<OsmKey, GeoJSON.FeatureCollection | undefined> = {
+    vintage:    vintageData,
+    vinyl:      vinylData,
+    books:      booksData,
+    cafe:       cafeData,
+    craft_beer: craftBeerData,
+    tattoo:     tattooData,
+    bike:       bikeData,
+    vegan:      veganData,
+    street_art: streetArtData,
+  }
 
   const activeEvent = useMemo(
     () => events.find(e => e.id === activeId) ?? null,
     [events, activeId],
   )
 
-  // Transit: fetch for the most-recently-active point — venue popup takes priority over event
   const transitLat = venuePopup?.lat ?? activeEvent?.lat ?? null
   const transitLng = venuePopup?.lng ?? activeEvent?.lng ?? null
 
@@ -213,7 +262,8 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
 
     // Cluster → zoom in
     if (layerId === 'event-clusters' || layerId === 'venue-clusters' ||
-        layerId === 'gallery-clusters' || layerId === 'museum-clusters') {
+        layerId === 'gallery-clusters' || layerId === 'museum-clusters' ||
+        OSM_CLUSTER_LAYERS.has(layerId ?? '')) {
       const map = mapRef.current
       if (!map) return
       const clusterId  = feature.properties?.cluster_id as number
@@ -248,6 +298,26 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
 
     // Venue / gallery / museum marker → show info popup
     if (layerId === 'venues-point' || layerId === 'galleries-point' || layerId === 'museums-point') {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      setVenuePopup({
+        lat:      coords[1],
+        lng:      coords[0],
+        name:     (props.name as string) ?? 'Venue',
+        category: (props.category as string) ?? 'other',
+        address:  (props.address as string) ?? undefined,
+        website:  (props.website as string) ?? undefined,
+        id:       (props.id as string) ?? undefined,
+        borough:  (props.borough as string) ?? undefined,
+      })
+      setTransitPopup(null)
+      setGreenspacePopup(null)
+      return
+    }
+
+    // OSM hipster venue marker → show info popup
+    if (OSM_POINT_LAYERS.has(layerId ?? '')) {
       const props  = feature.properties
       if (!props) return
       const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
@@ -316,6 +386,11 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
 
   const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
 
+  // Build interactiveLayerIds
+  const osmInteractiveIds = OSM_CATS.flatMap(c => [
+    `osm-${c.key}-point`, `osm-${c.key}-clusters`,
+  ])
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -333,6 +408,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           'galleries-point', 'gallery-clusters',
           'museums-point',   'museum-clusters',
           'parks-point', 'playgrounds-point',
+          ...osmInteractiveIds,
         ]}
         onLoad={onLoad}
         onMoveEnd={onMoveEnd}
@@ -514,6 +590,57 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           </Source>
         )}
 
+        {/* ── OSM hipster venue layers ──────────────── */}
+        {OSM_CATS.map(cat => {
+          const data = osmDataMap[cat.key]
+          if (!layers[cat.key] || !data) return null
+          return (
+            <Source
+              key={cat.key}
+              id={`osm-${cat.key}`}
+              type="geojson"
+              data={data}
+              cluster={true}
+              clusterMaxZoom={14}
+              clusterRadius={40}
+            >
+              <Layer
+                id={`osm-${cat.key}-clusters`}
+                type="circle"
+                filter={['has', 'point_count']}
+                paint={{
+                  'circle-color':   cat.color,
+                  'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
+                  'circle-opacity': 0.85,
+                }}
+              />
+              <Layer
+                id={`osm-${cat.key}-cluster-count`}
+                type="symbol"
+                filter={['has', 'point_count']}
+                layout={{
+                  'text-field': '{point_count_abbreviated}',
+                  'text-size':  11,
+                  'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
+                }}
+                paint={{ 'text-color': '#fff' }}
+              />
+              <Layer
+                id={`osm-${cat.key}-point`}
+                type="circle"
+                filter={['!', ['has', 'point_count']]}
+                paint={{
+                  'circle-radius':       6,
+                  'circle-color':        cat.color,
+                  'circle-stroke-color': cat.stroke,
+                  'circle-stroke-width': 1.5,
+                  'circle-opacity':      0.85,
+                }}
+              />
+            </Source>
+          )
+        })}
+
         {/* ── Events (clustered, data-driven color) ─ */}
         {mode === 'events' && <Source
           id="events"
@@ -694,7 +821,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
             anchor="bottom"
             closeButton={false}
             onClose={() => setVenuePopup(null)}
-            maxWidth="260px"
+            maxWidth="280px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
@@ -724,13 +851,41 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                     {venuePopup.website.replace(/^https?:\/\//, '')}
                   </a>
                 )}
-                {venuePopup.id && (
-                  <Link
-                    href={`/locations/${venuePopup.id}`}
-                    className="inline-block mt-0.5 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                {/* Directions + Street View */}
+                <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${venuePopup.lat},${venuePopup.lng}&travelmode=transit`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white"
                   >
-                    View venue →
-                  </Link>
+                    ↗ Directions
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps?q=${venuePopup.lat},${venuePopup.lng}&layer=c`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] text-gray-500 border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                  >
+                    Street View
+                  </a>
+                  {venuePopup.id && !venuePopup.id.startsWith('node/') && !venuePopup.id.startsWith('way/') && (
+                    <Link
+                      href={`/locations/${venuePopup.id}`}
+                      className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                    >
+                      View venue →
+                    </Link>
+                  )}
+                </div>
+                {/* Vibe Check */}
+                {venuePopup.id && (
+                  <VibeCheck
+                    id={venuePopup.id}
+                    name={venuePopup.name}
+                    category={venuePopup.category}
+                    borough={venuePopup.borough}
+                  />
                 )}
               </div>
               {transitData && transitData.length > 0 && (
@@ -755,6 +910,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
             </div>
           </Popup>
         )}
+
         {/* ── Park / playground popup ──────────────── */}
         {greenspacePopup && (
           <Popup

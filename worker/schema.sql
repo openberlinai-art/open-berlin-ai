@@ -144,3 +144,32 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+
+-- ─── Venue vibes (AI-generated, D1-cached 30 days) ───────────────────────────
+
+CREATE TABLE IF NOT EXISTS venue_vibes (
+  id           TEXT PRIMARY KEY,   -- "node/12345" or "kd:L_XXXXX"
+  name         TEXT,
+  vibe         TEXT NOT NULL,
+  generated_at TEXT DEFAULT (datetime('now'))
+);
+-- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS venue_vibes (id TEXT PRIMARY KEY, name TEXT, vibe TEXT NOT NULL, generated_at TEXT DEFAULT (datetime('now')))"
+
+-- ─── User attendance (calendar / going) ──────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS user_attendance (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type  TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
+  item_id    TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id, item_type, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id);
+-- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS user_attendance (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_type TEXT NOT NULL CHECK(item_type IN ('event','location')), item_id TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, item_type, item_id))"
+-- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id)"
+
+-- ─── User preferences ─────────────────────────────────────────────────────────
+-- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE users ADD COLUMN preferences TEXT"
+-- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS user_attendance (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_type TEXT NOT NULL CHECK(item_type IN ('event','location')), item_id TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, item_type, item_id))"
+-- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id)"

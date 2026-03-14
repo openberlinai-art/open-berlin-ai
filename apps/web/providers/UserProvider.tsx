@@ -43,12 +43,26 @@ export interface KPNotification {
   created_at: string
 }
 
+export interface KPAttendanceItem {
+  item_type:  'event' | 'location'
+  item_id:    string
+  created_at: string
+}
+
+export interface KPPreferences {
+  categories?: string[]
+  boroughs?:   string[]
+}
+
 interface UserContextValue {
   user:              KPUser | null
   token:             string | null
   lists:             KPList[]
   notifications:     KPNotification[]
   unreadCount:       number
+  attendance:        KPAttendanceItem[]
+  preferences:       KPPreferences
+  digestOptIn:       boolean
   login:             (email: string) => Promise<{ dev_link?: string }>
   logout:            () => void
   refreshLists:      () => Promise<void>
@@ -61,6 +75,11 @@ interface UserContextValue {
   markNotificationRead: (id: string | 'all') => Promise<void>
   updateDisplayName: (name: string) => Promise<void>
   shareList:         (listId: string, email: string) => Promise<{ ok: boolean; error?: string }>
+  isAttending:       (itemType: 'event' | 'location', itemId: string) => boolean
+  attend:            (itemType: 'event' | 'location', itemId: string) => Promise<void>
+  unattend:          (itemType: 'event' | 'location', itemId: string) => Promise<void>
+  updatePreferences: (prefs: KPPreferences) => Promise<void>
+  updateDigestOptIn: (value: boolean) => Promise<void>
 }
 
 const UserContext = createContext<UserContextValue | null>(null)
@@ -72,10 +91,6 @@ export function useUser() {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function authHeaders(token: string) {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-}
 
 async function apiFetch(path: string, token: string | null, init?: RequestInit) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -90,12 +105,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [token,         setToken]         = useState<string | null>(null)
   const [lists,         setLists]         = useState<KPList[]>([])
   const [notifications, setNotifications] = useState<KPNotification[]>([])
+  const [attendance,    setAttendance]    = useState<KPAttendanceItem[]>([])
+  const [preferences,   setPreferences]   = useState<KPPreferences>({})
+  const [digestOptIn,   setDigestOptIn]   = useState(false)
 
   // ── Hydrate from localStorage ───────────────────────────────────────────────
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY)
     if (!stored) return
-    // Decode payload without verifying (verification happens on worker side)
     try {
       const parts   = stored.split('.')
       const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
@@ -145,12 +162,43 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [token])
 
-  // Load lists + notifications when token is set
+  const refreshAttendance = useCallback(async () => {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    try {
+      const res = await apiFetch('/api/attendance', t)
+      if (!res.ok) return
+      const json = await res.json() as { data: KPAttendanceItem[] }
+      setAttendance(json.data)
+    } catch { /* ignore */ }
+  }, [token])
+
+  // Load full profile (display_name, digest_opt_in, preferences)
+  const refreshProfile = useCallback(async (t: string) => {
+    try {
+      const res = await apiFetch('/api/auth/me', t)
+      if (!res.ok) return
+      const json = await res.json() as {
+        data: {
+          id: string; email: string; display_name: string | null
+          digest_opt_in: number; preferences: string | null
+        }
+      }
+      const d = json.data
+      setUser({ id: d.id, email: d.email, display_name: d.display_name })
+      setDigestOptIn(d.digest_opt_in === 1)
+      try { setPreferences(d.preferences ? JSON.parse(d.preferences) : {}) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Load lists, notifications, attendance, and profile when token is set
   useEffect(() => {
     if (!token) return
     refreshLists()
     refreshNotifications()
-  }, [token, refreshLists, refreshNotifications])
+    refreshAttendance()
+    refreshProfile(token)
+  }, [token, refreshLists, refreshNotifications, refreshAttendance, refreshProfile])
 
   const login = useCallback(async (email: string): Promise<{ dev_link?: string }> => {
     const res = await apiFetch('/api/auth/magic-link', null, {
@@ -177,6 +225,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setLists([])
     setNotifications([])
+    setAttendance([])
+    setPreferences({})
+    setDigestOptIn(false)
   }, [])
 
   const createList = useCallback(async (name: string, description: string, isPublic: boolean): Promise<KPList> => {
@@ -236,11 +287,49 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return res.json() as Promise<{ ok: boolean; error?: string }>
   }, [token])
 
+  const isAttending = useCallback((itemType: 'event' | 'location', itemId: string) => {
+    return attendance.some(a => a.item_type === itemType && a.item_id === itemId)
+  }, [attendance])
+
+  const attend = useCallback(async (itemType: 'event' | 'location', itemId: string) => {
+    await apiFetch('/api/attendance', token!, {
+      method: 'POST',
+      body:   JSON.stringify({ item_type: itemType, item_id: itemId }),
+    })
+    setAttendance(prev => [
+      ...prev,
+      { item_type: itemType, item_id: itemId, created_at: new Date().toISOString() },
+    ])
+  }, [token])
+
+  const unattend = useCallback(async (itemType: 'event' | 'location', itemId: string) => {
+    const params = new URLSearchParams({ item_type: itemType, item_id: itemId })
+    await apiFetch(`/api/attendance?${params}`, token!, { method: 'DELETE' })
+    setAttendance(prev => prev.filter(a => !(a.item_type === itemType && a.item_id === itemId)))
+  }, [token])
+
+  const updatePreferences = useCallback(async (prefs: KPPreferences) => {
+    await apiFetch('/api/auth/preferences', token!, {
+      method: 'PATCH',
+      body:   JSON.stringify(prefs),
+    })
+    setPreferences(prefs)
+  }, [token])
+
+  const updateDigestOptIn = useCallback(async (value: boolean) => {
+    await apiFetch('/api/auth/profile', token!, {
+      method: 'PATCH',
+      body:   JSON.stringify({ digest_opt_in: value }),
+    })
+    setDigestOptIn(value)
+  }, [token])
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   return (
     <UserContext.Provider value={{
       user, token, lists, notifications, unreadCount,
+      attendance, preferences, digestOptIn,
       login, logout,
       refreshLists, refreshNotifications,
       createList, deleteList,
@@ -248,6 +337,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       markNotificationRead,
       updateDisplayName,
       shareList,
+      isAttending, attend, unattend,
+      updatePreferences, updateDigestOptIn,
     }}>
       {children}
     </UserContext.Provider>

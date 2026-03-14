@@ -6,6 +6,8 @@ import {
   fetchVenuesList,
   fetchTransitStopsVBB,
   fetchDepartures,
+  fetchOSMVenues,
+  fetchWeather,
 } from '@/lib/opendata'
 
 export function useParks(enabled: boolean) {
@@ -62,5 +64,23 @@ export function useVenuesList(bbox: string | null, enabled: boolean, category?: 
     enabled:         enabled && bbox !== null,
     staleTime:       5 * 60_000,
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useOSMVenues(category: string, enabled: boolean) {
+  return useQuery({
+    queryKey:  ['osm-venues', category],
+    queryFn:   () => fetchOSMVenues(category),
+    enabled,
+    staleTime: Infinity,
+  })
+}
+
+export function useWeather() {
+  return useQuery({
+    queryKey:        ['weather'],
+    queryFn:         fetchWeather,
+    staleTime:       10 * 60_000,
+    refetchInterval: 10 * 60_000,
   })
 }

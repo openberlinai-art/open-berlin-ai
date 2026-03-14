@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
-  List, Map,
+  List, Map, CalendarDays,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -15,11 +15,13 @@ import EventCard                from './EventCard'
 import { useVenuesList } from '@/hooks/useCulturalData'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
-import { UserProvider, useUser } from '@/providers/UserProvider'
+import WeatherWidget             from './WeatherWidget'
+import { useUser } from '@/providers/UserProvider'
 
-const MapView     = dynamic(() => import('./MapView'),     { ssr: false })
-const AuthModal   = dynamic(() => import('./AuthModal'),   { ssr: false })
-const ListsDrawer = dynamic(() => import('./ListsDrawer'), { ssr: false })
+const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
+const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
+const ListsDrawer   = dynamic(() => import('./ListsDrawer'),   { ssr: false })
+const CalendarPanel = dynamic(() => import('./CalendarPanel'), { ssr: false })
 
 const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
@@ -33,7 +35,7 @@ interface Props {
 }
 
 function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
-  const { user, unreadCount } = useUser()
+  const { user, unreadCount, attendance } = useUser()
 
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
@@ -51,10 +53,15 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const catRef                  = useRef<HTMLDivElement>(null)
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [layers, setLayers] = useState({ parks: false, playgrounds: false, venues: false, galleries: false, museums: false })
+  const [layers, setLayers] = useState({
+    parks: false, playgrounds: false, venues: false, galleries: false, museums: false,
+    vintage: false, vinyl: false, books: false, cafe: false,
+    craft_beer: false, tattoo: false, bike: false, vegan: false, street_art: false,
+  })
 
-  const [showAuth,   setShowAuth]   = useState(false)
-  const [showLists,  setShowLists]  = useState(false)
+  const [showAuth,     setShowAuth]     = useState(false)
+  const [showLists,    setShowLists]    = useState(false)
+  const [showCalendar, setShowCalendar] = useState(false)
   const [mode,      setMode]      = useState<'events' | 'venues'>('events')
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [venueCat,  setVenueCat]  = useState<string>('all')
@@ -178,7 +185,34 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <div className="flex items-center justify-between mb-0.5">
             <h1 className="text-lg font-bold tracking-tight">KulturPulse</h1>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  const pool = mode === 'events' ? events : venueFeatures
+                  if (!pool.length) return
+                  const item = pool[Math.floor(Math.random() * pool.length)]
+                  const coords = mode === 'events'
+                    ? ((item as Event).lat && (item as Event).lng ? [(item as Event).lng!, (item as Event).lat!] : null)
+                    : ((item as GeoJSON.Feature<GeoJSON.Point>).geometry?.coordinates as [number, number] | undefined)
+                  if (coords) setFlyTo(coords as [number, number])
+                }}
+                className="text-xs border-2 border-black px-2 py-1 hover:bg-black hover:text-white font-bold"
+                title="Surprise Me"
+              >
+                ✦ Surprise
+              </button>
               {user && <NotificationsBell />}
+              <button
+                onClick={() => { if (user) setShowCalendar(true); else setShowAuth(true) }}
+                title="My Calendar"
+                className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+              >
+                <CalendarDays size={14} />
+                {user && attendance.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-black text-white text-[9px] font-bold flex items-center justify-center border border-white">
+                    {attendance.length > 9 ? '9+' : attendance.length}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={() => { if (user) setShowLists(true); else setShowAuth(true) }}
                 title="My Lists"
@@ -186,16 +220,26 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               >
                 <BookMarked size={14} />
               </button>
-              <button
-                onClick={() => setShowAuth(true)}
-                title={user ? user.display_name ?? user.email : 'Sign in'}
-                className={`flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white ${user ? 'bg-black text-white' : ''}`}
-              >
-                <User size={14} />
-              </button>
+              {user ? (
+                <a
+                  href="/profile"
+                  title={user.display_name ?? user.email}
+                  className="flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white bg-black text-white"
+                >
+                  <User size={14} />
+                </a>
+              ) : (
+                <button
+                  onClick={() => setShowAuth(true)}
+                  title="Sign in"
+                  className="flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+                >
+                  <User size={14} />
+                </button>
+              )}
             </div>
           </div>
-          <p className="text-xs text-gray-500">Berlin culture events, live</p>
+          <p className="text-xs text-gray-500">Berlin culture events, live<WeatherWidget /></p>
 
           {/* Search */}
           <div className="relative mt-2">
@@ -327,7 +371,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         </div>
 
         {/* Mode toggle + layer overlays */}
-        <div className="px-4 py-2 border-b-2 border-black flex items-center gap-2 flex-wrap">
+        <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setMode('events')}
             className={mode === 'events' ? btnActive : btn}
@@ -358,6 +402,29 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               Transit nearby
             </span>
           )}
+        </div>
+
+        {/* Hipster radar layer toggles */}
+        <div className="px-4 py-1.5 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
+          {([
+            ['vintage',    'Vintage'],
+            ['vinyl',      'Vinyl'],
+            ['books',      'Books'],
+            ['cafe',       'Café'],
+            ['craft_beer', 'Craft Beer'],
+            ['tattoo',     'Tattoo'],
+            ['bike',       'Bike'],
+            ['vegan',      'Vegan'],
+            ['street_art', 'Street Art'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))}
+              className={layers[key] ? btnActive : btn}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Search results / Event list / Venue list */}
@@ -573,16 +640,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       <ChatPanel date={dateFrom} />
 
       {/* ── Modals / drawers ────────────────────────────── */}
-      {showAuth  && <AuthModal   onClose={() => setShowAuth(false)}  />}
-      {showLists && <ListsDrawer onClose={() => setShowLists(false)} />}
+      {showAuth     && <AuthModal     onClose={() => setShowAuth(false)}     />}
+      {showLists    && <ListsDrawer   onClose={() => setShowLists(false)}    />}
+      {showCalendar && <CalendarPanel onClose={() => setShowCalendar(false)} />}
     </div>
   )
 }
 
 export default function KulturPulseApp(props: Props) {
-  return (
-    <UserProvider>
-      <AppInner {...props} />
-    </UserProvider>
-  )
+  return <AppInner {...props} />
 }

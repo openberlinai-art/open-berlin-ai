@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { fetchLocation } from '@/lib/opendata'
 import { VenuePageClient } from '@/components/VenuePageClient'
+import VibeCheck from '@/components/VibeCheck'
 import type { OpeningHour } from '@/lib/types'
 
 export const revalidate = 86400
@@ -215,6 +216,41 @@ export default async function LocationPage({ params }: Props) {
                 {link.displayName ?? link.url.replace(/^https?:\/\//, '')}
               </a>
             ))}
+          </div>
+        )}
+
+        {/* ── Get Directions + Street View ── */}
+        {(loc.lat && loc.lng) && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}&travelmode=transit`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+            >
+              ↗ Get Directions
+            </a>
+            <a
+              href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}&layer=c`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+            >
+              Street View
+            </a>
+          </div>
+        )}
+
+        {/* ── Vibe Check ── */}
+        {loc.id && (
+          <div className="mb-4">
+            <VibeCheck
+              id={loc.id}
+              name={loc.name ?? 'Venue'}
+              category={loc.category ?? 'other'}
+              borough={loc.borough ?? undefined}
+              description={loc.description ?? undefined}
+            />
           </div>
         )}
 

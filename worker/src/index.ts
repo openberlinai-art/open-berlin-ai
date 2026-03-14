@@ -5,6 +5,11 @@ import { ingestEvents } from './ingest'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
+
+const OSM_CATEGORIES = new Set([
+  'vintage', 'vinyl', 'books', 'cafe', 'craft_beer',
+  'tattoo', 'bike', 'vegan', 'street_art',
+])
 import {
   sendMagicLink, verifyMagicToken, getOrCreateUser,
   getUserFromHeader, signJWT,
@@ -200,6 +205,93 @@ app.get('/api/geodata/playgrounds-points', async c => {
   })
 })
 
+// ─── GET /api/geodata/osm-:category ───────────────────────────────────────────
+
+app.get('/api/geodata/osm-:category', async c => {
+  const cat = c.req.param('category') ?? ''
+  if (!OSM_CATEGORIES.has(cat)) return c.json({ error: 'Unknown category' }, 400)
+  const obj = await c.env.GEODATA.get(`osm-${cat}.geojson`)
+  if (!obj) return c.json({ error: 'not ready' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
+// ─── POST /api/vibe-check ─────────────────────────────────────────────────────
+
+app.post('/api/vibe-check', async c => {
+  const body = await c.req.json<{
+    id?: string; name?: string; category?: string; description?: string; borough?: string
+  }>().catch(() => null)
+
+  if (!body?.id || !body.name || !body.category) {
+    return c.json({ error: 'id, name, and category are required' }, 400)
+  }
+
+  const { id, name, category, description, borough } = body
+
+  // Check D1 cache (30-day TTL)
+  const cached = await c.env.DB
+    .prepare(`SELECT vibe, generated_at FROM venue_vibes WHERE id = ?`)
+    .bind(id)
+    .first<{ vibe: string; generated_at: string }>()
+
+  if (cached) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString().replace('T', ' ').slice(0, 19)
+    if (cached.generated_at > thirtyDaysAgo) {
+      return c.json({ vibe: cached.vibe, cached: true })
+    }
+  }
+
+  // Generate with Cloudflare AI
+  const aiResult = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [
+      {
+        role:    'system',
+        content: 'You write short, vivid, casual venue vibes for a Berlin culture app. 2-3 sentences max. Sound like a knowledgeable local friend, not a travel guide. Never use the word "vibe" itself.',
+      },
+      {
+        role:    'user',
+        content: `Write a vibe for: ${name} (${category}) in ${borough ?? 'Berlin'}. ${description ?? ''}`,
+      },
+    ],
+    max_tokens: 120,
+  }) as { response?: string }
+
+  const vibe = aiResult.response?.trim() ?? 'A hidden gem worth discovering.'
+
+  // Upsert into D1
+  await c.env.DB.prepare(`
+    INSERT INTO venue_vibes (id, name, vibe, generated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      name         = excluded.name,
+      vibe         = excluded.vibe,
+      generated_at = excluded.generated_at
+  `).bind(id, name, vibe).run()
+
+  return c.json({ vibe, cached: false })
+})
+
+// ─── GET /api/weather ─────────────────────────────────────────────────────────
+
+app.get('/api/weather', async c => {
+  const res = await fetch(
+    'https://api.open-meteo.com/v1/forecast' +
+    '?latitude=52.52&longitude=13.41' +
+    '&current=temperature_2m,weather_code,wind_speed_10m' +
+    '&timezone=Europe%2FBerlin'
+  )
+  const data = await res.json()
+  return c.json(data, {
+    headers: { 'Cache-Control': 'public, max-age=600' },
+  })
+})
+
 // ─── GET /api/proxy/wfs ───────────────────────────────────────────────────────
 // Kept as fallback CORS proxy (for local dev / seeding).
 
@@ -386,6 +478,75 @@ app.patch('/api/auth/profile', async c => {
   if (!body || body.digest_opt_in === undefined) return c.json({ error: 'digest_opt_in required' }, 400)
   await c.env.DB.prepare(`UPDATE users SET digest_opt_in = ? WHERE id = ?`)
     .bind(body.digest_opt_in ? 1 : 0, auth.sub).run()
+  return c.json({ ok: true })
+})
+
+// ─── GET /api/auth/me ─────────────────────────────────────────────────────────
+
+app.get('/api/auth/me', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const user = await c.env.DB
+    .prepare(`SELECT id, email, display_name, digest_opt_in, preferences FROM users WHERE id = ?`)
+    .bind(auth.sub)
+    .first<{ id: string; email: string; display_name: string | null; digest_opt_in: number; preferences: string | null }>()
+  if (!user) return c.json({ error: 'Not found' }, 404)
+  return c.json({ data: user })
+})
+
+// ─── PATCH /api/auth/preferences ─────────────────────────────────────────────
+
+app.patch('/api/auth/preferences', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+  if (!body) return c.json({ error: 'body required' }, 400)
+  await c.env.DB.prepare(`UPDATE users SET preferences = ? WHERE id = ?`)
+    .bind(JSON.stringify(body), auth.sub).run()
+  return c.json({ ok: true })
+})
+
+// ─── GET /api/attendance ──────────────────────────────────────────────────────
+
+app.get('/api/attendance', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const { results } = await c.env.DB
+    .prepare(`SELECT item_type, item_id, created_at FROM user_attendance WHERE user_id = ? ORDER BY created_at DESC`)
+    .bind(auth.sub)
+    .all<{ item_type: string; item_id: string; created_at: string }>()
+  return c.json({ data: results })
+})
+
+// ─── POST /api/attendance ─────────────────────────────────────────────────────
+
+app.post('/api/attendance', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ item_type?: string; item_id?: string }>().catch(() => null)
+  if (!body?.item_type || !body.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
+  if (body.item_type !== 'event' && body.item_type !== 'location') return c.json({ error: 'invalid item_type' }, 400)
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(`
+    INSERT INTO user_attendance (id, user_id, item_type, item_id)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, item_type, item_id) DO NOTHING
+  `).bind(id, auth.sub, body.item_type, body.item_id).run()
+  return c.json({ ok: true }, 201)
+})
+
+// ─── DELETE /api/attendance ───────────────────────────────────────────────────
+// Uses query params to avoid slash-in-path issues with OSM IDs like "node/12345"
+
+app.delete('/api/attendance', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const item_type = c.req.query('item_type')
+  const item_id   = c.req.query('item_id')
+  if (!item_type || !item_id) return c.json({ error: 'item_type and item_id required' }, 400)
+  await c.env.DB.prepare(`
+    DELETE FROM user_attendance WHERE user_id = ? AND item_type = ? AND item_id = ?
+  `).bind(auth.sub, item_type, item_id).run()
   return c.json({ ok: true })
 })
 

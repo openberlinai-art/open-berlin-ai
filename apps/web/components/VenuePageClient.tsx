@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
-import { UserProvider, useUser } from '@/providers/UserProvider'
+import { useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
+import AttendButton from './AttendButton'
 import { fetchTransitStopsVBB } from '@/lib/opendata'
 import type { VBBStop } from '@/lib/opendata'
 
@@ -127,6 +128,7 @@ function VenueActions({ id }: { id: string }) {
     <>
       <div className="flex items-center gap-2">
         <ShareButton />
+        <AttendButton itemType="location" itemId={id} onNeedAuth={openAuth} />
         <AddToListButton itemType="location" itemId={id} onNeedAuth={openAuth} />
       </div>
       {showAuth && AuthModal && <AuthModal onClose={() => setShowAuth(false)} />}
@@ -181,7 +183,7 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
   const [showPast, setShowPast] = useState(false)
 
   return (
-    <UserProvider>
+    <>
       {/* Mini map */}
       {lat && lng && (
         <div className="mb-4">
@@ -233,6 +235,6 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
           )}
         </div>
       )}
-    </UserProvider>
+    </>
   )
 }
