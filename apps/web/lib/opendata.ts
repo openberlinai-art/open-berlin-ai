@@ -168,14 +168,16 @@ export async function fetchDepartures(stopId: string): Promise<Departure[]> {
     if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
   }
 
-  const data = await res.json() as Array<{
-    line?:      { name?: string }
-    direction?: string
-    when?:      string
-    delay?:     number
-  }>
+  const data = await res.json() as {
+    departures?: Array<{
+      line?:      { name?: string }
+      direction?: string
+      when?:      string
+      delay?:     number
+    }>
+  }
 
-  return data.map(d => ({
+  return (data.departures ?? []).map(d => ({
     line:      d.line?.name ?? '',
     direction: d.direction ?? '',
     when:      d.when ?? '',
@@ -208,12 +210,18 @@ export async function fetchJourney(
   toLng:   number,
 ): Promise<Journey[]> {
   const params = new URLSearchParams({
-    from:      `${fromLat},${fromLng}`,
-    to:        `${toLat},${toLng}`,
-    results:   '3',
-    stopovers: 'false',
-    remarks:   'false',
-    language:  'en',
+    'from.type':      'address',
+    'from.latitude':  String(fromLat),
+    'from.longitude': String(fromLng),
+    'from.address':   'Your location',
+    'to.type':        'address',
+    'to.latitude':    String(toLat),
+    'to.longitude':   String(toLng),
+    'to.address':     'Destination',
+    results:          '3',
+    stopovers:        'false',
+    remarks:          'false',
+    language:         'en',
   })
 
   const path = `/journeys?${params}`
