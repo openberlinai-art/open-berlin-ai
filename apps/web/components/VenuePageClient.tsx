@@ -1,11 +1,66 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
 import { UserProvider, useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
+import { fetchTransitStopsVBB } from '@/lib/opendata'
+import type { VBBStop } from '@/lib/opendata'
 
 const VenueMap = dynamic(() => import('./VenueMap'), { ssr: false })
+
+const TRANSIT_TYPES = [
+  { key: 'subway',   label: 'U-Bahn', symbol: 'U', color: '#1d4ed8' },
+  { key: 'suburban', label: 'S-Bahn', symbol: 'S', color: '#15803d' },
+  { key: 'tram',     label: 'Tram',   symbol: 'T', color: '#b91c1c' },
+] as const
+
+function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
+  const [stops, setStops] = useState<VBBStop[] | null>(null)
+
+  useEffect(() => {
+    fetchTransitStopsVBB(lat, lng)
+      .then(s => setStops(s))
+      .catch(() => setStops([]))
+  }, [lat, lng])
+
+  if (!stops) return null
+
+  const hasAny = TRANSIT_TYPES.some(({ key }) => stops.some(s => s.type === key))
+  if (!hasAny) return null
+
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Nearby transit</p>
+      <div className="border-2 border-black">
+        {TRANSIT_TYPES.map(({ key, label, symbol, color }) => {
+          const typeStops = stops.filter(s => s.type === key)
+          if (!typeStops.length) return null
+          return (
+            <div key={key} className="px-3 py-2.5 border-b-2 border-black last:border-b-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span
+                  className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-extrabold text-white shrink-0"
+                  style={{ background: color }}
+                >
+                  {symbol}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-700">{label}</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {typeStops.slice(0, 6).map(s => (
+                  <span key={s.id} className="text-[11px] text-gray-700 border border-gray-200 px-1.5 py-0.5">
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 interface EventItem {
   id:         string
@@ -133,6 +188,9 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
           <VenueMap lat={lat} lng={lng} name={name} />
         </div>
       )}
+
+      {/* Nearby transit */}
+      {lat && lng && <VenueTransit lat={lat} lng={lng} />}
 
       {/* Actions */}
       <div className="mb-6">

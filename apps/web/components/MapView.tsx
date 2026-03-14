@@ -633,6 +633,25 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   </Link>
                 )}
               </div>
+              {transitData && transitData.length > 0 && (
+                <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-100 flex flex-wrap gap-1.5">
+                  {(['subway', 'suburban', 'tram'] as const).map(type => {
+                    const stop = transitData.find(s => s.type === type)
+                    if (!stop) return null
+                    const meta = {
+                      subway:   { s: 'U', c: '#1d4ed8' },
+                      suburban: { s: 'S', c: '#15803d' },
+                      tram:     { s: 'T', c: '#b91c1c' },
+                    }[type]
+                    return (
+                      <span key={type} className="flex items-center gap-1 text-[10px] text-gray-600">
+                        <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-extrabold text-white shrink-0" style={{ background: meta.c }}>{meta.s}</span>
+                        {stop.name}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </Popup>
         )}
@@ -714,6 +733,25 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   </Link>
                 )}
               </div>
+              {transitData && transitData.length > 0 && (
+                <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-100 flex flex-wrap gap-1.5">
+                  {(['subway', 'suburban', 'tram'] as const).map(type => {
+                    const stop = transitData.find(s => s.type === type)
+                    if (!stop) return null
+                    const meta = {
+                      subway:   { s: 'U', c: '#1d4ed8' },
+                      suburban: { s: 'S', c: '#15803d' },
+                      tram:     { s: 'T', c: '#b91c1c' },
+                    }[type]
+                    return (
+                      <span key={type} className="flex items-center gap-1 text-[10px] text-gray-600">
+                        <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-extrabold text-white shrink-0" style={{ background: meta.c }}>{meta.s}</span>
+                        {stop.name}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </Popup>
         )}
