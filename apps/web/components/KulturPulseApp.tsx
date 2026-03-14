@@ -12,7 +12,7 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues } from '@/hooks/useCulturalData'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
@@ -27,6 +27,18 @@ const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
   'Tours','Film','Theater','Talks','Literature','Other',
 ]
+
+const OSM_CAT_LABELS: Record<string, string> = {
+  vintage:    'Vintage',
+  vinyl:      'Music / Vinyl',
+  books:      'Books',
+  cafe:       'Café',
+  craft_beer: 'Craft Beer',
+  tattoo:     'Tattoo',
+  bike:       'Bike Shop',
+  vegan:      'Vegan Food',
+  street_art: 'Street Art',
+}
 
 interface Props {
   initialEvents: Event[]
@@ -87,6 +99,34 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   )
 
   const venueFeatures = venuesGeo?.features ?? []
+
+  // OSM hipster venues — hooks must be called unconditionally; enabled by layer toggle
+  const osmVintage   = useOSMVenues('vintage',    layers.vintage)
+  const osmVinyl     = useOSMVenues('vinyl',      layers.vinyl)
+  const osmBooks     = useOSMVenues('books',      layers.books)
+  const osmCafe      = useOSMVenues('cafe',       layers.cafe)
+  const osmCraftBeer = useOSMVenues('craft_beer', layers.craft_beer)
+  const osmTattoo    = useOSMVenues('tattoo',     layers.tattoo)
+  const osmBike      = useOSMVenues('bike',       layers.bike)
+  const osmVegan     = useOSMVenues('vegan',      layers.vegan)
+  const osmStreetArt = useOSMVenues('street_art', layers.street_art)
+
+  // Merge active OSM features into the venue list
+  const activeOSMFeatures = [
+    ...(layers.vintage    ? (osmVintage.data?.features   ?? []) : []),
+    ...(layers.vinyl      ? (osmVinyl.data?.features     ?? []) : []),
+    ...(layers.books      ? (osmBooks.data?.features     ?? []) : []),
+    ...(layers.cafe       ? (osmCafe.data?.features      ?? []) : []),
+    ...(layers.craft_beer ? (osmCraftBeer.data?.features ?? []) : []),
+    ...(layers.tattoo     ? (osmTattoo.data?.features    ?? []) : []),
+    ...(layers.bike       ? (osmBike.data?.features      ?? []) : []),
+    ...(layers.vegan      ? (osmVegan.data?.features     ?? []) : []),
+    ...(layers.street_art ? (osmStreetArt.data?.features ?? []) : []),
+  ]
+
+  const allVenueFeatures = mode === 'venues'
+    ? [...venueFeatures, ...activeOSMFeatures]
+    : venueFeatures
 
   const LIMIT = 50
 
@@ -187,7 +227,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => {
-                  const pool = mode === 'events' ? events : venueFeatures
+                  const pool = mode === 'events' ? events : allVenueFeatures
                   if (!pool.length) return
                   const item = pool[Math.floor(Math.random() * pool.length)]
                   const coords = mode === 'events'
@@ -261,8 +301,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             )}
           </div>
 
-          {/* Filter row */}
-          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+          {/* Filter row — only shown in events mode */}
+          <div className={`flex items-center gap-1.5 mt-3 flex-wrap ${mode !== 'events' ? 'hidden' : ''}`}>
 
             {/* Date picker */}
             <div ref={calRef} className="relative">
@@ -361,71 +401,61 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               </button>
             ))}
 
-            {/* Dynamic count — inline at end of filter row */}
+            {/* Dynamic count */}
             <span className="ml-auto text-[11px] text-gray-400 shrink-0 self-center">
-              {mode === 'venues'
-                ? `${venueFeatures.length} venue${venueFeatures.length !== 1 ? 's' : ''}`
-                : loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`}
+              {loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`}
             </span>
           </div>
         </div>
 
-        {/* Mode toggle + layer overlays */}
+        {/* Mode toggle + map overlay toggles */}
         <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setMode('events')}
-            className={mode === 'events' ? btnActive : btn}
-          >
-            Events
-          </button>
-          <button
-            onClick={() => setMode('venues')}
-            className={mode === 'venues' ? btnActive : btn}
-          >
-            Venues
-          </button>
+          <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
+          <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Venues</button>
           <span className="text-[10px] text-gray-300 mx-0.5">|</span>
-          <button
-            onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))}
-            className={layers.parks ? btnActive : btn}
-          >
-            Parks
-          </button>
-          <button
-            onClick={() => setLayers(l => ({ ...l, playgrounds: !l.playgrounds }))}
-            className={layers.playgrounds ? btnActive : btn}
-          >
-            Playgrounds
-          </button>
+          <button onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))} className={layers.parks ? btnActive : btn}>Parks</button>
+          <button onClick={() => setLayers(l => ({ ...l, playgrounds: !l.playgrounds }))} className={layers.playgrounds ? btnActive : btn}>Playgrounds</button>
           {activeId && mode === 'events' && (
-            <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">
-              Transit nearby
-            </span>
+            <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">Transit nearby</span>
           )}
         </div>
 
-        {/* Hipster radar layer toggles */}
-        <div className="px-4 py-1.5 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
-          {([
-            ['vintage',    'Vintage'],
-            ['vinyl',      'Vinyl'],
-            ['books',      'Books'],
-            ['cafe',       'Café'],
-            ['craft_beer', 'Craft Beer'],
-            ['tattoo',     'Tattoo'],
-            ['bike',       'Bike'],
-            ['vegan',      'Vegan'],
-            ['street_art', 'Street Art'],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))}
-              className={layers[key] ? btnActive : btn}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Venues mode — subcategory filters */}
+        {mode === 'venues' && (
+          <>
+            {/* Cultural venues */}
+            <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Cultural</span>
+              {(['all', 'museum', 'gallery', 'theatre', 'library', 'other'] as const).map(c => (
+                <button key={c} onClick={() => setVenueCat(c)} className={venueCat === c ? btnActive : btn}>
+                  {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
+                </button>
+              ))}
+            </div>
+            {/* Hipster spots */}
+            <div className="px-4 py-1.5 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Spots</span>
+              {([
+                ['vintage',    'Vintage'],
+                ['vinyl',      'Vinyl'],
+                ['books',      'Books'],
+                ['cafe',       'Café'],
+                ['craft_beer', 'Craft Beer'],
+                ['tattoo',     'Tattoo'],
+                ['bike',       'Bike'],
+                ['vegan',      'Vegan'],
+                ['street_art', 'Street Art'],
+              ] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} className={layers[key] ? btnActive : btn}>
+                  {label}
+                </button>
+              ))}
+              <span className="ml-auto text-[11px] text-gray-400 shrink-0">
+                {allVenueFeatures.length} venue{allVenueFeatures.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </>
+        )}
 
         {/* Search results / Event list / Venue list */}
         <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
@@ -517,55 +547,61 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ))
             )
           ) : (
+            /* ── Venue list (kulturdaten + active OSM) ── */
             <>
-              {/* Venue category filter */}
-              <div className="px-4 py-2 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
-                {(['all', 'museum', 'gallery', 'theatre', 'library', 'other'] as const).map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setVenueCat(c)}
-                    className={venueCat === c ? btnActive : btn}
-                  >
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </button>
-                ))}
-              </div>
-              {/* Venue list */}
-              {venuesFetching && venueFeatures.length === 0 ? (
+              {venuesFetching && allVenueFeatures.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
-              ) : venueFeatures.length === 0 ? (
+              ) : allVenueFeatures.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">
                   {mapBbox ? 'No venues in view' : 'Pan the map to load venues'}
                 </div>
               ) : (
-                venueFeatures.map(f => {
-                  const p = f.properties as { id?: string; name?: string; category?: string; address?: string; borough?: string }
+                allVenueFeatures.map((f, i) => {
+                  const p = f.properties as {
+                    id?: string; name?: string; category?: string
+                    address?: string; borough?: string
+                    website?: string; phone?: string; opening_hours?: string; cuisine?: string
+                  }
                   const coords = (f.geometry as GeoJSON.Point | undefined)?.coordinates as [number, number] | undefined
+                  const isOSM  = typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
+                  const catLabel = OSM_CAT_LABELS[p.category ?? ''] ?? p.category
                   return (
                     <div
-                      key={p.id}
-                      className="px-4 py-3 border-b-2 border-black hover:bg-gray-50 cursor-pointer"
+                      key={p.id ?? i}
+                      className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                       onClick={() => { if (coords) setFlyTo(coords) }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-bold text-sm text-gray-900 leading-snug truncate">{p.name ?? 'Unnamed'}</p>
-                          {p.address && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{p.address}</p>}
-                          {p.borough && <p className="text-[10px] text-gray-400">{p.borough}</p>}
+                          {p.address  && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{p.address}</p>}
+                          {p.borough  && <p className="text-[10px] text-gray-400">{p.borough}</p>}
+                          {p.opening_hours && <p className="text-[10px] text-gray-400 mt-0.5 truncate">🕐 {p.opening_hours}</p>}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          {p.category && p.category !== 'other' && (
-                            <span className="text-[10px] border-2 border-black px-1.5 py-0.5 font-bold bg-white">
-                              {p.category}
+                          {catLabel && catLabel !== 'other' && (
+                            <span className="text-[10px] border-2 border-black px-1.5 py-0.5 font-bold bg-white capitalize">
+                              {catLabel}
                             </span>
                           )}
-                          {p.id && (
+                          {!isOSM && p.id && (
                             <a
                               href={`/locations/${p.id}`}
                               onClick={e => e.stopPropagation()}
                               className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
                             >
                               Details →
+                            </a>
+                          )}
+                          {isOSM && p.website && (
+                            <a
+                              href={p.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                            >
+                              Website →
                             </a>
                           )}
                         </div>

@@ -107,10 +107,15 @@ async function fetchCategory(category: OsmCategory): Promise<string> {
         geometry: { type: 'Point' as const, coordinates: [lon, lat] },
         properties: {
           id,
-          name:     tags.name ?? null,
+          name:          tags.name ?? null,
           category,
-          address:  buildAddress(tags),
-          website:  tags.website ?? tags['contact:website'] ?? null,
+          address:       buildAddress(tags),
+          website:       tags.website ?? tags['contact:website'] ?? tags['url'] ?? null,
+          phone:         tags.phone ?? tags['contact:phone'] ?? null,
+          opening_hours: tags.opening_hours ?? null,
+          cuisine:       tags.cuisine ?? null,
+          description:   tags.description ?? null,
+          operator:      tags.operator ?? tags.brand ?? null,
         },
       }
     })
