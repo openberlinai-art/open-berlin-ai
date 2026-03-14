@@ -442,6 +442,33 @@ app.patch('/api/notifications/:id', async c => {
   return c.json({ ok: true })
 })
 
+// ─── GET /api/search ─────────────────────────────────────────────────────────
+
+app.get('/api/search', async c => {
+  const q = (c.req.query('q') ?? '').trim()
+  if (q.length < 2) return c.json({ events: [], locations: [] })
+  const pattern = `%${q}%`
+
+  const [evRes, locRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT id, title, date_start, time_start, category, price_type,
+             location_name, borough, lat, lng
+      FROM events
+      WHERE title LIKE ? OR location_name LIKE ? OR borough LIKE ?
+      ORDER BY date_start ASC LIMIT 15
+    `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`
+      SELECT id, name, category, address, borough, lat, lng
+      FROM locations
+      WHERE (name LIKE ? OR address LIKE ? OR borough LIKE ?)
+        AND lat IS NOT NULL
+      LIMIT 15
+    `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),
+  ])
+
+  return c.json({ events: evRes.results, locations: locRes.results })
+})
+
 // ─── POST /api/ingest (protected) ─────────────────────────────────────────────
 
 app.post('/api/ingest', async c => {

@@ -23,6 +23,7 @@ interface Props {
   layers:        { parks: boolean; playgrounds: boolean; venues: boolean; galleries: boolean; museums: boolean }
   mode:          'events' | 'venues'
   onBboxChange:  (bbox: string) => void
+  flyTo?:        [number, number] | null
 }
 
 interface TransitPopupState {
@@ -90,7 +91,7 @@ function TransitPopupContent({
 
 // ─── Main MapView component ───────────────────────────────────────────────────
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, onBboxChange }: Props) {
+export default function MapView({ events, activeId, onEventSelect, layers, mode, onBboxChange, flyTo }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -263,6 +264,12 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
       setActiveTransitId(null)
     }
   }, [activeId])
+
+  // Fly to venue when selected from sidebar
+  useEffect(() => {
+    if (!flyTo) return
+    mapRef.current?.flyTo({ center: flyTo, zoom: 16, duration: 800 })
+  }, [flyTo])
 
   const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
 

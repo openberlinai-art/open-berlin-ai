@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  BookMarked, User,
+  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight,  BookMarked, User, Search, X,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -57,6 +56,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [mode,      setMode]      = useState<'events' | 'venues'>('events')
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [venueCat,  setVenueCat]  = useState<string>('all')
+  const [flyTo,     setFlyTo]     = useState<[number, number] | null>(null)
+  const [search,    setSearch]    = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<{
+    events: Array<{ id: string; title: string; date_start: string; category: string | null; location_name: string | null; lat: number | null; lng: number | null }>
+    locations: Array<{ id: string; name: string; category: string | null; address: string | null; borough: string | null; lat: number | null; lng: number | null }>
+  } | null>(null)
+  const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data: venuesGeo, isFetching: venuesFetching } = useVenuesList(
     mapBbox,
@@ -107,6 +114,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     // Intentionally never auto-disables — user controls the off state
   }, [cats])
 
+  // Debounced search
+  useEffect(() => {
+    clearTimeout(searchRef.current)
+    if (!search.trim()) { setSearchResults(null); return }
+    setSearching(true)
+    searchRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(search.trim())}`)
+        const data = await res.json() as typeof searchResults
+        setSearchResults(data)
+      } catch { /* ignore */ } finally {
+        setSearching(false)
+      }
+    }, 300)
+  }, [search])
+
   function toggleCat(c: string) {
     setCats(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
     setPage(1)
@@ -147,6 +170,26 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             </div>
           </div>
           <p className="text-xs text-gray-500">Berlin culture events, live</p>
+
+          {/* Search */}
+          <div className="relative mt-2">
+            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search events, venues…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full text-xs border-2 border-black pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_#000]"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
 
           {/* Filter row */}
           <div className="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -273,9 +316,80 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           )}
         </div>
 
-        {/* Event list / Venue list */}
+        {/* Search results / Event list / Venue list */}
         <div className="flex-1 overflow-y-auto">
-          {mode === 'events' ? (
+          {search.trim() ? (
+            /* ── Search results ── */
+            searching && !searchResults ? (
+              <div className="flex items-center justify-center h-32 text-sm text-gray-400">Searching…</div>
+            ) : (
+              <>
+                {/* Event results */}
+                {(searchResults?.events?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Events ({searchResults!.events.length})
+                    </p>
+                    {searchResults!.events.map(ev => (
+                      <div
+                        key={ev.id}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}
+                        </p>
+                        <a
+                          href={`/events/${ev.id}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                        >
+                          Details →
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Location results */}
+                {(searchResults?.locations?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Venues ({searchResults!.locations.length})
+                    </p>
+                    {searchResults!.locations.map(loc => (
+                      <div
+                        key={loc.id}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{loc.name}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {[loc.category, loc.borough].filter(Boolean).join(' · ')}
+                        </p>
+                        <a
+                          href={`/locations/${loc.id}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                        >
+                          Details →
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && (
+                  <div className="flex items-center justify-center h-32 text-sm text-gray-400">No results</div>
+                )}
+              </>
+            )
+          ) : mode === 'events' ? (
             loading && events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
             ) : events.length === 0 ? (
@@ -315,10 +429,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ) : (
                 venueFeatures.map(f => {
                   const p = f.properties as { id?: string; name?: string; category?: string; address?: string; borough?: string }
+                  const coords = (f.geometry as GeoJSON.Point | undefined)?.coordinates as [number, number] | undefined
                   return (
                     <div
                       key={p.id}
                       className="px-4 py-3 border-b-2 border-black hover:bg-gray-50 cursor-pointer"
+                      onClick={() => { if (coords) setFlyTo(coords) }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -387,6 +503,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           }}
           mode={mode}
           onBboxChange={setMapBbox}
+          flyTo={flyTo}
         />
       </div>
 
