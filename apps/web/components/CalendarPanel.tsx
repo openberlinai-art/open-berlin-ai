@@ -1,9 +1,7 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { X, CalendarDays, CalendarX, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
-
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
 
 type CalendarView = 'list' | 'day' | 'week' | 'month' | 'year'
 
@@ -17,28 +15,6 @@ interface EnrichedItem {
   subtitle:        string | null
   date_start?:     string | null
   time_start?:     string | null
-}
-
-async function enrichItems(
-  items: { item_type: 'event' | 'location'; item_id: string; created_at: string; scheduled_for?: string | null; scheduled_time?: string | null }[]
-): Promise<EnrichedItem[]> {
-  return Promise.all(items.map(async item => {
-    try {
-      if (item.item_type === 'event') {
-        const res = await fetch(`${WORKER}/api/events/${item.item_id}`)
-        if (!res.ok) return { ...item, title: item.item_id, subtitle: null }
-        const json = await res.json() as { data: { title: string; date_start: string; time_start: string | null; location_name: string | null } }
-        return { ...item, title: json.data.title, subtitle: json.data.location_name ?? null, date_start: json.data.date_start, time_start: json.data.time_start }
-      } else {
-        const res = await fetch(`${WORKER}/api/locations/${item.item_id}`)
-        if (!res.ok) return { ...item, title: item.item_id, subtitle: null }
-        const json = await res.json() as { data: { name: string | null; borough: string | null } }
-        return { ...item, title: json.data.name ?? item.item_id, subtitle: json.data.borough ?? null }
-      }
-    } catch {
-      return { ...item, title: item.item_id, subtitle: null }
-    }
-  }))
 }
 
 function NavBar({ title, onPrev, onNext }: { title: string; onPrev: () => void; onNext: () => void }) {
@@ -59,53 +35,23 @@ interface Props { onClose: () => void }
 
 export default function CalendarPanel({ onClose }: Props) {
   const { attendance, unattend, user } = useUser()
-  const [enriched, setEnriched] = useState<EnrichedItem[]>([])
-  const [loading,  setLoading]  = useState(true)
   const [view,     setView]     = useState<CalendarView>('list')
   const [viewDate, setViewDate] = useState(new Date())
 
-  // Persistent cache so already-enriched items aren't re-fetched on each change
-  const enrichedCache = useRef(new Map<string, EnrichedItem>())
-
-  useEffect(() => {
-    let cancelled = false
-
-    if (!attendance.length) {
-      enrichedCache.current.clear()
-      setEnriched([])
-      setLoading(false)
-      return
-    }
-
-    const currentIds = new Set(attendance.map(a => `${a.item_type}:${a.item_id}`))
-
-    // Prune items no longer attended
-    for (const key of [...enrichedCache.current.keys()]) {
-      if (!currentIds.has(key)) enrichedCache.current.delete(key)
-    }
-
-    // Only fetch items not already in cache
-    const toEnrich = attendance.filter(a => !enrichedCache.current.has(`${a.item_type}:${a.item_id}`))
-
-    // Show currently cached items immediately (handles removals instantly)
-    setEnriched(Array.from(enrichedCache.current.values()))
-
-    if (!toEnrich.length) { setLoading(false); return }
-
-    setLoading(true)
-    enrichItems(toEnrich).then(fresh => {
-      if (cancelled) return
-      fresh.forEach(f => enrichedCache.current.set(`${f.item_type}:${f.item_id}`, f))
-      // Re-prune in case attendance changed while fetching
-      for (const key of [...enrichedCache.current.keys()]) {
-        if (!currentIds.has(key)) enrichedCache.current.delete(key)
-      }
-      setEnriched(Array.from(enrichedCache.current.values()))
-      setLoading(false)
-    }).catch(() => { if (!cancelled) setLoading(false) })
-
-    return () => { cancelled = true }
-  }, [attendance])
+  // Map attendance items (pre-enriched by server JOIN) to display format
+  const enriched = useMemo<EnrichedItem[]>(() =>
+    attendance.map(a => ({
+      item_type:      a.item_type,
+      item_id:        a.item_id,
+      created_at:     a.created_at,
+      scheduled_for:  a.scheduled_for,
+      scheduled_time: a.scheduled_time,
+      title:          a.title   ?? a.item_id,
+      subtitle:       a.subtitle ?? null,
+      date_start:     a.date_start ?? null,
+      time_start:     a.time_start ?? null,
+    }))
+  , [attendance])
 
   const today = isoDate(new Date())
 
@@ -200,7 +146,7 @@ export default function CalendarPanel({ onClose }: Props) {
         </div>
 
         {/* View tabs */}
-        {user && !loading && attendance.length > 0 && (
+        {user && attendance.length > 0 && (
           <div className="flex border-b border-gray-200 px-2 sticky top-[49px] bg-white z-10">
             {views.map(v => (
               <button
@@ -216,15 +162,14 @@ export default function CalendarPanel({ onClose }: Props) {
 
         <div className="flex-1 px-4 py-4">
           {!user && <p className="text-xs text-gray-500 text-center mt-8">Sign in to save events to your calendar.</p>}
-          {user && loading && <p className="text-xs text-gray-400 text-center mt-8">Loading…</p>}
-          {user && !loading && attendance.length === 0 && (
+          {user && attendance.length === 0 && (
             <div className="flex flex-col items-center gap-2 mt-12 text-gray-400">
               <CalendarX size={28} />
               <p className="text-xs text-center">Nothing saved yet.<br/>Click the calendar icon on any event or venue.</p>
             </div>
           )}
 
-          {user && !loading && attendance.length > 0 && (
+          {user && attendance.length > 0 && (
             <>
               {/* ── LIST VIEW ── */}
               {view === 'list' && (

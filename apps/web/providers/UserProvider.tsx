@@ -49,6 +49,11 @@ export interface KPAttendanceItem {
   scheduled_for?: string | null
   scheduled_time?: string | null
   created_at:     string
+  // Pre-enriched from server JOIN — avoid N+1 client fetches
+  title?:      string | null
+  date_start?: string | null
+  time_start?: string | null
+  subtitle?:   string | null
 }
 
 export interface KPPreferences {
@@ -298,11 +303,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body:   JSON.stringify({ item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null }),
     })
+    // Optimistically add stub, then fetch enriched data from server
     setAttendance(prev => [
       ...prev,
       { item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null, created_at: new Date().toISOString() },
     ])
-  }, [token])
+    await refreshAttendance()
+  }, [token, refreshAttendance])
 
   const unattend = useCallback(async (itemType: 'event' | 'location', itemId: string) => {
     const params = new URLSearchParams({ item_type: itemType, item_id: itemId })

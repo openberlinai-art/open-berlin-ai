@@ -512,9 +512,25 @@ app.get('/api/attendance', async c => {
   const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const { results } = await c.env.DB
-    .prepare(`SELECT item_type, item_id, scheduled_for, scheduled_time, created_at FROM user_attendance WHERE user_id = ? ORDER BY created_at DESC`)
+    .prepare(`
+      SELECT
+        ua.item_type, ua.item_id, ua.scheduled_for, ua.scheduled_time, ua.created_at,
+        CASE ua.item_type WHEN 'event'    THEN e.title    WHEN 'location' THEN l.name    END AS title,
+        CASE ua.item_type WHEN 'event'    THEN e.date_start                              END AS date_start,
+        CASE ua.item_type WHEN 'event'    THEN e.time_start                              END AS time_start,
+        CASE ua.item_type WHEN 'event'    THEN e.location_name WHEN 'location' THEN l.borough END AS subtitle
+      FROM user_attendance ua
+      LEFT JOIN events    e ON ua.item_type = 'event'    AND ua.item_id = e.id
+      LEFT JOIN locations l ON ua.item_type = 'location' AND ua.item_id = l.id
+      WHERE ua.user_id = ?
+      ORDER BY ua.created_at DESC
+    `)
     .bind(auth.sub)
-    .all<{ item_type: string; item_id: string; scheduled_for: string | null; scheduled_time: string | null; created_at: string }>()
+    .all<{
+      item_type: string; item_id: string
+      scheduled_for: string | null; scheduled_time: string | null; created_at: string
+      title: string | null; date_start: string | null; time_start: string | null; subtitle: string | null
+    }>()
   return c.json({ data: results })
 })
 
