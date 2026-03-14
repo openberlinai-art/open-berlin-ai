@@ -42,6 +42,17 @@ interface VenuePopupState {
   id?:      string
 }
 
+interface GreenspacePopupState {
+  lat:      number
+  lng:      number
+  name:     string
+  type:     'park' | 'playground'
+  kind:     string | null   // objartname
+  borough:  string | null   // bezirkname
+  hood:     string | null   // ortstlname
+  built:    string | null   // baujahr
+}
+
 // ─── Transit popup content ────────────────────────────────────────────────────
 
 function TransitPopupContent({
@@ -96,8 +107,9 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const [bbox,          setBbox]          = useState<string | null>(null)
-  const [transitPopup,  setTransitPopup]  = useState<TransitPopupState | null>(null)
-  const [venuePopup,    setVenuePopup]    = useState<VenuePopupState | null>(null)
+  const [transitPopup,    setTransitPopup]    = useState<TransitPopupState | null>(null)
+  const [venuePopup,      setVenuePopup]      = useState<VenuePopupState | null>(null)
+  const [greenspacePopup, setGreenspacePopup] = useState<GreenspacePopupState | null>(null)
   const [activeTransitId, setActiveTransitId] = useState<string | null>(null)
   const [cursor,        setCursor]        = useState('grab')
 
@@ -239,6 +251,27 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         id:       (props.id as string) ?? undefined,
       })
       setTransitPopup(null)
+      setGreenspacePopup(null)
+      return
+    }
+
+    // Park / playground → show info popup
+    if (layerId === 'parks-point' || layerId === 'playgrounds-point') {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      setGreenspacePopup({
+        lat:     coords[1],
+        lng:     coords[0],
+        name:    (props.namenr as string) || (props.name as string) || 'Unnamed',
+        type:    layerId === 'parks-point' ? 'park' : 'playground',
+        kind:    (props.objartname as string) ?? null,
+        borough: (props.bezirkname as string) ?? null,
+        hood:    (props.ortstlname as string) ?? null,
+        built:   (props.baujahr as string) ?? null,
+      })
+      setTransitPopup(null)
+      setVenuePopup(null)
       return
     }
   }, [activeId, onEventSelect])
@@ -289,6 +322,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           'venues-point',    'venue-clusters',
           'galleries-point', 'gallery-clusters',
           'museums-point',   'museum-clusters',
+          'parks-point', 'playgrounds-point',
         ]}
         onLoad={onLoad}
         onMoveEnd={onMoveEnd}
@@ -668,6 +702,44 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   >
                     View venue →
                   </Link>
+                )}
+              </div>
+            </div>
+          </Popup>
+        )}
+        {/* ── Park / playground popup ──────────────── */}
+        {greenspacePopup && (
+          <Popup
+            longitude={greenspacePopup.lng}
+            latitude={greenspacePopup.lat}
+            anchor="bottom"
+            closeButton={false}
+            onClose={() => setGreenspacePopup(null)}
+            maxWidth="260px"
+          >
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
+              <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
+                <div>
+                  <p className="font-bold text-gray-900 leading-snug">{greenspacePopup.name}</p>
+                  <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: greenspacePopup.type === 'park' ? '#16a34a' : '#a21caf' }}>
+                    {greenspacePopup.kind ?? (greenspacePopup.type === 'park' ? 'Park' : 'Playground')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setGreenspacePopup(null)}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <div className="px-3 pb-2.5 space-y-0.5">
+                {greenspacePopup.hood && (
+                  <p className="text-gray-500">{greenspacePopup.hood}</p>
+                )}
+                {greenspacePopup.borough && greenspacePopup.borough !== greenspacePopup.hood && (
+                  <p className="text-gray-400">{greenspacePopup.borough}</p>
+                )}
+                {greenspacePopup.built && (
+                  <p className="text-gray-400 text-[10px]">Built {greenspacePopup.built}</p>
                 )}
               </div>
             </div>

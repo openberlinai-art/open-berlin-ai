@@ -15,6 +15,7 @@ import {
   getNotifications, markNotificationRead, markAllNotificationsRead,
   shareList,
 } from './lists'
+import { sendWeeklyDigest } from './digest'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -41,10 +42,12 @@ app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker' }))
 // ─── GET /api/events ──────────────────────────────────────────────────────────
 
 app.get('/api/events', async c => {
-  const { date, category, price_type, bbox, page = '1', limit = '50' } = c.req.query()
+  const { date, date_from, date_to, category, price_type, bbox, page = '1', limit = '50' } = c.req.query()
 
   const result = await getEvents(c.env.DB, {
     date:       date       || undefined,
+    date_from:  date_from  || undefined,
+    date_to:    date_to    || undefined,
     category:   category   || undefined,
     price_type: price_type || undefined,
     bbox:       bbox       || undefined,
@@ -236,25 +239,70 @@ app.post('/api/chat', async c => {
   }
 
   const date = body.date ?? new Date().toISOString().split('T')[0]
-  const { events } = await getEvents(c.env.DB, { date, limit: 20 })
 
-  const eventsContext = events.slice(0, 15).map(e => ({
-    title:    e.title,
-    category: e.category,
-    time:     e.time_start?.slice(0,5) ?? null,
-    venue:    e.location_name,
-    borough:  e.borough,
-    price:    e.price_type,
-  }))
+  // Fetch rich context in parallel
+  const [eventsRes, catRes, venuesRes, locationCountRes, parkCountRes] = await Promise.all([
+    // Up to 50 events for the date
+    getEvents(c.env.DB, { date_from: date, date_to: date, limit: 50 }),
+    // Category breakdown
+    c.env.DB
+      .prepare(`SELECT category, COUNT(*) as n FROM events WHERE date_start = ? GROUP BY category ORDER BY n DESC`)
+      .bind(date)
+      .all<{ category: string | null; n: number }>(),
+    // Sample of venues/locations with useful info
+    c.env.DB
+      .prepare(`SELECT name, category, borough, address FROM locations
+                WHERE lat IS NOT NULL ORDER BY RANDOM() LIMIT 25`)
+      .all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>(),
+    // Total locations count
+    c.env.DB.prepare(`SELECT COUNT(*) as n FROM locations`).first<{ n: number }>(),
+    // Total upcoming events count (next 7 days)
+    c.env.DB
+      .prepare(`SELECT COUNT(*) as n FROM events WHERE date_start >= ? AND date_start <= date(?, '+7 days')`)
+      .bind(date, date)
+      .first<{ n: number }>(),
+  ])
 
-  const systemPrompt = [
-    'You are KulturPulse, a helpful Berlin culture events assistant.',
-    `Today is ${date}.`,
-    `There are ${events.length} events in Berlin today. Here is a sample:`,
-    JSON.stringify(eventsContext, null, 2),
-    'Answer questions about Berlin culture events concisely. Suggest events from the list when relevant.',
-    'If asked about something outside Berlin culture, politely redirect.',
-  ].join('\n')
+  const { events, total } = eventsRes
+
+  const eventsList = events.slice(0, 40).map(e =>
+    `- ${e.title} | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'} | ${e.price_type}`
+  ).join('\n')
+
+  const categoryBreakdown = catRes.results
+    .map(r => `${r.category ?? 'Other'}: ${r.n}`)
+    .join(', ')
+
+  const venuesList = venuesRes.results
+    .map(v => `- ${v.name ?? '?'} (${v.category ?? 'other'}) — ${v.borough ?? '?'}`)
+    .join('\n')
+
+  const totalLocations = locationCountRes?.n ?? 0
+  const weekEvents = parkCountRes?.n ?? 0
+
+  const systemPrompt = `You are KulturPulse, a Berlin culture events assistant with access to a live database.
+Today is ${date}.
+
+## EVENTS ON ${date} (${total} total)
+Categories: ${categoryBreakdown}
+
+Events (up to 40 listed):
+${eventsList || 'No events found for this date.'}
+
+## VENUES & LOCATIONS (${totalLocations} total in database, 25 shown)
+${venuesList}
+
+## OTHER DATA
+- Parks: hundreds of Berlin parks are mapped (Grünanlagen from Berlin GDI). Users can enable the Parks layer on the map.
+- Playgrounds: hundreds of Spielplätze are mapped. Enable the Playgrounds layer.
+- Upcoming events (next 7 days): ~${weekEvents}
+
+## INSTRUCTIONS
+- Answer questions about events, venues, parks, and playgrounds in Berlin.
+- Suggest specific events or venues from the lists above when relevant.
+- For parks/playgrounds, explain users can see them on the map by enabling the Parks or Playgrounds toggle.
+- Keep answers concise (2-4 sentences). Do not repeat the full event list unless asked.
+- If asked about something outside Berlin culture, politely redirect.`
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
@@ -266,7 +314,7 @@ app.post('/api/chat', async c => {
 
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
     messages,
-    max_tokens: 600,
+    max_tokens: 500,
   }) as { response?: string }
 
   return c.json({
@@ -325,6 +373,18 @@ app.post('/api/auth/profile', async c => {
   if (!body?.display_name) return c.json({ error: 'display_name required' }, 400)
   await c.env.DB.prepare(`UPDATE users SET display_name = ? WHERE id = ?`)
     .bind(body.display_name, auth.sub).run()
+  return c.json({ ok: true })
+})
+
+// ─── PATCH /api/auth/profile ─────────────────────────────────────────────────
+
+app.patch('/api/auth/profile', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ digest_opt_in?: boolean }>().catch(() => null)
+  if (!body || body.digest_opt_in === undefined) return c.json({ error: 'digest_opt_in required' }, 400)
+  await c.env.DB.prepare(`UPDATE users SET digest_opt_in = ? WHERE id = ?`)
+    .bind(body.digest_opt_in ? 1 : 0, auth.sub).run()
   return c.json({ ok: true })
 })
 
@@ -423,7 +483,52 @@ app.get('/api/lists/:id/public', async c => {
   const list = await getList(c.req.param('id'), c.env.DB)
   if (!list) return c.json({ error: 'Not found' }, 404)
   const items = await getListItems(list.id, c.env.DB)
-  return c.json({ data: { list, items } })
+
+  // Enrich items with human-readable title + subtitle
+  const enriched = await Promise.all(items.map(async item => {
+    if (item.item_type === 'event') {
+      const ev = await c.env.DB
+        .prepare(`SELECT title, date_start, location_name FROM events WHERE id = ?`)
+        .bind(item.item_id)
+        .first<{ title: string | null; date_start: string | null; location_name: string | null }>()
+      return {
+        ...item,
+        title:    ev?.title ?? null,
+        subtitle: [ev?.date_start, ev?.location_name].filter(Boolean).join(' · ') || null,
+      }
+    } else {
+      const loc = await c.env.DB
+        .prepare(`SELECT name, borough FROM locations WHERE id = ?`)
+        .bind(item.item_id)
+        .first<{ name: string | null; borough: string | null }>()
+      return {
+        ...item,
+        title:    loc?.name ?? null,
+        subtitle: loc?.borough ?? null,
+      }
+    }
+  }))
+
+  return c.json({ data: { list, items: enriched } })
+})
+
+// ─── POST /api/lists/:id/copy ─────────────────────────────────────────────────
+
+app.post('/api/lists/:id/copy', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const list = await getList(c.req.param('id'), c.env.DB)
+  if (!list) return c.json({ error: 'Not found' }, 404)
+
+  const items = await getListItems(list.id, c.env.DB)
+
+  const newList = await createList(auth.sub, list.name, list.description, false, c.env.DB)
+  for (const item of items) {
+    await addListItem(newList.id, item.item_type, item.item_id, item.notes, c.env.DB)
+  }
+
+  return c.json({ data: { ...newList, item_count: items.length } }, 201)
 })
 
 // ─── GET /api/notifications ───────────────────────────────────────────────────
@@ -564,6 +669,13 @@ export default {
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
           ingestLocations(env).catch(e => console.error('[locations]', e)),
         ])
+      )
+    } else if (event.cron === '0 8 * * 1') {
+      // Weekly digest — Monday 8am UTC
+      ctx.waitUntil(
+        sendWeeklyDigest(env)
+          .then(() => console.log('[digest] done'))
+          .catch(err => console.error('[digest] failed:', err))
       )
     } else {
       // Full ingest every 6 hours

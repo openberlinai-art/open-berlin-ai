@@ -40,6 +40,8 @@ export interface EventRow {
   location_id:     string | null
   schedule_status: string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
   please_note:     string | null
+  admission_note:  string | null  // per-event admission note
+  source_links:    string | null  // JSON: Array<{url: string; displayName?: string}>
   created_at:      string
   updated_at:      string
 }
@@ -47,7 +49,9 @@ export interface EventRow {
 // ─── DB query options ─────────────────────────────────────────────────────────
 
 export interface EventFilters {
-  date?:       string
+  date?:       string   // single day (legacy)
+  date_from?:  string   // range start (inclusive)
+  date_to?:    string   // range end (inclusive)
   category?:   string
   price_type?: string
   bbox?:       string   // 'minLng,minLat,maxLng,maxLat'
@@ -74,7 +78,7 @@ export interface KulturdatenEvent {
     priceMax?:         number
     admissionLink?:    string
     registrationType?: string
-    note?:             { de?: string; en?: string }
+    note?:             { de?: string; en?: string }   // e.g. age restrictions, booking info
   }
   pleaseNote?:  { de?: string; en?: string }
   attractions: Array<{ referenceId: string; referenceLabel?: { de?: string; en?: string } }>

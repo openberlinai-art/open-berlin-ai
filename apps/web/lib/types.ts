@@ -23,6 +23,8 @@ export interface Event {
   location_id:     string | null
   schedule_status: string | null  // 'cancelled'|'postponed'|'rescheduled'|'scheduled'
   please_note:     string | null
+  admission_note:  string | null
+  source_links:    string | null  // JSON: Array<{url: string; displayName?: string}>
   created_at:      string
   updated_at:      string
 }
@@ -67,7 +69,9 @@ export interface EventsResponse {
 }
 
 export interface EventFilters {
-  date?:       string
+  date?:       string   // single day (legacy)
+  date_from?:  string   // range start (inclusive)
+  date_to?:    string   // range end (inclusive)
   category?:   string
   price_type?: string
   page?:       number

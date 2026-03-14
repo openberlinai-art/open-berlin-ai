@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS events (
   location_id     TEXT,
   schedule_status TEXT,                      -- 'cancelled'|'postponed'|'rescheduled'|'scheduled'
   please_note     TEXT,                      -- important attendee info
+  admission_note  TEXT,                      -- per-event admission note (e.g. age restrictions)
+  source_links    TEXT,                      -- JSON array of {url, displayName?} from attraction externalLinks
   raw_json        TEXT,                      -- full source for debugging
   created_at      TEXT    DEFAULT (datetime('now')),
   updated_at      TEXT    DEFAULT (datetime('now'))
@@ -36,6 +38,8 @@ CREATE TABLE IF NOT EXISTS events (
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_link TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN schedule_status TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN please_note TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_note TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN source_links TEXT"
 
 CREATE INDEX IF NOT EXISTS idx_events_date_start ON events(date_start);
 CREATE INDEX IF NOT EXISTS idx_events_category   ON events(LOWER(category));
@@ -90,8 +94,11 @@ CREATE TABLE IF NOT EXISTS users (
   id           TEXT PRIMARY KEY,               -- UUID
   email        TEXT NOT NULL UNIQUE,
   display_name TEXT,
+  digest_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT DEFAULT (datetime('now'))
 );
+-- Migration: add digest_opt_in to existing deployments
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE users ADD COLUMN digest_opt_in INTEGER NOT NULL DEFAULT 0"
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
   token      TEXT PRIMARY KEY,

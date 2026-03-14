@@ -141,6 +141,14 @@ function transformEvent(
     attraction?.pleaseNote?.de ?? attraction?.pleaseNote?.en ?? null
   )
 
+  const admissionNote = (
+    raw.admission?.note?.de ?? raw.admission?.note?.en ?? null
+  )
+
+  const sourceLinks = attraction?.externalLinks?.length
+    ? JSON.stringify(attraction.externalLinks)
+    : null
+
   return {
     id:              raw.identifier,
     title,
@@ -166,6 +174,8 @@ function transformEvent(
     location_id:     raw.locations[0]?.referenceId   ?? null,
     schedule_status: scheduleStatus,
     please_note:     pleaseNote,
+    admission_note:  admissionNote,
+    source_links:    sourceLinks,
   }
 }
 
@@ -173,7 +183,7 @@ export async function ingestEvents(env: Env): Promise<number> {
   const apiBase  = env.KULTURDATEN_API_URL
   const today    = new Date()
   const start    = fmtDate(today)
-  const end      = fmtDate(new Date(today.getTime() + 30 * 864e5)) // +30 days
+  const end      = fmtDate(new Date(today.getTime() + 90 * 864e5)) // +90 days
 
   let page  = 1
   let total = 0

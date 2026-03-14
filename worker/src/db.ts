@@ -11,13 +11,22 @@ export async function getEvents(
   db: D1Database,
   filters: EventFilters = {}
 ): Promise<EventsResult> {
-  const { date, category, price_type, bbox, page = 1, limit = 50 } = filters
+  const { date, date_from, date_to, category, price_type, bbox, page = 1, limit = 50 } = filters
   const offset = (page - 1) * limit
 
   const conditions: string[] = []
   const params: (string | number)[] = []
 
-  if (date) {
+  if (date_from && date_to) {
+    conditions.push('date_start >= ? AND date_start <= ?')
+    params.push(date_from, date_to)
+  } else if (date_from) {
+    conditions.push('date_start >= ?')
+    params.push(date_from)
+  } else if (date_to) {
+    conditions.push('date_start <= ?')
+    params.push(date_to)
+  } else if (date) {
     conditions.push('date_start = ?')
     params.push(date)
   }
@@ -47,7 +56,7 @@ export async function getEvents(
       .first<{ n: number }>(),
     db.prepare(
       `SELECT * FROM events ${where}
-       ORDER BY time_start ASC NULLS LAST, title ASC
+       ORDER BY date_start ASC, time_start ASC NULLS LAST, title ASC
        LIMIT ? OFFSET ?`
     ).bind(...params, limit, offset).all<EventRow>(),
   ])
@@ -129,14 +138,14 @@ export async function upsertEvents(
           category, tags, price_type, price_min, price_max, admission_link,
           location_name, address, borough, lat, lng,
           source_url, attraction_id, location_id,
-          schedule_status, please_note,
+          schedule_status, please_note, admission_note, source_links,
           created_at, updated_at
         ) VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
           ?, ?, ?,
-          ?, ?,
+          ?, ?, ?, ?,
           COALESCE((SELECT created_at FROM events WHERE id = ?), datetime('now')),
           datetime('now')
         )
@@ -155,13 +164,15 @@ export async function upsertEvents(
           source_url = excluded.source_url,
           schedule_status = excluded.schedule_status,
           please_note = excluded.please_note,
+          admission_note = excluded.admission_note,
+          source_links = excluded.source_links,
           updated_at = datetime('now')
       `).bind(
         e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end, e.door_time,
         e.category, e.tags, e.price_type, e.price_min, e.price_max, e.admission_link,
         e.location_name, e.address, e.borough, e.lat, e.lng,
         e.source_url, e.attraction_id, e.location_id,
-        e.schedule_status, e.please_note,
+        e.schedule_status, e.please_note, e.admission_note, e.source_links,
         e.id
       )
     )

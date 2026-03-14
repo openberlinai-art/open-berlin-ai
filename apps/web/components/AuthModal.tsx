@@ -7,14 +7,17 @@ interface Props {
   onClose: () => void
 }
 
+const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
+
 export default function AuthModal({ onClose }: Props) {
-  const { login, logout, user, updateDisplayName } = useUser()
-  const [email,     setEmail]     = useState('')
-  const [name,      setName]      = useState(user?.display_name ?? '')
-  const [step,      setStep]      = useState<'email' | 'sent' | 'profile'>(() => user ? 'profile' : 'email')
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState('')
-  const [magicLink, setMagicLink] = useState<string | null>(null)
+  const { login, logout, user, token, updateDisplayName } = useUser()
+  const [email,        setEmail]        = useState('')
+  const [name,         setName]         = useState(user?.display_name ?? '')
+  const [digestOptIn,  setDigestOptIn]  = useState(false)
+  const [step,         setStep]         = useState<'email' | 'sent' | 'profile'>(() => user ? 'profile' : 'email')
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
+  const [magicLink,    setMagicLink]    = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { inputRef.current?.focus() }, [step])
@@ -40,6 +43,13 @@ export default function AuthModal({ onClose }: Props) {
     setLoading(true)
     try {
       await updateDisplayName(name.trim())
+      if (token) {
+        await fetch(`${WORKER}/api/auth/profile`, {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body:    JSON.stringify({ digest_opt_in: digestOptIn }),
+        }).catch(() => {})
+      }
       onClose()
     } finally {
       setLoading(false)
@@ -130,6 +140,17 @@ export default function AuthModal({ onClose }: Props) {
                   onChange={e => setName(e.target.value)}
                   className="mt-1 w-full text-xs border-2 border-black px-3 py-2 outline-none focus:shadow-[2px_2px_0_#000]"
                 />
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={digestOptIn}
+                  onChange={e => setDigestOptIn(e.target.checked)}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="text-[11px] text-gray-600">
+                  Send me a weekly digest of top Berlin events (Monday mornings)
+                </span>
               </label>
               <button type="submit" disabled={loading || !name.trim()} className={`${btnPrimary} w-full`}>
                 Save

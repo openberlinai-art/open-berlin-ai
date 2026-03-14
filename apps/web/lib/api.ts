@@ -15,6 +15,8 @@ export async function fetchEvents(
 ): Promise<EventsResponse> {
   const params = new URLSearchParams()
   if (filters.date)       params.set('date',       filters.date)
+  if (filters.date_from)  params.set('date_from',  filters.date_from)
+  if (filters.date_to)    params.set('date_to',    filters.date_to)
   if (filters.category && filters.category !== 'all')
     params.set('category',   filters.category)
   if (filters.price_type && filters.price_type !== 'all')

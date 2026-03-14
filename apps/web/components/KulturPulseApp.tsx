@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight,  BookMarked, User, Search, X,
+  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
+  List, Map,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -39,7 +40,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [page,     setPage]     = useState(1)
   const [loading,  setLoading]  = useState(false)
 
-  const [date,     setDate]     = useState(initialDate)
+  const [dateFrom, setDateFrom] = useState(initialDate)
+  const [dateTo,   setDateTo]   = useState(initialDate)
   const [calOpen,  setCalOpen]  = useState(false)
   const calRef                  = useRef<HTMLDivElement>(null)
 
@@ -56,7 +58,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [mode,      setMode]      = useState<'events' | 'venues'>('events')
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [venueCat,  setVenueCat]  = useState<string>('all')
-  const [flyTo,     setFlyTo]     = useState<[number, number] | null>(null)
+  const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
+
+  function setFlyTo(coords: [number, number] | null) {
+    setFlyToRaw(coords)
+    if (coords) setMobileView('map')
+  }
   const [search,    setSearch]    = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<{
@@ -75,15 +83,16 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const LIMIT = 50
 
-  const load = useCallback(async (d: string, p: number) => {
+  const load = useCallback(async (from: string, to: string, p: number) => {
     setLoading(true)
     try {
       const res = await fetchEvents({
-        date:     d,
-        page:     p,
-        limit:    LIMIT,
+        date_from:  from,
+        date_to:    to,
+        page:       p,
+        limit:      LIMIT,
         price_type: price !== 'all' ? price : undefined,
-        category: cats.length === 1 ? cats[0] : undefined,
+        category:   cats.length === 1 ? cats[0] : undefined,
       })
       setEvents(res.data)
       setTotal(res.pagination.total)
@@ -94,8 +103,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // Always fetch fresh data from Worker (initialEvents are for first-paint only)
   useEffect(() => {
-    load(date, page)
-  }, [date, page, load])
+    load(dateFrom, dateTo, page)
+  }, [dateFrom, dateTo, page, load])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -136,7 +145,24 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
-  const selectedDay = date ? new Date(date + 'T00:00:00') : undefined
+
+  function toISO(d: Date): string {
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0')
+    return `${y}-${m}-${day}`
+  }
+
+  const isRange = dateFrom !== dateTo
+
+  // When no range is set yet, pass to:undefined so DayPicker stays in "awaiting second click" mode
+  // (if we pass to:from, DayPicker treats the range as complete and the next click starts fresh)
+  const selectedRange = isRange
+    ? { from: new Date(dateFrom + 'T00:00:00'), to: new Date(dateTo + 'T00:00:00') }
+    : { from: new Date(dateFrom + 'T00:00:00'), to: undefined }
+  const dateLabel = dateFrom === todayISO() && !isRange
+    ? 'Today'
+    : isRange
+      ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
+      : formatDate(dateFrom)
 
   // Shared button classes
   const btn = 'text-xs border-2 border-black px-2.5 py-1 bg-white text-black hover:bg-black hover:text-white'
@@ -145,7 +171,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       {/* ── Left panel ─────────────────────────────────── */}
-      <div className="w-[380px] shrink-0 flex flex-col border-r-2 border-black bg-white">
+      <div className={`flex flex-col border-r-2 border-black bg-white w-full md:w-[380px] md:shrink-0 ${mobileView === 'map' ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b-2 border-black">
@@ -198,27 +224,43 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <div ref={calRef} className="relative">
               <button
                 onClick={() => setCalOpen(o => !o)}
-                className={calOpen ? btnActive : btn}
+                className={`${calOpen || isRange ? btnActive : btn} max-w-[180px] truncate`}
               >
                 <span className="flex items-center gap-1">
-                  <CalendarIcon size={11} />
-                  {date === todayISO() ? 'Today' : formatDate(date)}
+                  <CalendarIcon size={11} className="shrink-0" />
+                  <span className="truncate">{dateLabel}</span>
                 </span>
               </button>
+              {isRange && (
+                <button
+                  onClick={() => { setDateFrom(todayISO()); setDateTo(todayISO()); setPage(1) }}
+                  className={btn}
+                  title="Clear date range"
+                >
+                  <X size={10} />
+                </button>
+              )}
               {calOpen && (
                 <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000]">
                   <DayPicker
-                    mode="single"
-                    selected={selectedDay}
-                    onSelect={d => {
-                      if (!d) return
-                      const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0')
-                      setDate(`${y}-${m}-${day}`)
+                    mode="range"
+                    selected={selectedRange}
+                    onSelect={range => {
+                      if (!range?.from) return
+                      const from = toISO(range.from)
+                      const to   = range.to ? toISO(range.to) : from
+                      setDateFrom(from)
+                      setDateTo(to)
                       setPage(1)
-                      setCalOpen(false)
+                      if (range.to) setCalOpen(false)
                     }}
                     className="text-sm p-2"
                   />
+                  {!isRange && (
+                    <div className="px-3 pb-2 text-[10px] text-gray-400 text-center">
+                      Click a second date to set a range
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -279,7 +321,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Event count */}
         <div className="px-4 py-2 text-[11px] text-gray-500 border-b-2 border-black">
-          {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}`}
+          {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}${isRange ? ` · ${dateLabel}` : ''}`}
         </div>
 
         {/* Mode toggle + layer overlays */}
@@ -317,7 +359,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         </div>
 
         {/* Search results / Event list / Venue list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
           {search.trim() ? (
             /* ── Search results ── */
             searching && !searchResults ? (
@@ -469,7 +511,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Pagination */}
         {mode === 'events' && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2 border-t-2 border-black text-xs">
+          <div className="flex items-center justify-between px-4 py-2 pb-[calc(0.5rem+3.5rem)] md:pb-2 border-t-2 border-black text-xs">
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
@@ -490,7 +532,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       </div>
 
       {/* ── Map ─────────────────────────────────────────── */}
-      <div className="flex-1 relative">
+      <div className={`flex-1 relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
         <MapView
           events={events}
           activeId={activeId}
@@ -507,8 +549,24 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         />
       </div>
 
+      {/* ── Mobile bottom bar ───────────────────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t-2 border-black bg-white">
+        <button
+          onClick={() => setMobileView('list')}
+          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'list' ? 'bg-black text-white' : ''}`}
+        >
+          <List size={14} /> Events
+        </button>
+        <button
+          onClick={() => setMobileView('map')}
+          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'map' ? 'bg-black text-white' : ''}`}
+        >
+          <Map size={14} /> Map
+        </button>
+      </div>
+
       {/* ── AI Chat FAB ─────────────────────────────────── */}
-      <ChatPanel date={date} />
+      <ChatPanel date={dateFrom} />
 
       {/* ── Modals / drawers ────────────────────────────── */}
       {showAuth  && <AuthModal   onClose={() => setShowAuth(false)}  />}

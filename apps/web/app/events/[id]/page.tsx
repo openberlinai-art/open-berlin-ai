@@ -151,6 +151,14 @@ export default async function EventPage({ params }: Props) {
           </div>
         )}
 
+        {/* Admission note */}
+        {ev.admission_note && (
+          <div className="border-l-4 border-black pl-3 mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">Admission info</p>
+            <p className="text-xs text-gray-600">{ev.admission_note}</p>
+          </div>
+        )}
+
         {/* Links */}
         <div className="flex flex-wrap gap-3 mb-6">
           {ev.admission_link && (
@@ -173,6 +181,22 @@ export default async function EventPage({ params }: Props) {
               Source →
             </a>
           )}
+          {ev.source_links && (() => {
+            try {
+              const links = JSON.parse(ev.source_links) as Array<{ url: string; displayName?: string }>
+              return links.map((l, i) => (
+                <a
+                  key={i}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white transition-colors"
+                >
+                  {l.displayName ?? 'More info'} →
+                </a>
+              ))
+            } catch { return null }
+          })()}
         </div>
 
         {/* Client actions */}
