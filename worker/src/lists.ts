@@ -184,9 +184,10 @@ export async function shareList(
     .bind(fromUserId)
     .first<{ display_name: string | null; email: string }>()
 
+  // Accept email or display_name as recipient identifier
   const toUser = await db
-    .prepare(`SELECT id FROM users WHERE email = ?`)
-    .bind(toEmail.toLowerCase())
+    .prepare(`SELECT id FROM users WHERE email = ? OR (display_name IS NOT NULL AND LOWER(display_name) = LOWER(?)) LIMIT 1`)
+    .bind(toEmail.toLowerCase(), toEmail)
     .first<{ id: string }>()
   if (!toUser) return { ok: false, error: 'User not found' }
 

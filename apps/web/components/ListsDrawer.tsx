@@ -183,8 +183,8 @@ export default function ListsDrawer({ onClose }: Props) {
                       <form onSubmit={e => handleShare(list.id, e)} className="flex gap-1">
                         <input
                           autoFocus
-                          type="email"
-                          placeholder="Email address…"
+                          type="text"
+                          placeholder="Email or username…"
                           value={shareEmail}
                           onChange={e => setShareEmail(e.target.value)}
                           className="flex-1 text-[10px] border border-black px-1.5 py-1 outline-none min-w-0"

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
+import Link from 'next/link'
 import { useUser } from '@/providers/UserProvider'
 
 export default function NotificationsBell() {
@@ -15,10 +16,6 @@ export default function NotificationsBell() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
-
-  function handleOpen() {
-    setOpen(o => !o)
-  }
 
   function formatRelative(isoDate: string) {
     const diff = Date.now() - new Date(isoDate).getTime()
@@ -42,7 +39,7 @@ export default function NotificationsBell() {
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={handleOpen}
+        onClick={() => setOpen(o => !o)}
         className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
         title="Notifications"
       >
@@ -55,33 +52,44 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-white border-2 border-black shadow-[3px_3px_0_#000] w-72">
+        /* fixed so it never clips outside the viewport on any screen size */
+        <div className="fixed right-2 top-14 z-[200] bg-white border-2 border-black shadow-[3px_3px_0_#000] w-72 max-w-[calc(100vw-1rem)]">
           <div className="flex items-center justify-between px-3 py-2 border-b-2 border-black">
             <span className="text-[10px] font-bold uppercase tracking-wide">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={() => markNotificationRead('all')}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markNotificationRead('all')}
+                  className="text-[9px] text-gray-400 underline"
+                >
+                  Mark all read
+                </button>
+              )}
+              <Link
+                href="/notifications"
+                onClick={() => setOpen(false)}
                 className="text-[9px] text-gray-400 underline"
               >
-                Mark all read
+                See all
+              </Link>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-black">
+                <X size={11} />
               </button>
-            )}
+            </div>
           </div>
 
           {notifications.length === 0 ? (
             <p className="text-[11px] text-gray-400 px-3 py-4 text-center">No notifications yet</p>
           ) : (
             <div className="max-h-72 overflow-y-auto">
-              {notifications.map(n => (
+              {notifications.slice(0, 10).map(n => (
                 <button
                   key={n.id}
                   onClick={() => markNotificationRead(n.id)}
                   className={`w-full text-left px-3 py-2.5 border-b border-gray-100 hover:bg-gray-50 flex items-start gap-2 ${!n.read ? 'bg-gray-50' : ''}`}
                 >
-                  {!n.read && (
-                    <span className="mt-1 w-1.5 h-1.5 rounded-none bg-black shrink-0" />
-                  )}
-                  {n.read && <span className="mt-1 w-1.5 h-1.5 shrink-0" />}
+                  {!n.read && <span className="mt-1 w-1.5 h-1.5 bg-black shrink-0" />}
+                  {n.read  && <span className="mt-1 w-1.5 h-1.5 shrink-0" />}
                   <div className="min-w-0">
                     <p className="text-[11px] font-medium leading-snug">{notifLabel(n.type, n.data)}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{formatRelative(n.created_at)}</p>

@@ -862,7 +862,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                     ↗ Directions
                   </a>
                   <a
-                    href={`https://www.google.com/maps?q=${venuePopup.lat},${venuePopup.lng}&layer=c`}
+                    href={`https://www.google.com/maps?cbll=${venuePopup.lat},${venuePopup.lng}&layer=c`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[10px] text-gray-500 border border-gray-300 px-1.5 py-0.5 hover:border-black"

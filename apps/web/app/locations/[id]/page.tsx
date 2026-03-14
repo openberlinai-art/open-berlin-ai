@@ -231,7 +231,7 @@ export default async function LocationPage({ params }: Props) {
               ↗ Get Directions
             </a>
             <a
-              href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}&layer=c`}
+              href={`https://www.google.com/maps?cbll=${loc.lat},${loc.lng}&layer=c`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
