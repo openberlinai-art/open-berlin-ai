@@ -13,6 +13,7 @@ import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
 import { useVenuesList, useOSMVenues, useParks, usePlaygrounds } from '@/hooks/useCulturalData'
+import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
@@ -79,6 +80,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [venueCat,  setVenueCat]  = useState<string>('all')
   const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
+  const [surpriseVenuePopup, setSurpriseVenuePopup] = useState<({ _key: number } & VenuePopupState) | null>(null)
 
   function setFlyTo(coords: [number, number] | null) {
     setFlyToRaw(coords)
@@ -268,10 +270,31 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   const pool = mode === 'events' ? events : allVenueFeatures
                   if (!pool.length) return
                   const item = pool[Math.floor(Math.random() * pool.length)]
-                  const coords = mode === 'events'
-                    ? ((item as Event).lat && (item as Event).lng ? [(item as Event).lng!, (item as Event).lat!] : null)
-                    : ((item as GeoJSON.Feature<GeoJSON.Point>).geometry?.coordinates as [number, number] | undefined)
-                  if (coords) setFlyTo(coords as [number, number])
+                  if (mode === 'events') {
+                    const ev = item as Event
+                    if (ev.lat && ev.lng) {
+                      setFlyTo([ev.lng, ev.lat])
+                      setActiveId(ev.id)
+                    }
+                  } else {
+                    const f = item as GeoJSON.Feature<GeoJSON.Point>
+                    const coords = f.geometry?.coordinates as [number, number] | undefined
+                    if (coords) {
+                      setFlyTo(coords)
+                      const p = f.properties ?? {}
+                      setSurpriseVenuePopup({
+                        _key:     Date.now(),
+                        lat:      coords[1],
+                        lng:      coords[0],
+                        name:     (p.name as string) ?? 'Venue',
+                        category: (p.category as string) ?? 'other',
+                        address:  (p.address as string) ?? undefined,
+                        website:  (p.website as string) ?? undefined,
+                        id:       (p.id as string) ?? undefined,
+                        borough:  (p.borough as string) ?? undefined,
+                      })
+                    }
+                  }
                 }}
                 className="text-xs border-2 border-black px-2 py-1 hover:bg-black hover:text-white font-bold"
                 title="Surprise Me"
@@ -712,6 +735,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           venueCat={venueCat}
           onBboxChange={setMapBbox}
           flyTo={flyTo}
+          openVenuePopup={surpriseVenuePopup}
         />
       </div>
 

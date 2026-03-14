@@ -47,10 +47,11 @@ interface Props {
     craft_beer: boolean; tattoo: boolean; bike: boolean; vegan: boolean
     street_art: boolean
   }
-  mode:          'events' | 'venues'
-  venueCat?:     string
-  onBboxChange:  (bbox: string) => void
-  flyTo?:        [number, number] | null
+  mode:            'events' | 'venues'
+  venueCat?:       string
+  onBboxChange:    (bbox: string) => void
+  flyTo?:          [number, number] | null
+  openVenuePopup?: ({ _key: number } & VenuePopupState) | null
 }
 
 interface TransitPopupState {
@@ -59,7 +60,7 @@ interface TransitPopupState {
   stop: VBBStop
 }
 
-interface VenuePopupState {
+export interface VenuePopupState {
   lat:      number
   lng:      number
   name:     string
@@ -130,7 +131,7 @@ function TransitPopupContent({
 
 // ─── Main MapView component ───────────────────────────────────────────────────
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo }: Props) {
+export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -383,6 +384,16 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     if (!flyTo) return
     mapRef.current?.flyTo({ center: flyTo, zoom: 16, duration: 800 })
   }, [flyTo])
+
+  // Programmatically open a venue popup (e.g. from Surprise Me)
+  useEffect(() => {
+    if (!openVenuePopup) return
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _key, ...data } = openVenuePopup
+    setVenuePopup(data)
+    setGreenspacePopup(null)
+    setTransitPopup(null)
+  }, [openVenuePopup])
 
   const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
 
@@ -862,7 +873,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                     ↗ Directions
                   </a>
                   <a
-                    href={`https://www.google.com/maps?cbll=${venuePopup.lat},${venuePopup.lng}&layer=c`}
+                    href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${venuePopup.lat},${venuePopup.lng}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[10px] text-gray-500 border border-gray-300 px-1.5 py-0.5 hover:border-black"

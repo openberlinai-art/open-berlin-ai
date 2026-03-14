@@ -168,6 +168,7 @@ function EventGroup({ events }: { events: EventItem[] }) {
                   ].join(' ')}>
                     {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
                   </span>
+                  <AttendButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
                   <AddToListButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
                 </div>
               </div>
