@@ -133,10 +133,14 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     [events, activeId],
   )
 
+  // Transit: fetch for the most-recently-active point — venue popup takes priority over event
+  const transitLat = venuePopup?.lat ?? activeEvent?.lat ?? null
+  const transitLng = venuePopup?.lng ?? activeEvent?.lng ?? null
+
   const { data: transitData } = useTransitStops(
-    activeEvent?.lat ?? null,
-    activeEvent?.lng ?? null,
-    !!activeEvent?.lat && !!activeEvent?.lng,
+    transitLat,
+    transitLng,
+    transitLat !== null && transitLng !== null,
   )
 
   const { data: departures, isLoading: depsLoading } = useDepartures(activeTransitId)
@@ -557,8 +561,8 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           />
         </Source>}
 
-        {/* ── Transit stops (when event selected) ── */}
-        {activeId && (
+        {/* ── Transit stops (when event selected OR venue popup open) ── */}
+        {(activeId || venuePopup) && (
           <Source id="transit" type="geojson" data={transitGeoJSON}>
             <Layer
               id="transit-point"
