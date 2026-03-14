@@ -2,6 +2,28 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, X, MessageSquare } from 'lucide-react'
 
+function renderMarkdown(raw: string): string {
+  // Escape HTML entities first
+  let s = raw
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // Bold **text**
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  // Italic *text* (not inside bold)
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>')
+  // Links [text](url)
+  s = s.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-blue-600 hover:text-blue-800 break-all">$1</a>'
+  )
+  // Bullet list items at line start
+  s = s.replace(/^[*-] (.+)$/gm, '<span class="flex gap-1.5 mt-0.5"><span class="shrink-0">·</span><span>$1</span></span>')
+  // Double newline → paragraph gap
+  s = s.replace(/\n{2,}/g, '<br/><br/>')
+  // Single newline → break
+  s = s.replace(/\n/g, '<br/>')
+  return s
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -81,9 +103,12 @@ export default function ChatPanel({ date }: Props) {
                 <div className={
                   m.role === 'user'
                     ? 'bg-black text-white px-3 py-2 max-w-[85%] text-xs border-2 border-black'
-                    : 'bg-gray-100 text-gray-900 px-3 py-2 max-w-[85%] text-xs border-2 border-black'
+                    : 'bg-gray-100 text-gray-900 px-3 py-2 max-w-[85%] text-xs border-2 border-black leading-relaxed'
                 }>
-                  {m.content}
+                  {m.role === 'user'
+                    ? m.content
+                    : <span dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
+                  }
                 </div>
               </div>
             ))}

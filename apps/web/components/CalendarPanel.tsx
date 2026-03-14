@@ -1,21 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, CalendarDays, CalendarX } from 'lucide-react'
+import { X, CalendarDays, CalendarX, MapPin } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 
 const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
 
 interface EnrichedItem {
-  item_type:  'event' | 'location'
-  item_id:    string
-  created_at: string
-  title:      string | null
-  subtitle:   string | null
-  date_start?: string | null
+  item_type:      'event' | 'location'
+  item_id:        string
+  created_at:     string
+  scheduled_for?: string | null
+  scheduled_time?: string | null
+  title:          string | null
+  subtitle:       string | null
+  date_start?:    string | null
 }
 
 async function enrichItems(
-  items: { item_type: 'event' | 'location'; item_id: string; created_at: string }[]
+  items: { item_type: 'event' | 'location'; item_id: string; created_at: string; scheduled_for?: string | null; scheduled_time?: string | null }[]
 ): Promise<EnrichedItem[]> {
   return Promise.all(items.map(async item => {
     try {
@@ -65,6 +67,7 @@ export default function CalendarPanel({ onClose }: Props) {
 
   const today = new Date().toISOString().slice(0, 10)
 
+  // Events use date_start from the event record
   const upcomingEvents = enriched.filter(
     i => i.item_type === 'event' && i.date_start && i.date_start >= today
   ).sort((a, b) => (a.date_start ?? '').localeCompare(b.date_start ?? ''))
@@ -73,13 +76,37 @@ export default function CalendarPanel({ onClose }: Props) {
     i => i.item_type === 'event' && i.date_start && i.date_start < today
   ).sort((a, b) => (b.date_start ?? '').localeCompare(a.date_start ?? ''))
 
-  const venues = enriched.filter(i => i.item_type === 'location')
+  // Venues: scheduled ones go into upcoming/past based on scheduled_for
+  const scheduledVenues = enriched.filter(i => i.item_type === 'location' && i.scheduled_for)
+  const upcomingVenues  = scheduledVenues.filter(i => (i.scheduled_for ?? '') >= today)
+    .sort((a, b) => (a.scheduled_for ?? '').localeCompare(b.scheduled_for ?? ''))
+  const pastVenues      = scheduledVenues.filter(i => (i.scheduled_for ?? '') < today)
+    .sort((a, b) => (b.scheduled_for ?? '').localeCompare(a.scheduled_for ?? ''))
+  const unsechedVenues  = enriched.filter(i => i.item_type === 'location' && !i.scheduled_for)
 
   function formatDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short',
     })
   }
+
+  const allUpcoming = [
+    ...upcomingEvents,
+    ...upcomingVenues,
+  ].sort((a, b) => {
+    const da = a.item_type === 'event' ? (a.date_start ?? '') : (a.scheduled_for ?? '')
+    const db = b.item_type === 'event' ? (b.date_start ?? '') : (b.scheduled_for ?? '')
+    return da.localeCompare(db)
+  })
+
+  const allPast = [
+    ...pastEvents,
+    ...pastVenues,
+  ].sort((a, b) => {
+    const da = a.item_type === 'event' ? (a.date_start ?? '') : (a.scheduled_for ?? '')
+    const db = b.item_type === 'event' ? (b.date_start ?? '') : (b.scheduled_for ?? '')
+    return db.localeCompare(da)
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -113,43 +140,43 @@ export default function CalendarPanel({ onClose }: Props) {
           )}
           {user && !loading && attendance.length > 0 && (
             <>
-              {/* Upcoming events */}
-              {upcomingEvents.length > 0 && (
+              {/* Upcoming (events + scheduled venues) */}
+              {allUpcoming.length > 0 && (
                 <section className="mb-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Upcoming Events ({upcomingEvents.length})
+                    Upcoming ({allUpcoming.length})
                   </p>
                   <div className="flex flex-col gap-1">
-                    {upcomingEvents.map(item => (
-                      <CalendarRow key={item.item_id} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
+                    {allUpcoming.map(item => (
+                      <CalendarRow key={`${item.item_type}:${item.item_id}`} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
                     ))}
                   </div>
                 </section>
               )}
 
-              {/* Venues */}
-              {venues.length > 0 && (
+              {/* Venues without a scheduled date */}
+              {unsechedVenues.length > 0 && (
                 <section className="mb-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Venues ({venues.length})
+                    Saved Venues ({unsechedVenues.length})
                   </p>
                   <div className="flex flex-col gap-1">
-                    {venues.map(item => (
-                      <CalendarRow key={item.item_id} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
+                    {unsechedVenues.map(item => (
+                      <CalendarRow key={`${item.item_type}:${item.item_id}`} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
                     ))}
                   </div>
                 </section>
               )}
 
-              {/* Past events */}
-              {pastEvents.length > 0 && (
+              {/* Past */}
+              {allPast.length > 0 && (
                 <section className="mb-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Past Events ({pastEvents.length})
+                    Past ({allPast.length})
                   </p>
                   <div className="flex flex-col gap-1 opacity-60">
-                    {pastEvents.map(item => (
-                      <CalendarRow key={item.item_id} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
+                    {allPast.map(item => (
+                      <CalendarRow key={`${item.item_type}:${item.item_id}`} item={item} onRemove={() => unattend(item.item_type, item.item_id)} formatDate={formatDate} />
                     ))}
                   </div>
                 </section>
@@ -171,15 +198,29 @@ function CalendarRow({
   onRemove: () => void
   formatDate: (d: string) => string
 }) {
-  const href = item.item_type === 'event' ? `/events/${item.item_id}` : `/locations/${item.item_id}`
+  const href      = item.item_type === 'event' ? `/events/${item.item_id}` : `/locations/${item.item_id}`
+  const dateStr   = item.item_type === 'event' ? item.date_start : item.scheduled_for
+  const timeStr   = item.item_type === 'location' ? item.scheduled_time : null
+  const Icon      = item.item_type === 'event' ? CalendarDays : MapPin
+
   return (
     <div className="border border-black px-2.5 py-2 flex items-start justify-between gap-2 hover:bg-gray-50">
-      <a href={href} className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-gray-900 truncate">{item.title}</p>
-        <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-          {item.date_start ? formatDate(item.date_start) : item.subtitle ?? ''}
-          {item.date_start && item.subtitle ? ` · ${item.subtitle}` : ''}
-        </p>
+      <a href={href} className="flex items-start gap-2 flex-1 min-w-0">
+        <Icon size={11} className="shrink-0 mt-0.5 text-gray-400" />
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-gray-900 truncate">{item.title}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+            {dateStr ? (
+              <>
+                {formatDate(dateStr)}
+                {timeStr ? ` · ${timeStr}` : ''}
+                {item.subtitle ? ` · ${item.subtitle}` : ''}
+              </>
+            ) : (
+              item.subtitle ?? ''
+            )}
+          </p>
+        </div>
       </a>
       <button
         onClick={onRemove}

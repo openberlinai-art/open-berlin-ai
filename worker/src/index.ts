@@ -512,9 +512,9 @@ app.get('/api/attendance', async c => {
   const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const { results } = await c.env.DB
-    .prepare(`SELECT item_type, item_id, created_at FROM user_attendance WHERE user_id = ? ORDER BY created_at DESC`)
+    .prepare(`SELECT item_type, item_id, scheduled_for, scheduled_time, created_at FROM user_attendance WHERE user_id = ? ORDER BY created_at DESC`)
     .bind(auth.sub)
-    .all<{ item_type: string; item_id: string; created_at: string }>()
+    .all<{ item_type: string; item_id: string; scheduled_for: string | null; scheduled_time: string | null; created_at: string }>()
   return c.json({ data: results })
 })
 
@@ -523,15 +523,17 @@ app.get('/api/attendance', async c => {
 app.post('/api/attendance', async c => {
   const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
-  const body = await c.req.json<{ item_type?: string; item_id?: string }>().catch(() => null)
+  const body = await c.req.json<{ item_type?: string; item_id?: string; scheduled_for?: string; scheduled_time?: string }>().catch(() => null)
   if (!body?.item_type || !body.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
   if (body.item_type !== 'event' && body.item_type !== 'location') return c.json({ error: 'invalid item_type' }, 400)
   const id = crypto.randomUUID()
   await c.env.DB.prepare(`
-    INSERT INTO user_attendance (id, user_id, item_type, item_id)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, item_type, item_id) DO NOTHING
-  `).bind(id, auth.sub, body.item_type, body.item_id).run()
+    INSERT INTO user_attendance (id, user_id, item_type, item_id, scheduled_for, scheduled_time)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, item_type, item_id) DO UPDATE SET
+      scheduled_for  = COALESCE(excluded.scheduled_for, scheduled_for),
+      scheduled_time = COALESCE(excluded.scheduled_time, scheduled_time)
+  `).bind(id, auth.sub, body.item_type, body.item_id, body.scheduled_for ?? null, body.scheduled_time ?? null).run()
   return c.json({ ok: true }, 201)
 })
 

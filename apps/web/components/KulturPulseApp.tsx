@@ -12,7 +12,7 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds } from '@/hooks/useCulturalData'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
@@ -87,8 +87,9 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [search,    setSearch]    = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<{
-    events: Array<{ id: string; title: string; date_start: string; category: string | null; location_name: string | null; lat: number | null; lng: number | null }>
+    events:    Array<{ id: string; title: string; date_start: string; category: string | null; location_name: string | null; lat: number | null; lng: number | null }>
     locations: Array<{ id: string; name: string; category: string | null; address: string | null; borough: string | null; lat: number | null; lng: number | null }>
+    places:    Array<{ id: string; name: string; type: string; lat: number; lng: number }>
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -97,6 +98,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     mode === 'venues',
     venueCat === 'all' ? undefined : venueCat,
   )
+
+  // Always fetch parks + playgrounds so search works regardless of layer toggle
+  const { data: parksData }       = useParks(true)
+  const { data: playgroundsData } = usePlaygrounds(true)
 
   const venueFeatures = venuesGeo?.features ?? []
 
@@ -170,21 +175,54 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     // Intentionally never auto-disables — user controls the off state
   }, [cats])
 
-  // Debounced search
+  // Debounced search — API + client-side GeoJSON filtering
   useEffect(() => {
     clearTimeout(searchRef.current)
     if (!search.trim()) { setSearchResults(null); return }
     setSearching(true)
     searchRef.current = setTimeout(async () => {
+      const q = search.trim().toLowerCase()
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(search.trim())}`)
-        const data = await res.json() as typeof searchResults
-        setSearchResults(data)
+        const [res] = await Promise.all([
+          fetch(`/api/search?q=${encodeURIComponent(search.trim())}`),
+        ])
+        const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places'>
+
+        // Client-side search across parks, playgrounds, and all OSM venues
+        const places: NonNullable<typeof searchResults>['places'] = []
+        const seen = new Set<string>()
+
+        function addFeatures(features: GeoJSON.Feature[] | undefined, typeLabel: string) {
+          for (const f of features ?? []) {
+            const name = (f.properties?.name as string | null) ?? ''
+            if (!name || !name.toLowerCase().includes(q)) continue
+            const coords = (f.geometry as GeoJSON.Point).coordinates
+            const id = (f.properties?.id as string) ?? `${typeLabel}:${name}`
+            if (seen.has(id)) continue
+            seen.add(id)
+            places.push({ id, name, type: typeLabel, lat: coords[1], lng: coords[0] })
+          }
+        }
+
+        addFeatures(parksData?.features,       'Park')
+        addFeatures(playgroundsData?.features, 'Playground')
+        addFeatures(osmVintage.data?.features,    'Vintage Shop')
+        addFeatures(osmVinyl.data?.features,      'Vinyl / Music')
+        addFeatures(osmBooks.data?.features,      'Book Shop')
+        addFeatures(osmCafe.data?.features,       'Café')
+        addFeatures(osmCraftBeer.data?.features,  'Craft Beer')
+        addFeatures(osmTattoo.data?.features,     'Tattoo')
+        addFeatures(osmBike.data?.features,       'Bike Shop')
+        addFeatures(osmVegan.data?.features,      'Vegan Food')
+        addFeatures(osmStreetArt.data?.features,  'Street Art')
+
+        setSearchResults({ ...apiData, places: places.slice(0, 20) })
       } catch { /* ignore */ } finally {
         setSearching(false)
       }
     }, 300)
-  }, [search])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, parksData, playgroundsData])
 
   function toggleCat(c: string) {
     setCats(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
@@ -286,7 +324,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search events, venues…"
+              placeholder="Search events, venues, parks…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full text-xs border-2 border-black pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_#000]"
@@ -525,7 +563,28 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     ))}
                   </div>
                 )}
-                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && (
+                {/* Places (parks, playgrounds, OSM spots) */}
+                {(searchResults?.places?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Places ({searchResults!.places.length})
+                    </p>
+                    {searchResults!.places.map(pl => (
+                      <div
+                        key={pl.id}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([pl.lng, pl.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{pl.name}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">{pl.type}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (
                   <div className="flex items-center justify-center h-32 text-sm text-gray-400">No results</div>
                 )}
               </>

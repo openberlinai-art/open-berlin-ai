@@ -44,9 +44,11 @@ export interface KPNotification {
 }
 
 export interface KPAttendanceItem {
-  item_type:  'event' | 'location'
-  item_id:    string
-  created_at: string
+  item_type:      'event' | 'location'
+  item_id:        string
+  scheduled_for?: string | null
+  scheduled_time?: string | null
+  created_at:     string
 }
 
 export interface KPPreferences {
@@ -76,7 +78,7 @@ interface UserContextValue {
   updateDisplayName: (name: string) => Promise<void>
   shareList:         (listId: string, email: string) => Promise<{ ok: boolean; error?: string }>
   isAttending:       (itemType: 'event' | 'location', itemId: string) => boolean
-  attend:            (itemType: 'event' | 'location', itemId: string) => Promise<void>
+  attend:            (itemType: 'event' | 'location', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => Promise<void>
   unattend:          (itemType: 'event' | 'location', itemId: string) => Promise<void>
   updatePreferences: (prefs: KPPreferences) => Promise<void>
   updateDigestOptIn: (value: boolean) => Promise<void>
@@ -291,14 +293,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return attendance.some(a => a.item_type === itemType && a.item_id === itemId)
   }, [attendance])
 
-  const attend = useCallback(async (itemType: 'event' | 'location', itemId: string) => {
+  const attend = useCallback(async (itemType: 'event' | 'location', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => {
     await apiFetch('/api/attendance', token!, {
       method: 'POST',
-      body:   JSON.stringify({ item_type: itemType, item_id: itemId }),
+      body:   JSON.stringify({ item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null }),
     })
     setAttendance(prev => [
       ...prev,
-      { item_type: itemType, item_id: itemId, created_at: new Date().toISOString() },
+      { item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null, created_at: new Date().toISOString() },
     ])
   }, [token])
 
