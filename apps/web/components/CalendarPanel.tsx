@@ -132,7 +132,7 @@ export default function CalendarPanel({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white border-l-2 border-black h-full overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-sm bg-white border-l-2 border-black h-full overflow-y-auto overflow-x-hidden flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-black sticky top-0 bg-white z-10">
@@ -339,17 +339,19 @@ function CalendarRow({
   const timeStr = item.item_type === 'location' ? item.scheduled_time : item.time_start
   const Icon    = item.item_type === 'event' ? CalendarDays : MapPin
 
+  const timePart    = timeStr ? timeStr.slice(0, 5) : null
+  const datePart    = !hideDate && dateStr ? formatDate(dateStr) : null
+  const subtitleParts = [datePart, timePart, item.subtitle].filter(Boolean)
+
   return (
-    <div className="border border-black px-2.5 py-2 flex items-start justify-between gap-2 hover:bg-gray-50">
-      <a href={href} className="flex items-start gap-2 flex-1 min-w-0">
+    <div className="border border-black px-2.5 py-2 flex items-start justify-between gap-2 hover:bg-gray-50 min-w-0">
+      <a href={href} className="flex items-start gap-2 flex-1 min-w-0 overflow-hidden">
         <Icon size={11} className="shrink-0 mt-0.5 text-gray-400" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-gray-900 truncate">{item.title}</p>
-          <p className="text-[10px] text-gray-500 mt-0.5 truncate">
-            {!hideDate && dateStr ? formatDate(dateStr) : null}
-            {timeStr ? (hideDate ? timeStr.slice(0, 5) : ` · ${timeStr.slice(0, 5)}`) : null}
-            {item.subtitle ? (!hideDate && dateStr ? ` · ${item.subtitle}` : item.subtitle) : null}
-          </p>
+          {subtitleParts.length > 0 && (
+            <p className="text-[10px] text-gray-500 mt-0.5 truncate">{subtitleParts.join(' · ')}</p>
+          )}
         </div>
       </a>
       <button onClick={onRemove}
