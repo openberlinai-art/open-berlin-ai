@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { fetchEvent } from '@/lib/opendata'
 import { EventPageClient } from '@/components/EventPageClient'
+
+const EventMapSection = dynamic(() => import('@/components/EventMapSection'), { ssr: false })
 
 export const revalidate = 300
 
@@ -136,6 +139,11 @@ export default async function EventPage({ params }: Props) {
               </p>
             )}
           </div>
+        )}
+
+        {/* Map + nearby transit */}
+        {ev.lat && ev.lng && (
+          <EventMapSection lat={ev.lat} lng={ev.lng} />
         )}
 
         {/* Description */}

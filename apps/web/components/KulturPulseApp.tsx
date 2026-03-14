@@ -316,12 +316,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {p === 'all' ? 'Any price' : p.charAt(0).toUpperCase() + p.slice(1)}
               </button>
             ))}
-          </div>
-        </div>
 
-        {/* Event count */}
-        <div className="px-4 py-2 text-[11px] text-gray-500 border-b-2 border-black">
-          {loading ? 'Loading…' : `${total} event${total !== 1 ? 's' : ''}${isRange ? ` · ${dateLabel}` : ''}`}
+            {/* Dynamic count — inline at end of filter row */}
+            <span className="ml-auto text-[11px] text-gray-400 shrink-0 self-center">
+              {mode === 'venues'
+                ? `${venueFeatures.length} venue${venueFeatures.length !== 1 ? 's' : ''}`
+                : loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`}
+            </span>
+          </div>
         </div>
 
         {/* Mode toggle + layer overlays */}
@@ -539,11 +541,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           onEventSelect={setActiveId}
           layers={{
             ...layers,
-            venues:    mode === 'venues',
-            galleries: mode === 'venues',
-            museums:   mode === 'venues',
+            // Show venue-type layers based on the active category filter
+            venues:    mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
+            galleries: mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
+            museums:   mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
           }}
           mode={mode}
+          venueCat={venueCat}
           onBboxChange={setMapBbox}
           flyTo={flyTo}
         />

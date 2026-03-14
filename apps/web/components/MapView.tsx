@@ -22,6 +22,7 @@ interface Props {
   onEventSelect: (id: string | null) => void
   layers:        { parks: boolean; playgrounds: boolean; venues: boolean; galleries: boolean; museums: boolean }
   mode:          'events' | 'venues'
+  venueCat?:     string
   onBboxChange:  (bbox: string) => void
   flyTo?:        [number, number] | null
 }
@@ -102,7 +103,7 @@ function TransitPopupContent({
 
 // ─── Main MapView component ───────────────────────────────────────────────────
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, onBboxChange, flyTo }: Props) {
+export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -117,8 +118,13 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
 
   const { data: parksData,      isFetching: parksFetching }      = useParks(layers.parks)
   const { data: playgroundsData, isFetching: playgroundsFetching } = usePlaygrounds(layers.playgrounds)
+  // For the venues layer: when a specific non-museum/gallery category is selected, pass it as a filter
+  const venuesBboxCat = venueCat && venueCat !== 'all' && !['museum', 'gallery'].includes(venueCat)
+    ? venueCat
+    : undefined
+
   const { data: venuesData,     isFetching: venuesFetching,
-          isError: venuesError }                                   = useVenuesByBbox(bbox, layers.venues)
+          isError: venuesError }                                   = useVenuesByBbox(bbox, layers.venues, venuesBboxCat)
   const { data: galleriesData, isFetching: galleriesFetching }    = useVenuesByBbox(bbox, layers.galleries, 'gallery')
   const { data: museumsData,   isFetching: museumsFetching }      = useVenuesByBbox(bbox, layers.museums, 'museum')
 
