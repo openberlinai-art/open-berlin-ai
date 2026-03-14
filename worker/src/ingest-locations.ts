@@ -4,10 +4,10 @@ import type { Env, KulturdatenLocation } from './types'
 function mapCategory(name: string | null | undefined): string {
   if (!name) return 'other'
   const n = name.toLowerCase()
-  if (/museum|ausstellung|sammlung|kunsthalle/.test(n))       return 'museum'
-  if (/galerie|gallery/.test(n))                             return 'gallery'
-  if (/theater|theatre|bühne|spielstätte|oper|varieté/.test(n)) return 'theatre'
-  if (/bibliothek|bücherei|stadtbücherei/.test(n))           return 'library'
+  if (/museum|ausstellung|ausstellungsraum|kunsthalle|sammlung|gedenkst|memorial|historisch|jüdisch/.test(n)) return 'museum'
+  if (/galerie|gallery|kunstverein|projektraum|atelier|kunsthaus/.test(n)) return 'gallery'
+  if (/theater|theatre|bühne|spielstätte|oper|varieté|kabarett|philharmonie|konzerthaus|konzerthalle|volksbühne|tanztheater/.test(n)) return 'theatre'
+  if (/bibliothek|bücherei/.test(n))                         return 'library'
   return 'other'
 }
 
