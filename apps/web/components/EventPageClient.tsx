@@ -1,8 +1,11 @@
 'use client'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
 import { UserProvider, useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
+
+const EventMapSection = dynamic(() => import('./EventMapSection'), { ssr: false })
 
 function ShareButton() {
   const [copied, setCopied] = useState(false)
@@ -43,9 +46,10 @@ function EventActions({ id }: { id: string }) {
   )
 }
 
-export function EventPageClient({ id }: { id: string }) {
+export function EventPageClient({ id, lat, lng }: { id: string; lat?: number; lng?: number }) {
   return (
     <UserProvider>
+      {lat && lng && <EventMapSection lat={lat} lng={lng} />}
       <EventActions id={id} />
     </UserProvider>
   )
