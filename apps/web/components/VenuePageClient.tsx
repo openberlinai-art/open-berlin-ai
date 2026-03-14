@@ -17,11 +17,12 @@ interface EventItem {
 }
 
 interface Props {
-  id:       string
-  lat:      number | null
-  lng:      number | null
-  name:     string
-  events:   EventItem[]
+  id:         string
+  lat:        number | null
+  lng:        number | null
+  name:       string
+  events:     EventItem[]
+  pastEvents: EventItem[]
 }
 
 function formatDate(d: string) {
@@ -78,8 +79,51 @@ function VenueActions({ id }: { id: string }) {
   )
 }
 
-export function VenuePageClient({ id, lat, lng, name, events }: Props) {
+function EventGroup({ events }: { events: EventItem[] }) {
   const grouped = groupByDate(events)
+  return (
+    <>
+      {grouped.map(([date, evs]) => (
+        <div key={date} className="mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+            {formatDate(date)}
+          </p>
+          <div className="flex flex-col">
+            {evs.map(ev => (
+              <div key={ev.id} className="border-b border-gray-200 py-2.5 flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+                  {ev.time_start && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">{ev.time_start.slice(0, 5)}</p>
+                  )}
+                </div>
+                <div className="flex gap-1 shrink-0 items-center">
+                  {ev.category && (
+                    <span className="px-1 py-0.5 border border-gray-300 text-[9px] font-bold text-gray-500">
+                      {ev.category}
+                    </span>
+                  )}
+                  <span className={[
+                    'px-1 py-0.5 border text-[9px] font-bold',
+                    ev.price_type === 'free'   ? 'border-black bg-black text-white'
+                    : ev.price_type === 'paid' ? 'border-black bg-white text-black'
+                    : 'border-gray-300 text-gray-400',
+                  ].join(' ')}>
+                    {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
+                  </span>
+                  <AddToListButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Props) {
+  const [showPast, setShowPast] = useState(false)
 
   return (
     <UserProvider>
@@ -95,7 +139,7 @@ export function VenuePageClient({ id, lat, lng, name, events }: Props) {
         <VenueActions id={id} />
       </div>
 
-      {/* Events grouped by date */}
+      {/* Upcoming events */}
       <div>
         <h2 className="text-sm font-bold border-b-2 border-black pb-1 mb-3 uppercase tracking-wide flex items-center gap-2">
           Upcoming Events
@@ -105,48 +149,32 @@ export function VenuePageClient({ id, lat, lng, name, events }: Props) {
             </span>
           )}
         </h2>
-        {grouped.length === 0 ? (
-          <p className="text-xs text-gray-400">No upcoming events found for this venue.</p>
+        {events.length === 0 ? (
+          <p className="text-xs text-gray-400 mb-4">No upcoming events found for this venue.</p>
         ) : (
-          grouped.map(([date, evs]) => (
-            <div key={date} className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                {formatDate(date)}
-              </p>
-              <div className="flex flex-col">
-                {evs.map(ev => (
-                  <div key={ev.id} className="border-b border-gray-200 py-2.5 flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
-                      {ev.time_start && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {ev.time_start.slice(0, 5)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-1 shrink-0 items-center">
-                      {ev.category && (
-                        <span className="px-1 py-0.5 border border-gray-300 text-[9px] font-bold text-gray-500">
-                          {ev.category}
-                        </span>
-                      )}
-                      <span className={[
-                        'px-1 py-0.5 border text-[9px] font-bold',
-                        ev.price_type === 'free'    ? 'border-black bg-black text-white'
-                        : ev.price_type === 'paid'  ? 'border-black bg-white text-black'
-                        : 'border-gray-300 text-gray-400',
-                      ].join(' ')}>
-                        {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
-                      </span>
-                      <AddToListButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
+          <EventGroup events={events} />
         )}
       </div>
+
+      {/* Past events toggle */}
+      {pastEvents.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowPast(p => !p)}
+            className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white font-bold flex items-center gap-1.5"
+          >
+            {showPast ? '▲' : '▼'} Past Events
+            <span className="font-normal text-gray-400 border border-current px-1 py-0.5 text-[10px]">
+              {pastEvents.length}
+            </span>
+          </button>
+          {showPast && (
+            <div className="mt-3 opacity-70">
+              <EventGroup events={pastEvents} />
+            </div>
+          )}
+        </div>
+      )}
     </UserProvider>
   )
 }

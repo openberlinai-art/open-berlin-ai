@@ -128,12 +128,19 @@ app.get('/api/locations/:id', async c => {
     .first<Record<string, unknown>>()
   if (!loc) return c.json({ error: 'Not found' }, 404)
 
-  const { results: events } = await c.env.DB
-    .prepare(`SELECT id, title, date_start, time_start, category, price_type
-              FROM events WHERE location_id = ? ORDER BY date_start LIMIT 20`)
-    .bind(id).all<Record<string, unknown>>()
+  const today = new Date().toISOString().slice(0, 10)
+  const [upcomingRes, pastRes] = await Promise.all([
+    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type
+                      FROM events WHERE location_id = ? AND date_start >= ?
+                      ORDER BY date_start ASC LIMIT 100`)
+      .bind(id, today).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type
+                      FROM events WHERE location_id = ? AND date_start < ?
+                      ORDER BY date_start DESC LIMIT 50`)
+      .bind(id, today).all<Record<string, unknown>>(),
+  ])
 
-  return c.json({ data: { ...loc, events } })
+  return c.json({ data: { ...loc, events: upcomingRes.results, pastEvents: pastRes.results } })
 })
 
 // ─── GET /api/geodata/parks ───────────────────────────────────────────────────

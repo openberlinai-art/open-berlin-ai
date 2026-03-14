@@ -53,6 +53,7 @@ export interface Location {
   extra_links:    string | null  // JSON array of {url, displayName?}
   updated_at:     string
   events:         Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]
+  pastEvents:     Pick<Event, 'id' | 'title' | 'date_start' | 'time_start' | 'category' | 'price_type'>[]
 }
 
 export interface EventsResponse {

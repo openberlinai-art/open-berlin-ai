@@ -202,6 +202,7 @@ export default async function LocationPage({ params }: Props) {
           lng={loc.lng}
           name={loc.name ?? ''}
           events={loc.events}
+          pastEvents={loc.pastEvents ?? []}
         />
       </div>
     </main>
