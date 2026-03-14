@@ -13,6 +13,7 @@ import {
 } from '@/hooks/useCulturalData'
 import type { VBBStop, Departure } from '@/lib/opendata'
 import VibeCheck from './VibeCheck'
+import JourneyWidget from './JourneyWidget'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
 const INITIAL_VIEW = { longitude: 13.405, latitude: 52.52, zoom: 11 }
@@ -52,6 +53,7 @@ interface Props {
   onBboxChange:    (bbox: string) => void
   flyTo?:          [number, number] | null
   openVenuePopup?: ({ _key: number } & VenuePopupState) | null
+  liveRadar?:      boolean
 }
 
 interface TransitPopupState {
@@ -90,7 +92,7 @@ function TransitPopupContent({
   stop: VBBStop; departures: Departure[] | undefined; loading: boolean
 }) {
   const typeColor: Record<string, string> = {
-    subway: '#1d4ed8', suburban: '#15803d', tram: '#b91c1c',
+    subway: '#1d4ed8', suburban: '#15803d', tram: '#b91c1c', bus: '#6b7280',
   }
   const color = typeColor[stop.type] ?? '#374151'
 
@@ -131,7 +133,16 @@ function TransitPopupContent({
 
 // ─── Main MapView component ───────────────────────────────────────────────────
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup }: Props) {
+const BERLIN_BBOX = { south: 52.338, north: 52.675, west: 13.088, east: 13.761 }
+
+interface RadarPopupState {
+  lat:       number
+  lng:       number
+  line:      string
+  direction: string
+}
+
+export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup, liveRadar = false }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -141,6 +152,8 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
   const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
   const [activeTransitId,  setActiveTransitId]  = useState<string | null>(null)
   const [cursor,           setCursor]           = useState('grab')
+  const [radarData,        setRadarData]        = useState<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] })
+  const [radarPopup,       setRadarPopup]       = useState<RadarPopupState | null>(null)
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -336,6 +349,20 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
       return
     }
 
+    // Radar vehicle → show line popup
+    if (layerId === 'radar-vehicles') {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      setRadarPopup({
+        lat:       coords[1],
+        lng:       coords[0],
+        line:      props.line      as string ?? '',
+        direction: props.direction as string ?? '',
+      })
+      return
+    }
+
     // Park / playground → show info popup
     if (layerId === 'parks-point' || layerId === 'playgrounds-point') {
       const props  = feature.properties
@@ -395,6 +422,66 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     setTransitPopup(null)
   }, [openVenuePopup])
 
+  // ── Live radar polling ───────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!liveRadar) {
+      setRadarData({ type: 'FeatureCollection', features: [] })
+      return
+    }
+
+    async function fetchRadar() {
+      const map = mapRef.current
+      if (!map) return
+      const b = map.getBounds()
+      if (!b) return
+
+      // Only within Berlin bounding box
+      const center = map.getCenter()
+      if (
+        center.lat < BERLIN_BBOX.south || center.lat > BERLIN_BBOX.north ||
+        center.lng < BERLIN_BBOX.west  || center.lng > BERLIN_BBOX.east
+      ) return
+
+      const params = new URLSearchParams({
+        north:   b.getNorth().toFixed(4),
+        south:   b.getSouth().toFixed(4),
+        east:    b.getEast().toFixed(4),
+        west:    b.getWest().toFixed(4),
+        results: '128',
+        frames:  '1',
+      })
+
+      try {
+        const res = await fetch(`/api/proxy/vbb?path=${encodeURIComponent(`/radar?${params}`)}`)
+        if (!res.ok) return
+        const data = await res.json() as {
+          movements?: Array<{
+            line?:      { name?: string; product?: string }
+            direction?: string
+            location?:  { type: string; geometry: { type: string; coordinates: [number, number] } }
+          }>
+        }
+        const features: GeoJSON.Feature[] = (data.movements ?? [])
+          .filter(m => m.location?.geometry?.coordinates)
+          .map(m => ({
+            type: 'Feature' as const,
+            geometry: m.location!.geometry as GeoJSON.Point,
+            properties: {
+              line:      m.line?.name      ?? '',
+              product:   m.line?.product   ?? 'unknown',
+              direction: m.direction       ?? '',
+            },
+          }))
+        setRadarData({ type: 'FeatureCollection', features })
+      } catch { /* ignore */ }
+    }
+
+    fetchRadar()
+    const interval = setInterval(fetchRadar, 15000)
+    return () => clearInterval(interval)
+  }, [liveRadar])
+
   const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
 
   // Build interactiveLayerIds
@@ -419,6 +506,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           'galleries-point', 'gallery-clusters',
           'museums-point',   'museum-clusters',
           'parks-point', 'playgrounds-point',
+          'radar-vehicles',
           ...osmInteractiveIds,
         ]}
         onLoad={onLoad}
@@ -712,6 +800,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   'subway',   '#1d4ed8',
                   'suburban', '#15803d',
                   'tram',     '#b91c1c',
+                  'bus',      '#6b7280',
                   '#374151',
                 ],
                 'circle-stroke-color': [
@@ -719,10 +808,35 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   'subway',   '#1e40af',
                   'suburban', '#14532d',
                   'tram',     '#991b1b',
+                  'bus',      '#4b5563',
                   '#111827',
                 ],
                 'circle-stroke-width': 1.5,
                 'circle-opacity':      0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Live vehicle radar ───────────────────── */}
+        {liveRadar && (
+          <Source id="radar-source" type="geojson" data={radarData}>
+            <Layer
+              id="radar-vehicles"
+              type="circle"
+              paint={{
+                'circle-radius': 5,
+                'circle-color': [
+                  'match', ['get', 'product'],
+                  'subway',   '#1d4ed8',
+                  'suburban', '#15803d',
+                  'tram',     '#b91c1c',
+                  'bus',      '#6b7280',
+                  '#374151',
+                ],
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 1,
+                'circle-opacity':      0.9,
               }}
             />
           </Source>
@@ -773,13 +887,14 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
               </div>
               {transitData && transitData.length > 0 && (
                 <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-100 flex flex-wrap gap-1.5">
-                  {(['subway', 'suburban', 'tram'] as const).map(type => {
+                  {(['subway', 'suburban', 'tram', 'bus'] as const).map(type => {
                     const stop = transitData.find(s => s.type === type)
                     if (!stop) return null
                     const meta = {
                       subway:   { s: 'U', c: '#1d4ed8' },
                       suburban: { s: 'S', c: '#15803d' },
                       tram:     { s: 'T', c: '#b91c1c' },
+                      bus:      { s: 'B', c: '#6b7280' },
                     }[type]
                     return (
                       <span key={type} className="flex items-center gap-1 text-[10px] text-gray-600">
@@ -788,6 +903,11 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                       </span>
                     )
                   })}
+                </div>
+              )}
+              {activeEvent.lat && activeEvent.lng && (
+                <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
+                  <JourneyWidget toLat={activeEvent.lat} toLng={activeEvent.lng} />
                 </div>
               )}
             </div>
@@ -901,13 +1021,14 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
               </div>
               {transitData && transitData.length > 0 && (
                 <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-100 flex flex-wrap gap-1.5">
-                  {(['subway', 'suburban', 'tram'] as const).map(type => {
+                  {(['subway', 'suburban', 'tram', 'bus'] as const).map(type => {
                     const stop = transitData.find(s => s.type === type)
                     if (!stop) return null
                     const meta = {
                       subway:   { s: 'U', c: '#1d4ed8' },
                       suburban: { s: 'S', c: '#15803d' },
                       tram:     { s: 'T', c: '#b91c1c' },
+                      bus:      { s: 'B', c: '#6b7280' },
                     }[type]
                     return (
                       <span key={type} className="flex items-center gap-1 text-[10px] text-gray-600">
@@ -918,6 +1039,9 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   })}
                 </div>
               )}
+              <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
+                <JourneyWidget toLat={venuePopup.lat} toLng={venuePopup.lng} />
+              </div>
             </div>
           </Popup>
         )}
@@ -957,6 +1081,31 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   <p className="text-gray-400 text-[10px]">Built {greenspacePopup.built}</p>
                 )}
               </div>
+            </div>
+          </Popup>
+        )}
+        {/* ── Radar vehicle popup ──────────────────── */}
+        {radarPopup && (
+          <Popup
+            longitude={radarPopup.lng}
+            latitude={radarPopup.lat}
+            anchor="bottom"
+            closeButton={false}
+            onClose={() => setRadarPopup(null)}
+            maxWidth="200px"
+          >
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] px-3 py-2 min-w-[120px]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-bold text-gray-900">{radarPopup.line || 'Vehicle'}</p>
+                <button
+                  onClick={() => setRadarPopup(null)}
+                  className="w-4 h-4 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[10px] leading-none shrink-0"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              {radarPopup.direction && (
+                <p className="text-[10px] text-gray-500 mt-0.5">→ {radarPopup.direction}</p>
+              )}
             </div>
           </Popup>
         )}

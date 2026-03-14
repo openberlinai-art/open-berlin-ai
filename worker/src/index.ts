@@ -316,9 +316,14 @@ app.get('/api/proxy/wfs', async c => {
 
 app.get('/api/proxy/vbb', async c => {
   const path = c.req.query('path')
-  if (!path || (!path.startsWith('/stops') && !path.startsWith('/locations')))
+  if (!path || (
+    !path.startsWith('/stops') &&
+    !path.startsWith('/locations') &&
+    !path.startsWith('/journeys') &&
+    !path.startsWith('/radar')
+  ))
     return c.json({ error: 'Invalid path' }, 400)
-  const res = await fetch(`https://v6.vbb.transport.rest${path}`)
+  const res = await fetch(`https://v6.bvg.transport.rest${path}`)
   if (!res.ok) return c.json({ error: `Upstream ${res.status}` }, 502)
   return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } })
 })
@@ -768,13 +773,14 @@ app.post('/api/ingest', async c => {
   if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  const days = Number(c.req.query('days') ?? 365)
+  const days      = Number(c.req.query('days')      ?? 365)
+  const offsetDays = Number(c.req.query('offsetDays') ?? 0)
   c.executionCtx.waitUntil(
-    ingestEvents(c.env, days)
-      .then(n => console.log(`[ingest:manual] done — ${n} events`))
+    ingestEvents(c.env, days, offsetDays)
+      .then(n => console.log(`[ingest:manual] done — ${n} events (offset=${offsetDays}, days=${days})`))
       .catch(err => console.error('[ingest:manual] failed:', err))
   )
-  return c.json({ ok: true, message: `Ingest started for ${days} days` })
+  return c.json({ ok: true, message: `Ingest started: offset=${offsetDays} days, window=${days} days` })
 })
 
 // ─── POST /api/ingest-locations (protected) ───────────────────────────────────

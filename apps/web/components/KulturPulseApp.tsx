@@ -75,6 +75,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [showAuth,     setShowAuth]     = useState(false)
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [liveRadar,    setLiveRadar]    = useState(false)
   const [mode,      setMode]      = useState<'events' | 'venues'>('events')
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [venueCat,  setVenueCat]  = useState<string>('all')
@@ -476,6 +477,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <span className="text-[10px] text-gray-300 mx-0.5">|</span>
           <button onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))} className={layers.parks ? btnActive : btn}>Parks</button>
           <button onClick={() => setLayers(l => ({ ...l, playgrounds: !l.playgrounds }))} className={layers.playgrounds ? btnActive : btn}>Playgrounds</button>
+          <button
+            onClick={() => setLiveRadar(v => !v)}
+            className={liveRadar ? btnActive : btn}
+            title="Live vehicle radar"
+          >
+            ● Live
+          </button>
           {activeId && mode === 'events' && (
             <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">Transit nearby</span>
           )}
@@ -736,6 +744,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           onBboxChange={setMapBbox}
           flyTo={flyTo}
           openVenuePopup={surpriseVenuePopup}
+          liveRadar={liveRadar}
         />
       </div>
 

@@ -1,12 +1,12 @@
 // Berlin open data fetchers
 // Parks/Playgrounds → Worker R2 (CDN cached)
 // Venues           → Worker D1 (bbox query)
-// Transit/Departures → VBB API (via proxy fallback)
+// Transit/Departures → BVG API (via proxy fallback)
 
 import type { Location, Event } from './types'
 
 const WORKER    = 'https://kulturpulse-worker.openberlinai.workers.dev'
-const VBB_BASE  = 'https://v6.vbb.transport.rest'
+const VBB_BASE  = 'https://v6.bvg.transport.rest'
 const VBB_PROXY = '/api/proxy/vbb'
 
 // ─── Venue locations (D1 bbox query) ─────────────────────────────────────────
@@ -66,7 +66,7 @@ export interface VBBStop {
   name: string
   lat:  number
   lng:  number
-  type: 'subway' | 'suburban' | 'tram'
+  type: 'subway' | 'suburban' | 'tram' | 'bus'
 }
 
 export async function fetchTransitStopsVBB(
@@ -82,7 +82,7 @@ export async function fetchTransitStopsVBB(
     suburban:  'true',
     subway:    'true',
     tram:      'true',
-    bus:       'false',
+    bus:       'true',
     ferry:     'false',
   })
 
@@ -109,10 +109,9 @@ export async function fetchTransitStopsVBB(
   for (const stop of data) {
     if (seen.has(stop.id)) continue
     seen.add(stop.id)
-    const { subway, suburban, tram: isTram } = stop.products ?? {}
-    // Skip bus-only stops that may slip through despite bus=false query param
-    if (!subway && !suburban && !isTram) continue
-    const type: VBBStop['type'] = subway ? 'subway' : suburban ? 'suburban' : 'tram'
+    const { subway, suburban, tram: isTram, bus } = stop.products ?? {}
+    if (!subway && !suburban && !isTram && !bus) continue
+    const type: VBBStop['type'] = subway ? 'subway' : suburban ? 'suburban' : isTram ? 'tram' : 'bus'
     stops.push({
       id:   stop.id,
       name: stop.name,
@@ -156,7 +155,7 @@ export async function fetchDepartures(stopId: string): Promise<Departure[]> {
     suburban: 'true',
     subway:   'true',
     tram:     'true',
-    bus:      'false',
+    bus:      'true',
   })
 
   const path = `/stops/${encodeURIComponent(stopId)}/departures?${params}`
@@ -182,4 +181,83 @@ export async function fetchDepartures(stopId: string): Promise<Departure[]> {
     when:      d.when ?? '',
     delay:     d.delay ?? 0,
   }))
+}
+
+// ─── Journey planner (BVG) ───────────────────────────────────────────────────
+
+export interface JourneyLeg {
+  origin:      string
+  destination: string
+  departure:   string
+  arrival:     string
+  line:        string | null
+  direction:   string | null
+  walking:     boolean
+}
+
+export interface Journey {
+  duration:  number // minutes
+  transfers: number
+  legs:      JourneyLeg[]
+}
+
+export async function fetchJourney(
+  fromLat: number,
+  fromLng: number,
+  toLat:   number,
+  toLng:   number,
+): Promise<Journey[]> {
+  const params = new URLSearchParams({
+    from:      `${fromLat},${fromLng}`,
+    to:        `${toLat},${toLng}`,
+    results:   '3',
+    stopovers: 'false',
+    remarks:   'false',
+    language:  'en',
+  })
+
+  const path = `/journeys?${params}`
+  let res: Response
+  try {
+    res = await fetch(`${VBB_BASE}${path}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  } catch {
+    res = await fetch(`${VBB_PROXY}?path=${encodeURIComponent(path)}`)
+    if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
+  }
+
+  const data = await res.json() as {
+    journeys?: Array<{
+      legs: Array<{
+        origin?:      { name?: string }
+        destination?: { name?: string }
+        departure?:   string
+        arrival?:     string
+        line?:        { name?: string }
+        direction?:   string
+        walking?:     boolean
+      }>
+    }>
+  }
+
+  return (data.journeys ?? []).map(j => {
+    const legs: JourneyLeg[] = j.legs.map(leg => ({
+      origin:      leg.origin?.name ?? '',
+      destination: leg.destination?.name ?? '',
+      departure:   leg.departure ?? '',
+      arrival:     leg.arrival ?? '',
+      line:        leg.line?.name ?? null,
+      direction:   leg.direction ?? null,
+      walking:     leg.walking ?? false,
+    }))
+
+    const firstLeg = j.legs[0]
+    const lastLeg  = j.legs[j.legs.length - 1]
+    const depTime  = firstLeg?.departure ? new Date(firstLeg.departure).getTime() : 0
+    const arrTime  = lastLeg?.arrival    ? new Date(lastLeg.arrival).getTime()    : 0
+    const duration = depTime && arrTime ? Math.round((arrTime - depTime) / 60000) : 0
+    const transfers = Math.max(0, j.legs.filter(l => !l.walking).length - 1)
+
+    return { duration, transfers, legs }
+  })
 }

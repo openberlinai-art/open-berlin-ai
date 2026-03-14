@@ -6,6 +6,7 @@ import {
   fetchVenuesList,
   fetchTransitStopsVBB,
   fetchDepartures,
+  fetchJourney,
   fetchOSMVenues,
   fetchWeather,
 } from '@/lib/opendata'
@@ -82,5 +83,20 @@ export function useWeather() {
     queryFn:         fetchWeather,
     staleTime:       10 * 60_000,
     refetchInterval: 10 * 60_000,
+  })
+}
+
+export function useJourney(
+  fromLat: number | null,
+  fromLng: number | null,
+  toLat:   number | null,
+  toLng:   number | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['journey', fromLat, fromLng, toLat, toLng],
+    queryFn:  () => fetchJourney(fromLat!, fromLng!, toLat!, toLng!),
+    enabled:  enabled && !!fromLat && !!fromLng && !!toLat && !!toLng,
+    staleTime: 60_000,
   })
 }

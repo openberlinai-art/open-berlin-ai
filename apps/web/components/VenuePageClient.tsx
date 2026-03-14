@@ -5,8 +5,9 @@ import { Share2, Check } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
-import { fetchTransitStopsVBB } from '@/lib/opendata'
-import type { VBBStop } from '@/lib/opendata'
+import JourneyWidget from './JourneyWidget'
+import { fetchTransitStopsVBB, fetchDepartures } from '@/lib/opendata'
+import type { VBBStop, Departure } from '@/lib/opendata'
 
 const VenueMap = dynamic(() => import('./VenueMap'), { ssr: false })
 
@@ -14,10 +15,46 @@ const TRANSIT_TYPES = [
   { key: 'subway',   label: 'U-Bahn', symbol: 'U', color: '#1d4ed8' },
   { key: 'suburban', label: 'S-Bahn', symbol: 'S', color: '#15803d' },
   { key: 'tram',     label: 'Tram',   symbol: 'T', color: '#b91c1c' },
+  { key: 'bus',      label: 'Bus',    symbol: 'B', color: '#6b7280' },
 ] as const
 
+function StopDepartureRow({ stopId, color }: { stopId: string; color: string }) {
+  const [deps, setDeps] = useState<Departure[] | null>(null)
+
+  useEffect(() => {
+    fetchDepartures(stopId)
+      .then(d => setDeps(d))
+      .catch(() => setDeps([]))
+  }, [stopId])
+
+  if (!deps) return <p className="text-[10px] text-gray-400 mt-1 ml-6">Loading…</p>
+  if (!deps.length) return <p className="text-[10px] text-gray-400 mt-1 ml-6">No departures found</p>
+
+  return (
+    <table className="w-full border-collapse mt-1 ml-6 text-[10px]">
+      <tbody>
+        {deps.map((d, i) => {
+          const diffMin = Math.round((new Date(d.when).getTime() - Date.now()) / 60000)
+          const eta = diffMin <= 0 ? 'now' : `${diffMin} min`
+          return (
+            <tr key={i}>
+              <td className="pr-2 font-bold whitespace-nowrap w-10" style={{ color }}>{d.line}</td>
+              <td className="pr-2 text-gray-600 max-w-[140px] overflow-hidden text-ellipsis whitespace-nowrap">{d.direction}</td>
+              <td className="whitespace-nowrap text-gray-500">
+                {eta}
+                {d.delay > 60 && <span className="text-red-500"> +{Math.round(d.delay / 60)}m</span>}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
 function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
-  const [stops, setStops] = useState<VBBStop[] | null>(null)
+  const [stops,        setStops]        = useState<VBBStop[] | null>(null)
+  const [expandedStop, setExpandedStop] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTransitStopsVBB(lat, lng)
@@ -50,9 +87,17 @@ function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
               </div>
               <div className="flex flex-wrap gap-1">
                 {typeStops.slice(0, 6).map(s => (
-                  <span key={s.id} className="text-[11px] text-gray-700 border border-gray-200 px-1.5 py-0.5">
-                    {s.name}
-                  </span>
+                  <div key={s.id} className="w-full">
+                    <button
+                      onClick={() => setExpandedStop(prev => prev === s.id ? null : s.id)}
+                      className="text-[11px] text-gray-700 border border-gray-200 px-1.5 py-0.5 hover:border-black hover:text-black text-left"
+                    >
+                      {s.name} {expandedStop === s.id ? '▲' : '▼'}
+                    </button>
+                    {expandedStop === s.id && (
+                      <StopDepartureRow stopId={s.id} color={color} />
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -194,6 +239,14 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
 
       {/* Nearby transit */}
       {lat && lng && <VenueTransit lat={lat} lng={lng} />}
+
+      {/* Route planner */}
+      {lat && lng && (
+        <div className="mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Route from your location</p>
+          <JourneyWidget toLat={lat} toLng={lng} />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="mb-6">
