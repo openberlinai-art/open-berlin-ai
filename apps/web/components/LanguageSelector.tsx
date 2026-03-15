@@ -4,6 +4,11 @@ import { useLanguage, type Lang } from '@/providers/LanguageProvider'
 const LANGS: { code: Lang; label: string }[] = [
   { code: 'de', label: 'DE' },
   { code: 'en', label: 'EN' },
+  { code: 'es', label: 'ES' },
+  { code: 'it', label: 'IT' },
+  { code: 'fr', label: 'FR' },
+  { code: 'zh', label: 'ZH' },
+  { code: 'ja', label: 'JA' },
   { code: 'tr', label: 'TR' },
   { code: 'ar', label: 'AR' },
   { code: 'ru', label: 'RU' },

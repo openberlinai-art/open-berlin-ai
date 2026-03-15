@@ -1,7 +1,7 @@
 'use client'
 import { createContext, useContext, useState, useEffect } from 'react'
 
-export type Lang = 'de' | 'en' | 'tr' | 'ar' | 'ru' | 'pl' | 'vi' | 'ro'
+export type Lang = 'de' | 'en' | 'tr' | 'ar' | 'ru' | 'pl' | 'vi' | 'ro' | 'es' | 'it' | 'fr' | 'zh' | 'ja'
 
 interface LanguageCtx {
   lang:    Lang

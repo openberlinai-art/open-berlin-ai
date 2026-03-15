@@ -19,6 +19,7 @@ import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
 import { useUser } from '@/providers/UserProvider'
+import { useLanguage } from '@/providers/LanguageProvider'
 import { ErrorBoundary } from './ErrorBoundary'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
@@ -51,6 +52,7 @@ interface Props {
 
 function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const { user, unreadCount, attendance } = useUser()
+  const { lang } = useLanguage()
 
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
@@ -189,7 +191,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       const q = search.trim().toLowerCase()
       try {
         const [res] = await Promise.all([
-          fetch(`/api/search?q=${encodeURIComponent(search.trim())}`),
+          fetch(`/api/search?q=${encodeURIComponent(search.trim())}&lang=${lang}`),
         ])
         const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places'>
 
@@ -227,7 +229,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       }
     }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, parksData, playgroundsData])
+  }, [search, lang, parksData, playgroundsData])
 
   function toggleCat(c: string) {
     setCats(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])

@@ -303,7 +303,7 @@ app.post('/api/vibe-check', async c => {
 
 // ─── POST /api/translate ──────────────────────────────────────────────────────
 
-const ALLOWED_LANGS = new Set(['tr', 'ar', 'ru', 'pl', 'vi', 'ro', 'en'])
+const ALLOWED_LANGS = new Set(['tr', 'ar', 'ru', 'pl', 'vi', 'ro', 'en', 'es', 'it', 'fr', 'zh', 'ja'])
 
 async function hashKey(lang: string, text: string): Promise<string> {
   const data = new TextEncoder().encode(`${lang}:${text}`)
@@ -842,9 +842,36 @@ function normSql(col: string): string {
 }
 
 app.get('/api/search', async c => {
-  const raw = (c.req.query('q') ?? '').trim()
+  const raw  = (c.req.query('q') ?? '').trim()
+  const lang = c.req.query('lang') ?? 'de'
   if (raw.length < 2) return c.json({ events: [], locations: [] })
-  const norm    = normalizeQ(raw)
+
+  // Translate the query to German so we always search the canonical German data
+  let searchTerm = raw
+  if (lang !== 'de' && ALLOWED_LANGS.has(lang)) {
+    try {
+      const cacheId = await hashKey(`${lang}-de`, raw)
+      const cached = await c.env.DB
+        .prepare(`SELECT translated FROM translations WHERE id = ?`)
+        .bind(cacheId).first<{ translated: string }>()
+      if (cached) {
+        searchTerm = cached.translated
+      } else {
+        const result = await c.env.AI.run('@cf/meta/m2m100-1.2b' as Parameters<typeof c.env.AI.run>[0], {
+          text: raw, source_lang: lang, target_lang: 'de',
+        } as Parameters<typeof c.env.AI.run>[1]) as { translated_text?: string }
+        const german = result.translated_text?.trim()
+        if (german) {
+          searchTerm = german
+          await c.env.DB.prepare(
+            `INSERT OR IGNORE INTO translations (id, lang, source, translated) VALUES (?, ?, ?, ?)`
+          ).bind(cacheId, `${lang}-de`, raw, german).run()
+        }
+      }
+    } catch { /* fall through: search with original query */ }
+  }
+
+  const norm    = normalizeQ(searchTerm)
   const pattern = `%${norm}%`
 
   const [evRes, locRes] = await Promise.all([
