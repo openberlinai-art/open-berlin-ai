@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { X, CalendarDays, CalendarX, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 
@@ -343,6 +343,21 @@ function CalendarRow({
   const datePart    = !hideDate && dateStr ? formatDate(dateStr) : null
   const subtitleParts = [datePart, timePart, item.subtitle].filter(Boolean)
 
+  const [confirming, setConfirming] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleRemoveClick() {
+    if (confirming) {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      onRemove()
+    } else {
+      setConfirming(true)
+      timerRef.current = setTimeout(() => setConfirming(false), 3000)
+    }
+  }
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
   return (
     <div className="border border-black px-2.5 py-2 flex items-start justify-between gap-2 hover:bg-gray-50 min-w-0">
       <a href={href} className="flex items-start gap-2 flex-1 min-w-0 overflow-hidden">
@@ -354,9 +369,13 @@ function CalendarRow({
           )}
         </div>
       </a>
-      <button onClick={onRemove}
-        className="shrink-0 text-gray-400 hover:text-black hover:bg-red-50 w-5 h-5 flex items-center justify-center border border-transparent hover:border-red-200"
-        title="Remove from calendar">
+      <button onClick={handleRemoveClick}
+        className={`shrink-0 w-5 h-5 flex items-center justify-center border transition-colors ${
+          confirming
+            ? 'border-red-500 bg-red-500 text-white'
+            : 'border-transparent text-gray-400 hover:text-black hover:bg-red-50 hover:border-red-200'
+        }`}
+        title={confirming ? 'Click again to confirm' : 'Remove from calendar'}>
         <X size={10} />
       </button>
     </div>

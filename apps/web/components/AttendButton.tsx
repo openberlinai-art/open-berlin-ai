@@ -38,11 +38,17 @@ export default function AttendButton({ itemType, itemId, onNeedAuth }: Props) {
     }
   }
 
+  function closeModal() {
+    setShowModal(false)
+    setSchedDate('')
+    setSchedTime('')
+  }
+
   async function confirmSchedule(e: React.FormEvent) {
     e.preventDefault()
     e.stopPropagation()
     if (!schedDate) return
-    setShowModal(false)
+    closeModal()
     setLoading(true)
     try {
       await attend(itemType, itemId, { scheduledFor: schedDate, scheduledTime: schedTime || undefined })
@@ -66,7 +72,7 @@ export default function AttendButton({ itemType, itemId, onNeedAuth }: Props) {
       {showModal && (
         <div
           className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40"
-          onClick={e => { e.stopPropagation(); setShowModal(false) }}
+          onClick={e => { e.stopPropagation(); closeModal() }}
         >
           <form
             onSubmit={confirmSchedule}
@@ -75,7 +81,7 @@ export default function AttendButton({ itemType, itemId, onNeedAuth }: Props) {
           >
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-bold uppercase tracking-wide">Schedule a visit</p>
-              <button type="button" onClick={() => setShowModal(false)} className="hover:bg-black hover:text-white w-6 h-6 flex items-center justify-center border border-black">
+              <button type="button" onClick={closeModal} className="hover:bg-black hover:text-white w-6 h-6 flex items-center justify-center border border-black">
                 <X size={11} />
               </button>
             </div>

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS events (
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN source_links TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN registration_type TEXT"
 -- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN languages TEXT"
+-- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN image_urls TEXT"
 
 CREATE INDEX IF NOT EXISTS idx_events_date_start ON events(date_start);
 CREATE INDEX IF NOT EXISTS idx_events_category   ON events(LOWER(category));
@@ -168,6 +169,26 @@ CREATE TABLE IF NOT EXISTS user_attendance (
 CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id);
 -- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS user_attendance (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_type TEXT NOT NULL CHECK(item_type IN ('event','location')), item_id TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, item_type, item_id))"
 -- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id)"
+
+-- ─── Translation cache (AI-translated text, keyed by lang+content hash) ──────
+
+CREATE TABLE IF NOT EXISTS translations (
+  id         TEXT PRIMARY KEY,  -- 16-hex hash of "lang:sourceText"
+  lang       TEXT NOT NULL,
+  source     TEXT NOT NULL,
+  translated TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+-- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS translations (id TEXT PRIMARY KEY, lang TEXT NOT NULL, source TEXT NOT NULL, translated TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')))"
+
+-- ─── Rate limiting (best-effort, per-IP per 10-min window) ───────────────────
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key    TEXT    PRIMARY KEY,   -- "vibe:{ip}:{window}" or "chat:{ip}:{window}"
+  count  INTEGER NOT NULL DEFAULT 1,
+  window INTEGER NOT NULL       -- unix epoch / window_secs
+);
+-- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 1, window INTEGER NOT NULL)"
 
 -- ─── User preferences ─────────────────────────────────────────────────────────
 -- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE users ADD COLUMN preferences TEXT"

@@ -1,11 +1,13 @@
 'use client'
 import { useState }          from 'react'
 import Link                  from 'next/link'
-import { MapPin, Clock, ExternalLink, Heart, Bell, ChevronDown, ChevronUp } from 'lucide-react'
+import { MapPin, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, formatDate, formatTime } from '@/lib/utils'
 import type { Event } from '@/lib/types'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
+import { useLanguage } from '@/providers/LanguageProvider'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface Props {
   event:      Event
@@ -16,14 +18,19 @@ interface Props {
 
 export default function EventCard({ event, active, onClick, onNeedAuth }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const [followed, setFollowed] = useState(false)
-  const [reminded, setReminded] = useState(false)
+  const { lang } = useLanguage()
+
+  const { data: translatedTitle } = useTranslation(event.title, lang)
+  const { data: translatedDesc  } = useTranslation(event.description, lang)
+
+  const displayTitle = (lang !== 'de' && translatedTitle) ? translatedTitle : event.title
+  const displayDesc  = (lang !== 'de' && translatedDesc)  ? translatedDesc  : event.description
 
   const time       = formatTime(event.time_start)
   const doorTime   = event.door_time ? formatTime(event.door_time) : null
   const hasDesc    = !!event.description
-  const desc       = expanded ? event.description : event.description?.slice(0, 140)
-  const showEllipsis = !expanded && (event.description?.length ?? 0) > 140
+  const desc       = expanded ? displayDesc : displayDesc?.slice(0, 140)
+  const showEllipsis = !expanded && (displayDesc?.length ?? 0) > 140
   const isCancelled  = event.schedule_status === 'cancelled'
   const isPostponed  = event.schedule_status === 'postponed'
   const isRescheduled = event.schedule_status === 'rescheduled'
@@ -95,12 +102,20 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
       </div>
 
       {/* Title */}
-      <p className="font-bold text-sm leading-snug text-gray-900 mb-1">{event.title}</p>
+      <p className={cn(
+        'font-bold text-sm leading-snug text-gray-900 mb-1',
+        lang !== 'de' && !translatedTitle && 'animate-pulse text-gray-400',
+      )}>
+        {displayTitle}
+      </p>
 
       {/* Description */}
       {hasDesc && (
         <div className="mb-2">
-          <p className="text-xs text-gray-600 leading-relaxed">
+          <p className={cn(
+            'text-xs text-gray-600 leading-relaxed',
+            lang !== 'de' && event.description && !translatedDesc && 'animate-pulse text-gray-300',
+          )}>
             {desc}{showEllipsis && '…'}
           </p>
           {(event.description?.length ?? 0) > 140 && (
@@ -142,27 +157,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between mt-1">
-        <div className="flex gap-3">
-          <button
-            onClick={e => { e.stopPropagation(); setFollowed(f => !f) }}
-            className={cn(
-              'text-xs flex items-center gap-1',
-              followed ? 'text-black font-semibold' : 'text-gray-400 hover:text-black'
-            )}
-          >
-            <Heart size={11} fill={followed ? 'currentColor' : 'none'}/> Follow
-          </button>
-          <button
-            onClick={e => { e.stopPropagation(); setReminded(r => !r) }}
-            className={cn(
-              'text-xs flex items-center gap-1',
-              reminded ? 'text-black font-semibold' : 'text-gray-400 hover:text-black'
-            )}
-          >
-            <Bell size={11} fill={reminded ? 'currentColor' : 'none'}/> Remind
-          </button>
-        </div>
+      <div className="flex items-center justify-end mt-1">
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           {event.admission_link && (
             <a

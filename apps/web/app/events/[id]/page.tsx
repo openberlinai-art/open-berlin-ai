@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { fetchEvent } from '@/lib/opendata'
 import { EventPageClient } from '@/components/EventPageClient'
+import TranslatedText from '@/components/TranslatedText'
 
 export const revalidate = 300
 
@@ -113,7 +114,7 @@ export default async function EventPage({ params }: Props) {
             ))}
           </div>
           <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
-            {ev.title ?? 'Untitled Event'}
+            <TranslatedText text={ev.title ?? 'Untitled Event'} />
           </h1>
         </div>
 
@@ -178,7 +179,9 @@ export default async function EventPage({ params }: Props) {
 
         {/* Description */}
         {ev.description && (
-          <p className="text-sm text-gray-600 leading-relaxed mb-4">{ev.description}</p>
+          <p className="text-sm text-gray-600 leading-relaxed mb-4">
+            <TranslatedText text={ev.description} />
+          </p>
         )}
 
         {/* Please note */}

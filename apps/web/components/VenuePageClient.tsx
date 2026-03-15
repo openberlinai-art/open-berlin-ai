@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { Share2, Check } from 'lucide-react'
+import { Share2, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
@@ -55,6 +55,7 @@ function StopDepartureRow({ stopId, color }: { stopId: string; color: string }) 
 function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
   const [stops,        setStops]        = useState<VBBStop[] | null>(null)
   const [expandedStop, setExpandedStop] = useState<string | null>(null)
+  const [showAllByType, setShowAllByType] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetchTransitStopsVBB(lat, lng)
@@ -86,7 +87,7 @@ function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
                 <span className="text-[10px] font-bold uppercase tracking-wide text-gray-700">{label}</span>
               </div>
               <div className="flex flex-wrap gap-1">
-                {typeStops.slice(0, 6).map(s => (
+                {(showAllByType[key] ? typeStops : typeStops.slice(0, 6)).map(s => (
                   <div key={s.id} className="w-full">
                     <button
                       onClick={() => setExpandedStop(prev => prev === s.id ? null : s.id)}
@@ -99,6 +100,14 @@ function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
                     )}
                   </div>
                 ))}
+                {typeStops.length > 6 && !showAllByType[key] && (
+                  <button
+                    onClick={() => setShowAllByType(prev => ({ ...prev, [key]: true }))}
+                    className="text-[10px] text-gray-500 hover:text-black mt-0.5 underline"
+                  >
+                    Show all {typeStops.length} stops
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -109,12 +118,13 @@ function VenueTransit({ lat, lng }: { lat: number; lng: number }) {
 }
 
 interface EventItem {
-  id:         string
-  title:      string
-  date_start: string
-  time_start: string | null
-  category:   string | null
-  price_type: 'free' | 'paid' | 'unknown'
+  id:          string
+  title:       string
+  date_start:  string
+  time_start:  string | null
+  category:    string | null
+  price_type:  'free' | 'paid' | 'unknown'
+  description?: string | null
 }
 
 interface Props {
@@ -181,6 +191,60 @@ function VenueActions({ id }: { id: string }) {
   )
 }
 
+const DESC_LIMIT = 120
+
+function EventRow({ ev }: { ev: EventItem }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasDesc = !!ev.description
+  const desc = expanded ? ev.description : ev.description?.slice(0, DESC_LIMIT)
+  const showEllipsis = !expanded && (ev.description?.length ?? 0) > DESC_LIMIT
+
+  return (
+    <div className="border-b border-gray-200 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+          {ev.time_start && (
+            <p className="text-[10px] text-gray-400 mt-0.5">{ev.time_start.slice(0, 5)}</p>
+          )}
+        </div>
+        <div className="flex gap-1 shrink-0 items-center">
+          {ev.category && (
+            <span className="px-1 py-0.5 border border-gray-300 text-[9px] font-bold text-gray-500">
+              {ev.category}
+            </span>
+          )}
+          <span className={[
+            'px-1 py-0.5 border text-[9px] font-bold',
+            ev.price_type === 'free'   ? 'border-black bg-black text-white'
+            : ev.price_type === 'paid' ? 'border-black bg-white text-black'
+            : 'border-gray-300 text-gray-400',
+          ].join(' ')}>
+            {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
+          </span>
+          <AttendButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
+          <AddToListButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
+        </div>
+      </div>
+      {hasDesc && (
+        <div className="mt-1">
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            {desc}{showEllipsis && '…'}
+          </p>
+          {(ev.description?.length ?? 0) > DESC_LIMIT && (
+            <button
+              onClick={() => setExpanded(x => !x)}
+              className="text-[10px] text-gray-400 flex items-center gap-0.5 mt-0.5 hover:text-black"
+            >
+              {expanded ? <><ChevronUp size={9}/> less</> : <><ChevronDown size={9}/> more</>}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventGroup({ events }: { events: EventItem[] }) {
   const grouped = groupByDate(events)
   return (
@@ -191,33 +255,7 @@ function EventGroup({ events }: { events: EventItem[] }) {
             {formatDate(date)}
           </p>
           <div className="flex flex-col">
-            {evs.map(ev => (
-              <div key={ev.id} className="border-b border-gray-200 py-2.5 flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
-                  {ev.time_start && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">{ev.time_start.slice(0, 5)}</p>
-                  )}
-                </div>
-                <div className="flex gap-1 shrink-0 items-center">
-                  {ev.category && (
-                    <span className="px-1 py-0.5 border border-gray-300 text-[9px] font-bold text-gray-500">
-                      {ev.category}
-                    </span>
-                  )}
-                  <span className={[
-                    'px-1 py-0.5 border text-[9px] font-bold',
-                    ev.price_type === 'free'   ? 'border-black bg-black text-white'
-                    : ev.price_type === 'paid' ? 'border-black bg-white text-black'
-                    : 'border-gray-300 text-gray-400',
-                  ].join(' ')}>
-                    {ev.price_type === 'free' ? 'Free' : ev.price_type === 'paid' ? 'Paid' : '?'}
-                  </span>
-                  <AttendButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
-                  <AddToListButton itemType="event" itemId={ev.id} onNeedAuth={() => {}} />
-                </div>
-              </div>
-            ))}
+            {evs.map(ev => <EventRow key={ev.id} ev={ev} />)}
           </div>
         </div>
       ))}

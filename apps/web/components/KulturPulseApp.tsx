@@ -17,7 +17,9 @@ import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
+import LanguageSelector          from './LanguageSelector'
 import { useUser } from '@/providers/UserProvider'
+import { ErrorBoundary } from './ErrorBoundary'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -342,6 +344,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             </div>
           </div>
           <p className="text-xs text-gray-500">Berlin culture events, live<WeatherWidget /></p>
+          <LanguageSelector />
 
           {/* Search */}
           <div className="relative mt-2">
@@ -728,24 +731,28 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
       {/* ── Map ─────────────────────────────────────────── */}
       <div className={`flex-1 relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
-        <MapView
-          events={events}
-          activeId={activeId}
-          onEventSelect={setActiveId}
-          layers={{
-            ...layers,
-            // Show venue-type layers based on the active category filter
-            venues:    mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
-            galleries: mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
-            museums:   mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
-          }}
-          mode={mode}
-          venueCat={venueCat}
-          onBboxChange={setMapBbox}
-          flyTo={flyTo}
-          openVenuePopup={surpriseVenuePopup}
-          liveRadar={liveRadar}
-        />
+        <ErrorBoundary fallback={
+          <div className="flex items-center justify-center h-full text-xs text-gray-500">Map failed to load.</div>
+        }>
+          <MapView
+            events={events}
+            activeId={activeId}
+            onEventSelect={setActiveId}
+            layers={{
+              ...layers,
+              // Show venue-type layers based on the active category filter
+              venues:    mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
+              galleries: mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
+              museums:   mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
+            }}
+            mode={mode}
+            venueCat={venueCat}
+            onBboxChange={setMapBbox}
+            flyTo={flyTo}
+            openVenuePopup={surpriseVenuePopup}
+            liveRadar={liveRadar}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* ── Mobile bottom bar ───────────────────────────── */}

@@ -45,6 +45,26 @@ app.use('*', cors({
 
 app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker' }))
 
+// ─── Rate limiter (D1-backed, best-effort) ────────────────────────────────────
+
+async function checkRateLimit(
+  db: D1Database, key: string, maxReqs: number, windowSecs: number
+): Promise<boolean> {
+  const now    = Date.now()
+  const window = Math.floor(now / (windowSecs * 1000))
+  const rkey   = `${key}:${window}`
+  try {
+    const row = await db.prepare(
+      `INSERT INTO rate_limits (key, count, window) VALUES (?, 1, ?)
+       ON CONFLICT(key) DO UPDATE SET count = count + 1
+       RETURNING count`
+    ).bind(rkey, window).first<{ count: number }>()
+    return (row?.count ?? 1) <= maxReqs
+  } catch {
+    return true // fail open if table doesn't exist yet
+  }
+}
+
 // ─── GET /api/events ──────────────────────────────────────────────────────────
 
 app.get('/api/events', async c => {
@@ -139,11 +159,11 @@ app.get('/api/locations/:id', async c => {
 
   const today = new Date().toISOString().slice(0, 10)
   const [upcomingRes, pastRes] = await Promise.all([
-    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type
+    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type, description
                       FROM events WHERE location_id = ? AND date_start >= ?
                       ORDER BY date_start ASC LIMIT 100`)
       .bind(id, today).all<Record<string, unknown>>(),
-    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type
+    c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type, description
                       FROM events WHERE location_id = ? AND date_start < ?
                       ORDER BY date_start DESC LIMIT 50`)
       .bind(id, today).all<Record<string, unknown>>(),
@@ -223,6 +243,10 @@ app.get('/api/geodata/osm/:category', async c => {
 // ─── POST /api/vibe-check ─────────────────────────────────────────────────────
 
 app.post('/api/vibe-check', async c => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+  const allowed = await checkRateLimit(c.env.DB, `vibe:${ip}`, 20, 600)
+  if (!allowed) return c.json({ error: 'Too many requests' }, 429)
+
   const body = await c.req.json<{
     id?: string; name?: string; category?: string; description?: string; borough?: string
   }>().catch(() => null)
@@ -275,6 +299,58 @@ app.post('/api/vibe-check', async c => {
   `).bind(id, name, vibe).run()
 
   return c.json({ vibe, cached: false })
+})
+
+// ─── POST /api/translate ──────────────────────────────────────────────────────
+
+const ALLOWED_LANGS = new Set(['tr', 'ar', 'ru', 'pl', 'vi', 'ro', 'en'])
+
+async function hashKey(lang: string, text: string): Promise<string> {
+  const data = new TextEncoder().encode(`${lang}:${text}`)
+  const buf  = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+}
+
+app.post('/api/translate', async c => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+  const allowed = await checkRateLimit(c.env.DB, `translate:${ip}`, 30, 300)
+  if (!allowed) return c.json({ error: 'Too many requests' }, 429)
+
+  const body = await c.req.json<{ text?: string; targetLang?: string }>().catch(() => null)
+  if (!body?.text || !body.targetLang) return c.json({ error: 'text and targetLang required' }, 400)
+  if (!ALLOWED_LANGS.has(body.targetLang)) return c.json({ error: 'Unsupported language' }, 400)
+
+  const { text, targetLang } = body
+  const cacheId = await hashKey(targetLang, text)
+
+  // Check D1 cache
+  const cached = await c.env.DB
+    .prepare(`SELECT translated FROM translations WHERE id = ?`)
+    .bind(cacheId)
+    .first<{ translated: string }>()
+
+  if (cached) return c.json({ translated: cached.translated, cached: true })
+
+  // Call AI translation model
+  let translated: string
+  try {
+    const result = await c.env.AI.run('@cf/meta/m2m100-1.2b' as Parameters<typeof c.env.AI.run>[0], {
+      text,
+      source_lang: 'de',
+      target_lang: targetLang,
+    } as Parameters<typeof c.env.AI.run>[1]) as { translated_text?: string }
+    translated = result.translated_text?.trim() ?? text
+  } catch {
+    // AI unavailable — return original text
+    return c.json({ translated: text, cached: false })
+  }
+
+  // Store in cache
+  await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO translations (id, lang, source, translated) VALUES (?, ?, ?, ?)`
+  ).bind(cacheId, targetLang, text, translated).run()
+
+  return c.json({ translated, cached: false })
 })
 
 // ─── GET /api/weather ─────────────────────────────────────────────────────────
@@ -331,6 +407,10 @@ app.get('/api/proxy/vbb', async c => {
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', async c => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+  const allowed = await checkRateLimit(c.env.DB, `chat:${ip}`, 10, 300)
+  if (!allowed) return c.json({ error: 'Too many requests' }, 429)
+
   const body = await c.req.json<{ messages: { role: string; content: string }[]; date?: string }>().catch(() => null)
   if (!body?.messages?.length) {
     return c.json({ error: 'messages is required' }, 400)
@@ -579,13 +659,13 @@ app.get('/api/lists', async c => {
   const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const rows = await getLists(auth.sub, c.env.DB)
-  // Attach item_count
-  const withCount = await Promise.all(rows.map(async l => {
-    const cnt = await c.env.DB
-      .prepare(`SELECT COUNT(*) as n FROM list_items WHERE list_id = ?`).bind(l.id)
-      .first<{ n: number }>()
-    return { ...l, item_count: cnt?.n ?? 0 }
-  }))
+  // Single query for all item counts (avoids N+1)
+  const counts = await c.env.DB
+    .prepare(`SELECT list_id, COUNT(*) as n FROM list_items WHERE list_id IN (SELECT id FROM lists WHERE user_id = ?) GROUP BY list_id`)
+    .bind(auth.sub)
+    .all<{ list_id: string; n: number }>()
+  const countMap = Object.fromEntries((counts.results ?? []).map(r => [r.list_id, r.n]))
+  const withCount = rows.map(l => ({ ...l, item_count: countMap[l.id] ?? 0 }))
   return c.json({ data: withCount })
 })
 
@@ -914,9 +994,9 @@ export default {
           .catch(err => console.error('[digest] failed:', err))
       )
     } else if (event.cron === '0 3 * * *') {
-      // Full 365-day sweep — runs once daily at 3am to catch far-future events
+      // Full sweep days 31–365 — hourly job already covers 0–30, so skip the overlap
       ctx.waitUntil(
-        ingestEvents(env, 365)
+        ingestEvents(env, 335, 30)
           .then(n => console.log(`[ingest:full] done — ${n} events`))
           .catch(err => console.error('[ingest:full] failed:', err))
       )
