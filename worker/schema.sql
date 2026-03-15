@@ -29,27 +29,23 @@ CREATE TABLE IF NOT EXISTS events (
   please_note     TEXT,                      -- important attendee info
   admission_note  TEXT,                      -- per-event admission note (e.g. age restrictions)
   source_links    TEXT,                      -- JSON array of {url, displayName?} from attraction externalLinks
+  registration_type TEXT,                   -- 'required'|'optional'|null
+  languages       TEXT,                      -- JSON array of ISO language codes
+  image_urls      TEXT,                      -- JSON array of image URLs
   raw_json        TEXT,                      -- full source for debugging
   created_at      TEXT    DEFAULT (datetime('now')),
   updated_at      TEXT    DEFAULT (datetime('now'))
 );
--- Migration: add new columns if they don't exist
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN door_time TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_link TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN schedule_status TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN please_note TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN admission_note TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN source_links TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN registration_type TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN languages TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE events ADD COLUMN image_urls TEXT"
 
-CREATE INDEX IF NOT EXISTS idx_events_date_start ON events(date_start);
-CREATE INDEX IF NOT EXISTS idx_events_category   ON events(LOWER(category));
-CREATE INDEX IF NOT EXISTS idx_events_price_type ON events(price_type);
-CREATE INDEX IF NOT EXISTS idx_events_date_cat   ON events(date_start, category);
-CREATE INDEX IF NOT EXISTS idx_events_borough    ON events(borough);
-CREATE INDEX IF NOT EXISTS idx_events_updated    ON events(updated_at);
+CREATE INDEX IF NOT EXISTS idx_events_date_start      ON events(date_start);
+CREATE INDEX IF NOT EXISTS idx_events_category        ON events(LOWER(category));
+CREATE INDEX IF NOT EXISTS idx_events_price_type      ON events(price_type);
+CREATE INDEX IF NOT EXISTS idx_events_date_cat        ON events(date_start, category);
+CREATE INDEX IF NOT EXISTS idx_events_borough         ON events(borough);
+CREATE INDEX IF NOT EXISTS idx_events_updated         ON events(updated_at);
+CREATE INDEX IF NOT EXISTS idx_events_geo             ON events(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_events_location_id     ON events(location_id);     -- venue detail page
+CREATE INDEX IF NOT EXISTS idx_events_schedule_status ON events(schedule_status); -- digest filter
 
 -- Cultural venue locations from kulturdaten.berlin
 CREATE TABLE IF NOT EXISTS locations (
@@ -68,23 +64,14 @@ CREATE TABLE IF NOT EXISTS locations (
   opening_hours  TEXT,   -- JSON array of {dayOfWeek, opens, closes, validFrom?, validThrough?}
   opening_status TEXT,   -- 'location.opened'|'location.closed'|'location.permanentlyClosed'
   extra_links    TEXT,   -- JSON array of {url, displayName?}
+  is_virtual     INTEGER NOT NULL DEFAULT 0,
+  contact_email  TEXT,
   updated_at     TEXT DEFAULT (datetime('now'))
 );
--- Migration: add new columns if they don't exist (safe to run multiple times)
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN description TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN phone TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN accessibility TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_hours TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN opening_status TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN extra_links TEXT"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN is_virtual INTEGER NOT NULL DEFAULT 0"
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE locations ADD COLUMN contact_email TEXT"
+
 CREATE INDEX IF NOT EXISTS idx_locations_geo      ON locations(lat, lng);
 CREATE INDEX IF NOT EXISTS idx_locations_category ON locations(category);
 CREATE INDEX IF NOT EXISTS idx_locations_borough  ON locations(borough);
-
--- Geo index on events for bbox queries
-CREATE INDEX IF NOT EXISTS idx_events_geo ON events(lat, lng);
 
 CREATE TABLE IF NOT EXISTS geocode_cache (
   address     TEXT    PRIMARY KEY,
@@ -96,14 +83,16 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
 -- ─── User accounts (magic-link auth) ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS users (
-  id           TEXT PRIMARY KEY,               -- UUID
-  email        TEXT NOT NULL UNIQUE,
-  display_name TEXT,
+  id            TEXT    PRIMARY KEY,               -- UUID
+  email         TEXT    NOT NULL UNIQUE,
+  display_name  TEXT,
   digest_opt_in INTEGER NOT NULL DEFAULT 0,
-  created_at   TEXT DEFAULT (datetime('now'))
+  preferences   TEXT,                              -- JSON: { categories: string[], boroughs: string[] }
+  created_at    TEXT DEFAULT (datetime('now'))
 );
--- Migration: add digest_opt_in to existing deployments
--- wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE users ADD COLUMN digest_opt_in INTEGER NOT NULL DEFAULT 0"
+
+CREATE INDEX IF NOT EXISTS idx_users_digest           ON users(digest_opt_in);          -- weekly digest query
+CREATE INDEX IF NOT EXISTS idx_users_display_name     ON users(LOWER(display_name));    -- shareList lookup
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
   token      TEXT PRIMARY KEY,
@@ -154,43 +143,47 @@ CREATE TABLE IF NOT EXISTS venue_vibes (
   vibe         TEXT NOT NULL,
   generated_at TEXT DEFAULT (datetime('now'))
 );
--- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS venue_vibes (id TEXT PRIMARY KEY, name TEXT, vibe TEXT NOT NULL, generated_at TEXT DEFAULT (datetime('now')))"
 
 -- ─── User attendance (calendar / going) ──────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS user_attendance (
-  id         TEXT PRIMARY KEY,
-  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  item_type  TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
-  item_id    TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now')),
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type      TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
+  item_id        TEXT NOT NULL,
+  scheduled_for  TEXT,                             -- optional date override (YYYY-MM-DD)
+  scheduled_time TEXT,                             -- optional time override (HH:MM)
+  created_at     TEXT DEFAULT (datetime('now')),
   UNIQUE(user_id, item_type, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id);
--- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS user_attendance (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_type TEXT NOT NULL CHECK(item_type IN ('event','location')), item_id TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, item_type, item_id))"
--- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id)"
 
 -- ─── Translation cache (AI-translated text, keyed by lang+content hash) ──────
 
 CREATE TABLE IF NOT EXISTS translations (
-  id         TEXT PRIMARY KEY,  -- 16-hex hash of "lang:sourceText"
+  id         TEXT PRIMARY KEY,  -- 16-hex sha256 of "lang:sourceText"
   lang       TEXT NOT NULL,
   source     TEXT NOT NULL,
   translated TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now'))
 );
--- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS translations (id TEXT PRIMARY KEY, lang TEXT NOT NULL, source TEXT NOT NULL, translated TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')))"
 
--- ─── Rate limiting (best-effort, per-IP per 10-min window) ───────────────────
+-- ─── Rate limiting (best-effort, per-IP per window) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_limits (
-  key    TEXT    PRIMARY KEY,   -- "vibe:{ip}:{window}" or "chat:{ip}:{window}"
+  key    TEXT    PRIMARY KEY,   -- "{prefix}:{ip}:{window}"
   count  INTEGER NOT NULL DEFAULT 1,
-  window INTEGER NOT NULL       -- unix epoch / window_secs
+  window INTEGER NOT NULL       -- Math.floor(Date.now() / windowMs)
 );
--- Migration: wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 1, window INTEGER NOT NULL)"
 
--- ─── User preferences ─────────────────────────────────────────────────────────
--- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "ALTER TABLE users ADD COLUMN preferences TEXT"
--- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "CREATE TABLE IF NOT EXISTS user_attendance (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, item_type TEXT NOT NULL CHECK(item_type IN ('event','location')), item_id TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')), UNIQUE(user_id, item_type, item_id))"
--- Migration (already run): wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_attendance_user ON user_attendance(user_id)"
+-- ─── Migration log (columns / indexes added after initial deploy) ─────────────
+-- events:     registration_type, languages, image_urls (already in live DB)
+-- locations:  description, phone, accessibility, opening_hours, opening_status,
+--             extra_links, is_virtual, contact_email (already in live DB)
+-- users:      digest_opt_in, preferences (already in live DB)
+-- user_attendance: scheduled_for, scheduled_time (already in live DB)
+-- New indexes (run if not exists):
+--   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_location_id ON events(location_id)"
+--   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_schedule_status ON events(schedule_status)"
+--   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_digest ON users(digest_opt_in)"
+--   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_display_name ON users(LOWER(display_name))"

@@ -749,30 +749,23 @@ app.get('/api/lists/:id/public', async c => {
   if (!list) return c.json({ error: 'Not found' }, 404)
   const items = await getListItems(list.id, c.env.DB)
 
-  // Enrich items with human-readable title + subtitle
-  const enriched = await Promise.all(items.map(async item => {
-    if (item.item_type === 'event') {
-      const ev = await c.env.DB
-        .prepare(`SELECT title, date_start, location_name FROM events WHERE id = ?`)
-        .bind(item.item_id)
-        .first<{ title: string | null; date_start: string | null; location_name: string | null }>()
-      return {
-        ...item,
-        title:    ev?.title ?? null,
-        subtitle: [ev?.date_start, ev?.location_name].filter(Boolean).join(' · ') || null,
+  // Batch-fetch all titles/subtitles in a single D1 request
+  const enriched = items.length === 0 ? [] : await (async () => {
+    const stmts = items.map(item =>
+      item.item_type === 'event'
+        ? c.env.DB.prepare(`SELECT title, date_start, location_name FROM events WHERE id = ?`).bind(item.item_id)
+        : c.env.DB.prepare(`SELECT name, borough FROM locations WHERE id = ?`).bind(item.item_id)
+    )
+    const results = await c.env.DB.batch(stmts)
+    return items.map((item, i) => {
+      const row = results[i].results[0] as Record<string, unknown> | undefined
+      if (item.item_type === 'event') {
+        return { ...item, title: (row?.title as string) ?? null, subtitle: [(row?.date_start as string), (row?.location_name as string)].filter(Boolean).join(' · ') || null }
+      } else {
+        return { ...item, title: (row?.name as string) ?? null, subtitle: (row?.borough as string) ?? null }
       }
-    } else {
-      const loc = await c.env.DB
-        .prepare(`SELECT name, borough FROM locations WHERE id = ?`)
-        .bind(item.item_id)
-        .first<{ name: string | null; borough: string | null }>()
-      return {
-        ...item,
-        title:    loc?.name ?? null,
-        subtitle: loc?.borough ?? null,
-      }
-    }
-  }))
+    })
+  })()
 
   return c.json({ data: { list, items: enriched } })
 })
@@ -977,13 +970,19 @@ export default {
         ])
       )
     } else if (event.cron === '0 2 * * *') {
-      // Daily geodata refresh (R2) + location sync (D1) + image enrichment
+      // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup
       ctx.waitUntil(
         Promise.all([
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
           ingestLocations(env)
             .then(() => enrichLocationsWithImages(env.DB))
             .catch(e => console.error('[locations/enrich]', e)),
+          // Purge expired auth tokens (15-min TTL) and stale rate-limit windows (all <24h old)
+          env.DB.batch([
+            env.DB.prepare(`DELETE FROM auth_tokens WHERE expires_at < datetime('now')`),
+            env.DB.prepare(`DELETE FROM rate_limits WHERE 1=1`),
+          ]).then(([a, r]) => console.log(`[cleanup] auth_tokens=${a.meta.changes} rate_limits=${r.meta.changes}`))
+            .catch(e => console.error('[cleanup]', e)),
         ])
       )
     } else if (event.cron === '0 8 * * 1') {
