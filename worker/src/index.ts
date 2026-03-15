@@ -305,6 +305,62 @@ app.post('/api/vibe-check', async c => {
 
 const ALLOWED_LANGS = new Set(['tr', 'ar', 'ru', 'pl', 'vi', 'ro', 'en', 'es', 'it', 'fr', 'zh', 'ja'])
 
+// ─── Shared bulk-translation helper ──────────────────────────────────────────
+
+async function translateTexts(
+  env: Env,
+  langs: string[],
+  texts: (string | null | undefined)[],
+): Promise<{ translated: number; skipped: number }> {
+  const entries: Array<{ lang: string; text: string; cacheId: string }> = []
+  const seen = new Set<string>()
+  for (const lang of langs) {
+    for (const raw of texts) {
+      if (!raw) continue
+      const cacheId = await hashKey(lang, raw)
+      if (!seen.has(cacheId)) {
+        seen.add(cacheId)
+        entries.push({ lang, text: raw, cacheId })
+      }
+    }
+  }
+  if (!entries.length) return { translated: 0, skipped: 0 }
+
+  // Batch-check D1 cache (chunks of 99 to stay within SQLite param limit)
+  const allIds = entries.map(e => e.cacheId)
+  const cachedSet = new Set<string>()
+  for (let i = 0; i < allIds.length; i += 99) {
+    const chunk = allIds.slice(i, i + 99)
+    const res = await env.DB
+      .prepare(`SELECT id FROM translations WHERE id IN (${chunk.map(() => '?').join(',')})`)
+      .bind(...chunk)
+      .all<{ id: string }>()
+    for (const r of res.results) cachedSet.add(r.id)
+  }
+
+  const misses = entries.filter(e => !cachedSet.has(e.cacheId))
+  const CONCURRENCY = 20
+  let translated = 0
+  for (let i = 0; i < misses.length; i += CONCURRENCY) {
+    const chunk = misses.slice(i, i + CONCURRENCY)
+    const results = await Promise.allSettled(
+      chunk.map(async ({ lang, text, cacheId }) => {
+        const result = await env.AI.run(
+          '@cf/meta/m2m100-1.2b' as Parameters<typeof env.AI.run>[0],
+          { text, source_lang: 'de', target_lang: lang } as Parameters<typeof env.AI.run>[1],
+        ) as { translated_text?: string }
+        const out = result.translated_text?.trim() ?? text
+        await env.DB
+          .prepare(`INSERT OR IGNORE INTO translations (id, lang, source, translated) VALUES (?, ?, ?, ?)`)
+          .bind(cacheId, lang, text, out)
+          .run()
+      })
+    )
+    translated += results.filter(r => r.status === 'fulfilled').length
+  }
+  return { translated, skipped: entries.length - misses.length }
+}
+
 async function hashKey(lang: string, text: string): Promise<string> {
   const data = new TextEncoder().encode(`${lang}:${text}`)
   const buf  = await crypto.subtle.digest('SHA-256', data)
@@ -351,6 +407,45 @@ app.post('/api/translate', async c => {
   ).bind(cacheId, targetLang, text, translated).run()
 
   return c.json({ translated, cached: false })
+})
+
+// ─── POST /api/pretranslate (protected) ──────────────────────────────────────
+
+app.post('/api/pretranslate', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const offset      = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10))
+  const batchSize   = Math.min(30, Math.max(1, parseInt(c.req.query('batch') ?? '10', 10)))
+  const includeDesc = c.req.query('desc') === '1'
+  const langs       = [...ALLOWED_LANGS]
+
+  const [rows, totalRow] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT title, description FROM events WHERE date_start >= date('now') ORDER BY date_start ASC LIMIT ? OFFSET ?`
+    ).bind(batchSize, offset).all<{ title: string | null; description: string | null }>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) as n FROM events WHERE date_start >= date('now')`
+    ).first<{ n: number }>(),
+  ])
+
+  const texts = rows.results.flatMap(r => [r.title, includeDesc ? r.description : null])
+  const { translated, skipped } = await translateTexts(c.env, langs, texts)
+
+  const next  = offset + rows.results.length
+  const total = totalRow?.n ?? 0
+
+  return c.json({
+    offset,
+    next,
+    total,
+    done:      rows.results.length < batchSize,
+    translated,
+    skipped,
+    remaining: Math.max(0, total - next),
+  })
 })
 
 // ─── GET /api/weather ─────────────────────────────────────────────────────────
@@ -1025,6 +1120,15 @@ export default {
         ingestEvents(env, 335, 30)
           .then(n => console.log(`[ingest:full] done — ${n} events`))
           .catch(err => console.error('[ingest:full] failed:', err))
+      )
+      // Pre-translate titles of events ingested in the last 48h (catches newly added events)
+      ctx.waitUntil(
+        env.DB.prepare(
+          `SELECT title FROM events WHERE date_start >= date('now') AND created_at >= datetime('now', '-2 days') LIMIT 300`
+        ).all<{ title: string | null }>()
+          .then(rows => translateTexts(env, [...ALLOWED_LANGS], rows.results.map(r => r.title)))
+          .then(s => console.log(`[pretranslate:cron] translated=${s.translated} skipped=${s.skipped}`))
+          .catch(e => console.error('[pretranslate:cron]', e))
       )
     } else {
       // Hourly ingest — next 30 days, fast (~7 pages)
