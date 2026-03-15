@@ -307,6 +307,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 ✦ Surprise
               </button>
               {user && <NotificationsBell />}
+              <LanguageSelector />
               <button
                 onClick={() => { if (user) setShowCalendar(true); else setShowAuth(true) }}
                 title="My Calendar"
@@ -346,7 +347,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             </div>
           </div>
           <p className="text-xs text-gray-500">Berlin culture events, live<WeatherWidget /></p>
-          <LanguageSelector />
 
           {/* Search */}
           <div className="relative mt-2">
