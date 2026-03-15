@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { fetchLocation } from '@/lib/opendata'
 import { VenuePageClient } from '@/components/VenuePageClient'
 import VibeCheck from '@/components/VibeCheck'
+import TranslatedText from '@/components/TranslatedText'
 import type { OpeningHour } from '@/lib/types'
 
 export const revalidate = 86400
@@ -130,7 +131,7 @@ export default async function LocationPage({ params }: Props) {
             )}
           </div>
           <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
-            {loc.name ?? 'Unknown Venue'}
+            <TranslatedText text={loc.name ?? 'Unknown Venue'} />
           </h1>
         </div>
 
@@ -164,7 +165,7 @@ export default async function LocationPage({ params }: Props) {
         {/* ── Description ── */}
         {loc.description && (
           <p className="text-sm text-gray-600 leading-relaxed mb-4">
-            {loc.description}
+            <TranslatedText text={loc.description} />
           </p>
         )}
 

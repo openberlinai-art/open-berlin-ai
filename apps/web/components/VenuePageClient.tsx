@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Share2, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
+import { useLanguage } from '@/providers/LanguageProvider'
+import { useTranslation } from '@/hooks/useTranslation'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
 import JourneyWidget from './JourneyWidget'
@@ -195,15 +197,20 @@ const DESC_LIMIT = 120
 
 function EventRow({ ev }: { ev: EventItem }) {
   const [expanded, setExpanded] = useState(false)
+  const { lang } = useLanguage()
+  const { data: translatedTitle } = useTranslation(ev.title, lang)
+  const { data: translatedDesc  } = useTranslation(ev.description, lang)
+  const displayTitle = (lang !== 'de' && translatedTitle) ? translatedTitle : ev.title
+  const displayDesc  = (lang !== 'de' && translatedDesc)  ? translatedDesc  : ev.description
   const hasDesc = !!ev.description
-  const desc = expanded ? ev.description : ev.description?.slice(0, DESC_LIMIT)
+  const desc = expanded ? displayDesc : displayDesc?.slice(0, DESC_LIMIT)
   const showEllipsis = !expanded && (ev.description?.length ?? 0) > DESC_LIMIT
 
   return (
     <div className="border-b border-gray-200 py-2.5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+          <p className="text-xs font-bold text-gray-900 leading-snug">{displayTitle}</p>
           {ev.time_start && (
             <p className="text-[10px] text-gray-400 mt-0.5">{ev.time_start.slice(0, 5)}</p>
           )}

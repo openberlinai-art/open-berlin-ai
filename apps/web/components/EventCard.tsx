@@ -20,9 +20,8 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
   const [expanded, setExpanded] = useState(false)
   const { lang } = useLanguage()
 
-  // Only translate description once expanded to avoid 100+ API calls on language switch
   const { data: translatedTitle } = useTranslation(event.title, lang)
-  const { data: translatedDesc  } = useTranslation(expanded ? event.description : null, lang)
+  const { data: translatedDesc  } = useTranslation(event.description, lang)
 
   const displayTitle = (lang !== 'de' && translatedTitle) ? translatedTitle : event.title
   const displayDesc  = (lang !== 'de' && translatedDesc)  ? translatedDesc  : event.description
@@ -30,8 +29,8 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
   const time       = formatTime(event.time_start)
   const doorTime   = event.door_time ? formatTime(event.door_time) : null
   const hasDesc    = !!event.description
-  const desc       = expanded ? displayDesc : event.description?.slice(0, 140)
-  const showEllipsis = !expanded && (event.description?.length ?? 0) > 140
+  const desc       = expanded ? displayDesc : displayDesc?.slice(0, 140)
+  const showEllipsis = !expanded && (displayDesc?.length ?? 0) > 140
   const isCancelled  = event.schedule_status === 'cancelled'
   const isPostponed  = event.schedule_status === 'postponed'
   const isRescheduled = event.schedule_status === 'rescheduled'
