@@ -313,7 +313,7 @@ async function hashKey(lang: string, text: string): Promise<string> {
 
 app.post('/api/translate', async c => {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
-  const allowed = await checkRateLimit(c.env.DB, `translate:${ip}`, 30, 300)
+  const allowed = await checkRateLimit(c.env.DB, `translate:${ip}`, 200, 300)
   if (!allowed) return c.json({ error: 'Too many requests' }, 429)
 
   const body = await c.req.json<{ text?: string; targetLang?: string }>().catch(() => null)
