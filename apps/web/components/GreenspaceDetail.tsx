@@ -1,6 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import JourneyWidget from './JourneyWidget'
 
 const VenueMap = dynamic(() => import('./VenueMap'), { ssr: false })
 
@@ -68,6 +69,11 @@ export default function GreenspaceDetail({ feature, type }: Props) {
         {p.baujahr && (
           <p className="text-xs text-gray-400 mb-4">Built {p.baujahr}</p>
         )}
+
+        {/* Route planner */}
+        <div className="mb-5">
+          <JourneyWidget toLat={lat} toLng={lng} />
+        </div>
 
         {/* Mini-map */}
         <div className="mb-4">
