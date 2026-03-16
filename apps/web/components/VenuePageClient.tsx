@@ -275,6 +275,13 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
 
   return (
     <>
+      {/* Route planner — top of page */}
+      {lat && lng && (
+        <div className="mb-5">
+          <JourneyWidget toLat={lat} toLng={lng} />
+        </div>
+      )}
+
       {/* Mini map */}
       {lat && lng && (
         <div className="mb-4">
@@ -284,14 +291,6 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
 
       {/* Nearby transit */}
       {lat && lng && <VenueTransit lat={lat} lng={lng} />}
-
-      {/* Route planner */}
-      {lat && lng && (
-        <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Route from your location</p>
-          <JourneyWidget toLat={lat} toLng={lng} />
-        </div>
-      )}
 
       {/* Actions */}
       <div className="mb-6">

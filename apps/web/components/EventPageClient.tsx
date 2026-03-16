@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
+import JourneyWidget from './JourneyWidget'
 
 const EventMapSection = dynamic(() => import('./EventMapSection'), { ssr: false })
 
@@ -49,6 +50,11 @@ function EventActions({ id }: { id: string }) {
 export function EventPageClient({ id, lat, lng }: { id: string; lat?: number; lng?: number }) {
   return (
     <>
+      {lat && lng && (
+        <div className="mb-5">
+          <JourneyWidget toLat={lat} toLng={lng} />
+        </div>
+      )}
       {lat && lng && <EventMapSection lat={lat} lng={lng} />}
       <EventActions id={id} />
     </>

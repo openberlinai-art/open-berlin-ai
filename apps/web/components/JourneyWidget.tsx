@@ -81,9 +81,9 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
     return (
       <button
         onClick={plan}
-        className="inline-flex items-center gap-1 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white"
+        className="w-full flex items-center justify-center gap-2 text-sm font-bold border-2 border-black px-4 py-2.5 hover:bg-black hover:text-white transition-colors"
       >
-        Plan route
+        🚆 Plan route from my location
       </button>
     )
   }
