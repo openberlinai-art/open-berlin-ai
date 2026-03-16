@@ -7,8 +7,7 @@ import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
 
 const OSM_CATEGORIES = new Set([
-  'vintage', 'vinyl', 'books', 'cafe', 'craft_beer',
-  'tattoo', 'bike', 'vegan', 'street_art',
+  'live_music', 'jazz', 'cinema', 'clubs', 'galleries', 'street_art', 'museum',
 ])
 import {
   sendMagicLink, verifyMagicToken, getOrCreateUser,
@@ -227,16 +226,55 @@ app.get('/api/geodata/playgrounds-points', async c => {
 
 // ─── GET /api/geodata/osm/:category ───────────────────────────────────────────
 
+interface OsmVenueRow {
+  id:            string
+  category:      string
+  name:          string | null
+  lat:           number
+  lng:           number
+  address:       string | null
+  website:       string | null
+  phone:         string | null
+  opening_hours: string | null
+  description:   string | null
+  operator:      string | null
+}
+
 app.get('/api/geodata/osm/:category', async c => {
-  const cat = c.req.param('category') ?? ''
-  if (!OSM_CATEGORIES.has(cat)) return c.json({ error: 'Unknown category' }, 400)
-  const obj = await c.env.GEODATA.get(`osm-${cat}.geojson`)
-  if (!obj) return c.json({ error: 'not ready' }, 503)
-  return new Response(obj.body, {
-    headers: {
-      'Content-Type':  'application/json',
-      'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+  const category = c.req.param('category') ?? ''
+  if (!OSM_CATEGORIES.has(category)) return c.json({ error: 'Unknown category' }, 400)
+
+  const bbox = c.req.query('bbox')
+  let query = 'SELECT * FROM osm_venues WHERE category = ?'
+  const params: unknown[] = [category]
+
+  if (bbox) {
+    const [minLng, minLat, maxLng, maxLat] = bbox.split(',').map(Number)
+    if (!isNaN(minLat)) {
+      query += ' AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?'
+      params.push(minLat, maxLat, minLng, maxLng)
+    }
+  }
+
+  const rows = await c.env.DB.prepare(query).bind(...params).all()
+  const features = (rows.results as OsmVenueRow[]).map(row => ({
+    type:     'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [row.lng, row.lat] },
+    properties: {
+      id:            row.id,
+      name:          row.name,
+      category:      row.category,
+      address:       row.address,
+      website:       row.website,
+      phone:         row.phone,
+      opening_hours: row.opening_hours,
+      description:   row.description,
+      operator:      row.operator,
     },
+  }))
+
+  return c.json({ type: 'FeatureCollection', features }, 200, {
+    'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
   })
 })
 

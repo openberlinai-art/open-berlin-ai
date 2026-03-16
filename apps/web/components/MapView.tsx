@@ -21,15 +21,13 @@ const INITIAL_VIEW = { longitude: 13.405, latitude: 52.52, zoom: 11 }
 // ─── OSM category config ───────────────────────────────────────────────────────
 
 const OSM_CATS = [
-  { key: 'vintage',    color: '#d97706', stroke: '#92400e' },
-  { key: 'vinyl',      color: '#7c3aed', stroke: '#4c1d95' },
-  { key: 'books',      color: '#0369a1', stroke: '#0c4a6e' },
-  { key: 'cafe',       color: '#b45309', stroke: '#78350f' },
-  { key: 'craft_beer', color: '#c2410c', stroke: '#7c2d12' },
-  { key: 'tattoo',     color: '#be123c', stroke: '#881337' },
-  { key: 'bike',       color: '#15803d', stroke: '#14532d' },
-  { key: 'vegan',      color: '#65a30d', stroke: '#365314' },
-  { key: 'street_art', color: '#e879f9', stroke: '#a21caf' },
+  { key: 'live_music',    color: '#1d4ed8', stroke: '#1e3a8a' },
+  { key: 'jazz',          color: '#92400e', stroke: '#451a03' },
+  { key: 'cinema',        color: '#b91c1c', stroke: '#7f1d1d' },
+  { key: 'clubs',         color: '#7c3aed', stroke: '#4c1d95' },
+  { key: 'galleries',     color: '#be123c', stroke: '#881337' },
+  { key: 'street_art',    color: '#e879f9', stroke: '#a21caf' },
+  { key: 'osm_museum',    color: '#0891b2', stroke: '#164e63' },
 ] as const
 
 type OsmKey = typeof OSM_CATS[number]['key']
@@ -44,9 +42,8 @@ interface Props {
   layers: {
     parks: boolean; playgrounds: boolean
     venues: boolean; galleries: boolean; museums: boolean
-    vintage: boolean; vinyl: boolean; books: boolean; cafe: boolean
-    craft_beer: boolean; tattoo: boolean; bike: boolean; vegan: boolean
-    street_art: boolean
+    live_music: boolean; jazz: boolean; cinema: boolean; clubs: boolean
+    osm_galleries: boolean; street_art: boolean; osm_museum: boolean
   }
   mode:            'events' | 'venues'
   venueCat?:       string
@@ -169,27 +166,23 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
   const { data: galleriesData, isFetching: galleriesFetching }     = useVenuesByBbox(bbox, layers.galleries, 'gallery')
   const { data: museumsData,   isFetching: museumsFetching }       = useVenuesByBbox(bbox, layers.museums, 'museum')
 
-  // OSM hipster venue layers
-  const { data: vintageData }    = useOSMVenues('vintage',    layers.vintage)
-  const { data: vinylData }      = useOSMVenues('vinyl',      layers.vinyl)
-  const { data: booksData }      = useOSMVenues('books',      layers.books)
-  const { data: cafeData }       = useOSMVenues('cafe',       layers.cafe)
-  const { data: craftBeerData }  = useOSMVenues('craft_beer', layers.craft_beer)
-  const { data: tattooData }     = useOSMVenues('tattoo',     layers.tattoo)
-  const { data: bikeData }       = useOSMVenues('bike',       layers.bike)
-  const { data: veganData }      = useOSMVenues('vegan',      layers.vegan)
-  const { data: streetArtData }  = useOSMVenues('street_art', layers.street_art)
+  // OSM cultural venue layers
+  const { data: liveMusicData }  = useOSMVenues('live_music',  layers.live_music,    bbox)
+  const { data: jazzData }       = useOSMVenues('jazz',        layers.jazz,          bbox)
+  const { data: cinemaData }     = useOSMVenues('cinema',      layers.cinema,        bbox)
+  const { data: clubsData }      = useOSMVenues('clubs',       layers.clubs,         bbox)
+  const { data: galleriesData2 } = useOSMVenues('galleries',   layers.osm_galleries, bbox)
+  const { data: streetArtData }  = useOSMVenues('street_art',  layers.street_art,    bbox)
+  const { data: osmMuseumData }  = useOSMVenues('museum',      layers.osm_museum,    bbox)
 
   const osmDataMap: Record<OsmKey, GeoJSON.FeatureCollection | undefined> = {
-    vintage:    vintageData,
-    vinyl:      vinylData,
-    books:      booksData,
-    cafe:       cafeData,
-    craft_beer: craftBeerData,
-    tattoo:     tattooData,
-    bike:       bikeData,
-    vegan:      veganData,
-    street_art: streetArtData,
+    live_music:  liveMusicData,
+    jazz:        jazzData,
+    cinema:      cinemaData,
+    clubs:       clubsData,
+    galleries:   galleriesData2,
+    street_art:  streetArtData,
+    osm_museum:  osmMuseumData,
   }
 
   const activeEvent = useMemo(

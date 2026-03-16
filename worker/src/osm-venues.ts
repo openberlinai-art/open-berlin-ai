@@ -3,64 +3,44 @@ import type { Env } from './types'
 const BBOX = '52.338,13.088,52.675,13.761' // Berlin: south,west,north,east
 
 type OsmCategory =
-  | 'vintage' | 'vinyl' | 'books' | 'cafe'
-  | 'craft_beer' | 'tattoo' | 'bike' | 'vegan' | 'street_art'
+  | 'live_music' | 'jazz' | 'cinema' | 'clubs' | 'galleries' | 'street_art' | 'museum'
 
 const QUERIES: Record<OsmCategory, string> = {
-  vintage: `[out:json][timeout:25];
-(node[shop=vintage](${BBOX});
- node[shop=second_hand](${BBOX});
- way[shop=vintage](${BBOX});
- way[shop=second_hand](${BBOX}););
+  live_music: `[out:json][timeout:25];
+(node[amenity=concert_hall](${BBOX});
+ node[amenity=music_venue](${BBOX});
+ node[shop=musical_instrument](${BBOX});
+ node[amenity=music_school](${BBOX});
+ way[amenity=concert_hall](${BBOX});
+ way[amenity=music_venue](${BBOX});
+ way[shop=musical_instrument](${BBOX});
+ way[amenity=music_school](${BBOX}););
 out center;`,
 
-  vinyl: `[out:json][timeout:25];
-(node[shop=music](${BBOX});
- node[shop=vinyl](${BBOX});
- way[shop=music](${BBOX});
- way[shop=vinyl](${BBOX}););
+  jazz: `[out:json][timeout:25];
+(node[amenity=bar]["music:jazz"=yes](${BBOX});
+ node[amenity=nightclub]["music:jazz"=yes](${BBOX});
+ node[amenity=bar][name~"jazz",i](${BBOX});
+ node[amenity=nightclub][name~"jazz",i](${BBOX});
+ way[amenity=bar]["music:jazz"=yes](${BBOX});
+ way[amenity=nightclub]["music:jazz"=yes](${BBOX}););
 out center;`,
 
-  books: `[out:json][timeout:25];
-(node[shop=books](${BBOX});
- way[shop=books](${BBOX}););
+  cinema: `[out:json][timeout:25];
+(node[amenity=cinema](${BBOX});
+ way[amenity=cinema](${BBOX}););
 out center;`,
 
-  cafe: `[out:json][timeout:25];
-(node[amenity=cafe][roastery=yes](${BBOX});
- way[amenity=cafe][roastery=yes](${BBOX});
- node[craft=roasting](${BBOX});
- way[craft=roasting](${BBOX}););
+  clubs: `[out:json][timeout:25];
+(node[amenity=nightclub](${BBOX});
+ way[amenity=nightclub](${BBOX}););
 out center;`,
 
-  craft_beer: `[out:json][timeout:25];
-(node[amenity=bar]["drink:craft_beer"=yes](${BBOX});
- node[amenity=pub]["drink:craft_beer"=yes](${BBOX});
- node[amenity=bar][microbrewery=yes](${BBOX});
- node[amenity=pub][microbrewery=yes](${BBOX});
- node[craft=brewery](${BBOX});
- node[amenity=bar][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
- node[amenity=pub][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
- way[amenity=bar]["drink:craft_beer"=yes](${BBOX});
- way[amenity=pub]["drink:craft_beer"=yes](${BBOX});
- way[craft=brewery](${BBOX});
- way[amenity=bar][name~"brauerei|taproom|bierbar|brewing",i](${BBOX});
- way[amenity=pub][name~"brauerei|taproom|bierbar|brewing",i](${BBOX}););
-out center;`,
-
-  tattoo: `[out:json][timeout:25];
-(node[shop=tattoo](${BBOX});
- way[shop=tattoo](${BBOX}););
-out center;`,
-
-  bike: `[out:json][timeout:25];
-(node[shop=bicycle](${BBOX});
- way[shop=bicycle](${BBOX}););
-out center;`,
-
-  vegan: `[out:json][timeout:25];
-(node["diet:vegan"=only](${BBOX});
- way["diet:vegan"=only](${BBOX}););
+  galleries: `[out:json][timeout:25];
+(node[tourism=gallery](${BBOX});
+ node[art=gallery](${BBOX});
+ way[tourism=gallery](${BBOX});
+ way[art=gallery](${BBOX}););
 out center;`,
 
   street_art: `[out:json][timeout:25];
@@ -73,6 +53,13 @@ out center;`,
  way[tourism=artwork][artwork_type=graffiti](${BBOX});
  way[tourism=artwork][artwork_type=mosaic](${BBOX});
  way[tourism=artwork][artwork_type=sculpture](${BBOX}););
+out center;`,
+
+  museum: `[out:json][timeout:25];
+(node[tourism=museum](${BBOX});
+ node[amenity=museum](${BBOX});
+ way[tourism=museum](${BBOX});
+ way[amenity=museum](${BBOX}););
 out center;`,
 }
 
@@ -89,6 +76,19 @@ type OverpassResult = {
   elements: OverpassElement[]
 }
 
+type OsmFeature = {
+  id:            string
+  name:          string | null
+  lat:           number
+  lng:           number
+  address:       string | null
+  website:       string | null
+  phone:         string | null
+  opening_hours: string | null
+  description:   string | null
+  operator:      string | null
+}
+
 function buildAddress(tags: Record<string, string> | undefined): string | null {
   if (!tags) return null
   const street = tags['addr:street']
@@ -98,7 +98,7 @@ function buildAddress(tags: Record<string, string> | undefined): string | null {
   return parts.length ? parts.join(', ') : null
 }
 
-async function fetchCategory(category: OsmCategory): Promise<string> {
+async function fetchCategory(category: OsmCategory): Promise<OsmFeature[]> {
   const res = await fetch('https://overpass-api.de/api/interpreter', {
     method:  'POST',
     body:    QUERIES[category],
@@ -108,55 +108,70 @@ async function fetchCategory(category: OsmCategory): Promise<string> {
 
   const data    = await res.json() as OverpassResult
   const seen    = new Set<string>()
-  const features = data.elements
-    .map(el => {
-      const lat = el.lat ?? el.center?.lat
-      const lon = el.lon ?? el.center?.lon
-      if (lat == null || lon == null) return null
-      const id = `${el.type}/${el.id}`
-      if (seen.has(id)) return null
-      seen.add(id)
-      const tags = el.tags ?? {}
-      return {
-        type:     'Feature' as const,
-        geometry: { type: 'Point' as const, coordinates: [lon, lat] },
-        properties: {
-          id,
-          name:          tags.name ?? null,
-          category,
-          address:       buildAddress(tags),
-          website:       tags.website ?? tags['contact:website'] ?? tags['url'] ?? null,
-          phone:         tags.phone ?? tags['contact:phone'] ?? null,
-          opening_hours: tags.opening_hours ?? null,
-          cuisine:       tags.cuisine ?? null,
-          description:   tags.description ?? null,
-          operator:      tags.operator ?? tags.brand ?? null,
-        },
-      }
-    })
-    .filter(Boolean)
+  const features: OsmFeature[] = []
 
-  return JSON.stringify({ type: 'FeatureCollection', features })
+  for (const el of data.elements) {
+    const lat = el.lat ?? el.center?.lat
+    const lon = el.lon ?? el.center?.lon
+    if (lat == null || lon == null) continue
+    const id = `${el.type}/${el.id}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    const tags = el.tags ?? {}
+    features.push({
+      id,
+      name:          tags.name ?? null,
+      lat,
+      lng:           lon,
+      address:       buildAddress(tags),
+      website:       tags.website ?? tags['contact:website'] ?? tags['url'] ?? null,
+      phone:         tags.phone ?? tags['contact:phone'] ?? null,
+      opening_hours: tags.opening_hours ?? null,
+      description:   tags.description ?? null,
+      operator:      tags.operator ?? tags.brand ?? null,
+    })
+  }
+
+  return features
 }
 
 /**
- * Fetches 9 hipster venue categories from Overpass API and stores each
- * as a GeoJSON FeatureCollection in R2 (osm-{category}.geojson).
+ * Fetches 6 cultural venue categories from Overpass API and stores each
+ * in the D1 osm_venues table (replacing stale rows per category).
  * Runs sequentially to respect Overpass rate limits.
  */
 export async function enrichOSMVenues(env: Env): Promise<void> {
   const categories: OsmCategory[] = [
-    'vintage', 'vinyl', 'books', 'cafe', 'craft_beer',
-    'tattoo', 'bike', 'vegan', 'street_art',
+    'live_music', 'jazz', 'cinema', 'clubs', 'galleries', 'street_art', 'museum',
   ]
+
+  const stmt = env.DB.prepare(
+    `INSERT OR REPLACE INTO osm_venues
+     (id, category, name, lat, lng, address, website, phone, opening_hours, description, operator, refreshed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  )
 
   for (const category of categories) {
     try {
-      const geojson = await fetchCategory(category)
-      await env.GEODATA.put(`osm-${category}.geojson`, geojson, {
-        httpMetadata: { contentType: 'application/json' },
-      })
-      console.log(`[osm-venues] ${category} stored in R2`)
+      const features = await fetchCategory(category)
+
+      // Remove stale rows for this category
+      await env.DB.prepare('DELETE FROM osm_venues WHERE category = ?').bind(category).run()
+
+      // Batch-insert in chunks of 100
+      const CHUNK = 100
+      for (let i = 0; i < features.length; i += CHUNK) {
+        const chunk = features.slice(i, i + CHUNK)
+        await env.DB.batch(
+          chunk.map(f =>
+            stmt.bind(f.id, category, f.name, f.lat, f.lng,
+                      f.address, f.website, f.phone, f.opening_hours,
+                      f.description, f.operator)
+          )
+        )
+      }
+
+      console.log(`[osm-venues] ${category}: ${features.length} rows stored in D1`)
     } catch (err) {
       console.error(`[osm-venues] ${category} failed:`, err)
     }

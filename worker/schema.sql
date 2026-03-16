@@ -168,6 +168,25 @@ CREATE TABLE IF NOT EXISTS translations (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- ─── OSM cultural venues (Overpass → D1, refreshed daily) ───────────────────
+
+CREATE TABLE IF NOT EXISTS osm_venues (
+  id            TEXT PRIMARY KEY,   -- "node/12345" or "way/67890"
+  category      TEXT NOT NULL,
+  name          TEXT,
+  lat           REAL NOT NULL,
+  lng           REAL NOT NULL,
+  address       TEXT,
+  website       TEXT,
+  phone         TEXT,
+  opening_hours TEXT,
+  description   TEXT,
+  operator      TEXT,
+  refreshed_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_osm_venues_category ON osm_venues(category);
+CREATE INDEX IF NOT EXISTS idx_osm_venues_geo      ON osm_venues(lat, lng);
+
 -- ─── Rate limiting (best-effort, per-IP per window) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_limits (

@@ -68,12 +68,13 @@ export function useVenuesList(bbox: string | null, enabled: boolean, category?: 
   })
 }
 
-export function useOSMVenues(category: string, enabled: boolean) {
+export function useOSMVenues(category: string, enabled: boolean, bbox?: string | null) {
   return useQuery({
-    queryKey:  ['osm-venues', category],
-    queryFn:   () => fetchOSMVenues(category),
+    queryKey:  ['osm-venues', category, bbox ?? ''],
+    queryFn:   () => fetchOSMVenues(category, bbox),
     enabled,
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000,
+    gcTime:    30 * 60 * 1000,
   })
 }
 

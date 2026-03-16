@@ -123,10 +123,13 @@ export async function fetchTransitStopsVBB(
   return stops
 }
 
-// ─── OSM hipster venues (R2, CDN cached) ─────────────────────────────────────
+// ─── OSM cultural venues (D1, bbox-filtered) ─────────────────────────────────
 
-export async function fetchOSMVenues(category: string): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`${WORKER}/api/geodata/osm/${category}`)
+export async function fetchOSMVenues(category: string, bbox?: string | null): Promise<GeoJSON.FeatureCollection> {
+  const url = bbox
+    ? `${WORKER}/api/geodata/osm/${category}?bbox=${encodeURIComponent(bbox)}`
+    : `${WORKER}/api/geodata/osm/${category}`
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }

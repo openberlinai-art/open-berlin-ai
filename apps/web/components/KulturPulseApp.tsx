@@ -33,15 +33,13 @@ const CATEGORIES = [
 ]
 
 const OSM_CAT_LABELS: Record<string, string> = {
-  vintage:    'Vintage',
-  vinyl:      'Music / Vinyl',
-  books:      'Books',
-  cafe:       'Coffee Roasters',
-  craft_beer: 'Craft Beer',
-  tattoo:     'Tattoo',
-  bike:       'Bike Shop',
-  vegan:      'Vegan Food',
-  street_art: 'Street Art',
+  live_music:    'Live Music',
+  jazz:          'Jazz',
+  cinema:        'Cinema',
+  clubs:         'Clubs',
+  osm_galleries: 'Galleries',
+  street_art:    'Street Art',
+  osm_museum:    'Museums',
 }
 
 interface Props {
@@ -72,8 +70,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [layers, setLayers] = useState({
     parks: false, playgrounds: false, venues: false, galleries: false, museums: false,
-    vintage: false, vinyl: false, books: false, cafe: false,
-    craft_beer: false, tattoo: false, bike: false, vegan: false, street_art: false,
+    live_music: false, jazz: false, cinema: false, clubs: false,
+    osm_galleries: false, street_art: false, osm_museum: false,
   })
 
   const [showAuth,     setShowAuth]     = useState(false)
@@ -112,28 +110,24 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const venueFeatures = venuesGeo?.features ?? []
 
-  // OSM hipster venues — hooks must be called unconditionally; enabled by layer toggle
-  const osmVintage   = useOSMVenues('vintage',    layers.vintage)
-  const osmVinyl     = useOSMVenues('vinyl',      layers.vinyl)
-  const osmBooks     = useOSMVenues('books',      layers.books)
-  const osmCafe      = useOSMVenues('cafe',       layers.cafe)
-  const osmCraftBeer = useOSMVenues('craft_beer', layers.craft_beer)
-  const osmTattoo    = useOSMVenues('tattoo',     layers.tattoo)
-  const osmBike      = useOSMVenues('bike',       layers.bike)
-  const osmVegan     = useOSMVenues('vegan',      layers.vegan)
-  const osmStreetArt = useOSMVenues('street_art', layers.street_art)
+  // OSM cultural venue layers — hooks must be called unconditionally; enabled by layer toggle
+  const osmLiveMusic    = useOSMVenues('live_music',  layers.live_music,    mapBbox)
+  const osmJazz         = useOSMVenues('jazz',        layers.jazz,          mapBbox)
+  const osmCinema       = useOSMVenues('cinema',      layers.cinema,        mapBbox)
+  const osmClubs        = useOSMVenues('clubs',       layers.clubs,         mapBbox)
+  const osmGalleries    = useOSMVenues('galleries',   layers.osm_galleries, mapBbox)
+  const osmStreetArt    = useOSMVenues('street_art',  layers.street_art,    mapBbox)
+  const osmMuseum       = useOSMVenues('museum',      layers.osm_museum,    mapBbox)
 
   // Merge active OSM features into the venue list
   const activeOSMFeatures = [
-    ...(layers.vintage    ? (osmVintage.data?.features   ?? []) : []),
-    ...(layers.vinyl      ? (osmVinyl.data?.features     ?? []) : []),
-    ...(layers.books      ? (osmBooks.data?.features     ?? []) : []),
-    ...(layers.cafe       ? (osmCafe.data?.features      ?? []) : []),
-    ...(layers.craft_beer ? (osmCraftBeer.data?.features ?? []) : []),
-    ...(layers.tattoo     ? (osmTattoo.data?.features    ?? []) : []),
-    ...(layers.bike       ? (osmBike.data?.features      ?? []) : []),
-    ...(layers.vegan      ? (osmVegan.data?.features     ?? []) : []),
-    ...(layers.street_art ? (osmStreetArt.data?.features ?? []) : []),
+    ...(layers.live_music    ? (osmLiveMusic.data?.features  ?? []) : []),
+    ...(layers.jazz          ? (osmJazz.data?.features       ?? []) : []),
+    ...(layers.cinema        ? (osmCinema.data?.features     ?? []) : []),
+    ...(layers.clubs         ? (osmClubs.data?.features      ?? []) : []),
+    ...(layers.osm_galleries ? (osmGalleries.data?.features  ?? []) : []),
+    ...(layers.street_art    ? (osmStreetArt.data?.features  ?? []) : []),
+    ...(layers.osm_museum    ? (osmMuseum.data?.features     ?? []) : []),
   ]
 
   const allVenueFeatures = mode === 'venues'
@@ -211,16 +205,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           }
         }
 
-        addFeatures(parksData?.features,       'Park')
-        addFeatures(playgroundsData?.features, 'Playground')
-        addFeatures(osmVintage.data?.features,    'Vintage Shop')
-        addFeatures(osmVinyl.data?.features,      'Vinyl / Music')
-        addFeatures(osmBooks.data?.features,      'Book Shop')
-        addFeatures(osmCafe.data?.features,       'Café')
-        addFeatures(osmCraftBeer.data?.features,  'Craft Beer')
-        addFeatures(osmTattoo.data?.features,     'Tattoo')
-        addFeatures(osmBike.data?.features,       'Bike Shop')
-        addFeatures(osmVegan.data?.features,      'Vegan Food')
+        addFeatures(parksData?.features,           'Park')
+        addFeatures(playgroundsData?.features,    'Playground')
+        addFeatures(osmLiveMusic.data?.features,  'Live Music')
+        addFeatures(osmJazz.data?.features,       'Jazz')
+        addFeatures(osmCinema.data?.features,     'Cinema')
+        addFeatures(osmClubs.data?.features,      'Club')
+        addFeatures(osmGalleries.data?.features,  'Gallery')
         addFeatures(osmStreetArt.data?.features,  'Street Art')
 
         setSearchResults({ ...apiData, places: places.slice(0, 20) })
@@ -468,6 +459,20 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               </button>
             ))}
 
+            {/* Clear all filters */}
+            {(price !== 'all' || cats.length > 0 || dateFrom !== todayISO() || dateTo !== todayISO()) && (
+              <button
+                onClick={() => {
+                  setPrice('all'); setCats([])
+                  const t = todayISO(); setDateFrom(t); setDateTo(t); setPage(1)
+                }}
+                className={btn}
+                title="Clear all filters"
+              >
+                <span className="flex items-center gap-1"><X size={10} /> Clear</span>
+              </button>
+            )}
+
             {/* Dynamic count */}
             <span className="ml-auto text-[11px] text-gray-400 shrink-0 self-center">
               {loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`}
@@ -506,19 +511,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </button>
               ))}
             </div>
-            {/* Hipster spots */}
+            {/* Cultural spots */}
             <div className="px-4 py-1.5 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
               <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Spots</span>
               {([
-                ['vintage',    'Vintage'],
-                ['vinyl',      'Vinyl'],
-                ['books',      'Books'],
-                ['cafe',       'Coffee'],
-                ['craft_beer', 'Craft Beer'],
-                ['tattoo',     'Tattoo'],
-                ['bike',       'Bike'],
-                ['vegan',      'Vegan'],
-                ['street_art', 'Street Art'],
+                ['live_music',    'Live Music'],
+                ['jazz',          'Jazz'],
+                ['cinema',        'Cinema'],
+                ['clubs',         'Clubs'],
+                ['osm_galleries', 'Galleries'],
+                ['street_art',    'Street Art'],
+                ['osm_museum',    'Museums'],
               ] as const).map(([key, label]) => (
                 <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} className={layers[key] ? btnActive : btn}>
                   {label}

@@ -51,8 +51,8 @@ export async function ingestLocations(env: Env): Promise<number> {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(id) DO UPDATE SET
         name           = excluded.name,
-        lat            = excluded.lat,
-        lng            = excluded.lng,
+        lat            = COALESCE(excluded.lat, locations.lat),
+        lng            = COALESCE(excluded.lng, locations.lng),
         category       = excluded.category,
         address        = excluded.address,
         borough        = excluded.borough,
