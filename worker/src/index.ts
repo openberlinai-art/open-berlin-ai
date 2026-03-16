@@ -198,6 +198,34 @@ app.get('/api/geodata/playgrounds', async c => {
   })
 })
 
+// ─── GET /api/geodata/parks/:id ───────────────────────────────────────────────
+
+app.get('/api/geodata/parks/:id', async c => {
+  const obj = await c.env.GEODATA.get('parks-points.geojson')
+  if (!obj) return c.json({ error: 'not found' }, 404)
+  const fc = await obj.json<{ features: Array<{ properties: Record<string, unknown>; [k: string]: unknown }> }>()
+  const id = c.req.param('id')
+  const feature = fc.features.find(
+    f => f.properties?.gml_id === id || f.properties?.fid === id
+  )
+  if (!feature) return c.json({ error: 'not found' }, 404)
+  return c.json(feature, 200, { 'Cache-Control': 'public, max-age=3600' })
+})
+
+// ─── GET /api/geodata/playgrounds/:id ─────────────────────────────────────────
+
+app.get('/api/geodata/playgrounds/:id', async c => {
+  const obj = await c.env.GEODATA.get('playgrounds-points.geojson')
+  if (!obj) return c.json({ error: 'not found' }, 404)
+  const fc = await obj.json<{ features: Array<{ properties: Record<string, unknown>; [k: string]: unknown }> }>()
+  const id = c.req.param('id')
+  const feature = fc.features.find(
+    f => f.properties?.gml_id === id || f.properties?.fid === id
+  )
+  if (!feature) return c.json({ error: 'not found' }, 404)
+  return c.json(feature, 200, { 'Cache-Control': 'public, max-age=3600' })
+})
+
 // ─── GET /api/geodata/parks-points ────────────────────────────────────────────
 
 app.get('/api/geodata/parks-points', async c => {

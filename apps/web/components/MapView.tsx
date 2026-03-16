@@ -79,6 +79,7 @@ interface GreenspacePopupState {
   borough:  string | null
   hood:     string | null
   built:    string | null
+  gid?:     string
 }
 
 // ─── Transit popup content ────────────────────────────────────────────────────
@@ -370,6 +371,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         borough: (props.bezirkname as string) ?? null,
         hood:    (props.ortstlname as string) ?? null,
         built:   (props.baujahr as string) ?? null,
+        gid:     ((props.gml_id as string) ?? (props.fid as string)) || undefined,
       })
       setTransitPopup(null)
       setVenuePopup(null)
@@ -1072,6 +1074,14 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                 )}
                 {greenspacePopup.built && (
                   <p className="text-gray-400 text-[10px]">Built {greenspacePopup.built}</p>
+                )}
+                {greenspacePopup.gid && (
+                  <Link
+                    href={`/${greenspacePopup.type === 'park' ? 'parks' : 'playgrounds'}/${encodeURIComponent(greenspacePopup.gid)}`}
+                    className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors mt-1"
+                  >
+                    View →
+                  </Link>
                 )}
               </div>
             </div>

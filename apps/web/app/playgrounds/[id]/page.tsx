@@ -1,0 +1,42 @@
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import GreenspaceDetail from '@/components/GreenspaceDetail'
+
+export const revalidate = 86400
+
+const WORKER = 'https://kulturpulse-worker.openberlinai.workers.dev'
+
+interface Props {
+  params: Promise<{ id: string }>
+}
+
+async function fetchPlayground(id: string) {
+  const res = await fetch(`${WORKER}/api/geodata/playgrounds/${encodeURIComponent(id)}`, {
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return null
+  return res.json() as Promise<{
+    geometry: { type: 'Point'; coordinates: [number, number] }
+    properties: Record<string, string | null>
+  }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  const feature = await fetchPlayground(id)
+  if (!feature) return { title: 'Playground — KulturPulse' }
+  const p = feature.properties
+  const name = p.namenr ?? p.name ?? 'Playground'
+  return {
+    title:       `${name} — KulturPulse`,
+    description: [p.objartname, p.ortstlname, p.bezirkname].filter(Boolean).join(' · '),
+  }
+}
+
+export default async function PlaygroundPage({ params }: Props) {
+  const { id } = await params
+  const feature = await fetchPlayground(id)
+  if (!feature) notFound()
+
+  return <GreenspaceDetail feature={feature} type="playground" />
+}

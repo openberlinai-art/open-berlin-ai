@@ -708,6 +708,72 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   )
                 })
               )}
+            {/* Parks & Playgrounds section (shown when either layer is ON) */}
+            {(layers.parks || layers.playgrounds) && (() => {
+              const bboxParts = mapBbox ? mapBbox.split(',').map(Number) : null
+              const inBbox = (coords: [number, number]) => {
+                if (!bboxParts) return true
+                const [minLng, minLat, maxLng, maxLat] = bboxParts
+                return coords[0] >= minLng && coords[0] <= maxLng && coords[1] >= minLat && coords[1] <= maxLat
+              }
+              const visibleParks = (layers.parks && parksData?.features)
+                ? parksData.features.filter(f => inBbox((f.geometry as GeoJSON.Point).coordinates as [number, number]))
+                : []
+              const visiblePlaygrounds = (layers.playgrounds && playgroundsData?.features)
+                ? playgroundsData.features.filter(f => inBbox((f.geometry as GeoJSON.Point).coordinates as [number, number]))
+                : []
+              const total = visibleParks.length + visiblePlaygrounds.length
+              if (total === 0) return null
+              return (
+                <div className="mt-2 border-t-2 border-black">
+                  <p className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-gray-300 flex items-center gap-2">
+                    Parks &amp; Playgrounds
+                    <span className="text-[9px] font-bold text-gray-400">{total}</span>
+                  </p>
+                  {[
+                    ...visibleParks.map(f => ({ f, type: 'park' as const })),
+                    ...visiblePlaygrounds.map(f => ({ f, type: 'playground' as const })),
+                  ].map(({ f, type }, i) => {
+                    const p = f.properties as Record<string, string | null>
+                    const coords = (f.geometry as GeoJSON.Point).coordinates as [number, number]
+                    const name   = p.namenr ?? p.name ?? 'Unnamed'
+                    const gid    = p.gml_id ?? p.fid ?? null
+                    return (
+                      <div
+                        key={gid ?? i}
+                        className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => setFlyTo(coords)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-gray-900 leading-snug truncate">{name}</p>
+                            {p.objartname && <p className="text-[10px] text-gray-500 mt-0.5">{p.objartname}</p>}
+                            {p.bezirkname && <p className="text-[10px] text-gray-400">{p.bezirkname}</p>}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span
+                              className="text-[10px] border-2 px-1.5 py-0.5 font-bold uppercase"
+                              style={type === 'park' ? { borderColor: '#16a34a', color: '#16a34a' } : { borderColor: '#a21caf', color: '#a21caf' }}
+                            >
+                              {type === 'park' ? 'Park' : 'Play'}
+                            </span>
+                            {gid && (
+                              <a
+                                href={`/${type === 'park' ? 'parks' : 'playgrounds'}/${encodeURIComponent(gid)}`}
+                                onClick={e => e.stopPropagation()}
+                                className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                              >
+                                Details →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
             </>
           )}
         </div>

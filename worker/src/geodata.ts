@@ -23,6 +23,7 @@ type AnyFeatureCollection = {
   type: string
   features: Array<{
     type: string
+    id?: string | number
     geometry: { type: string; coordinates: unknown }
     properties: Record<string, unknown>
   }>
@@ -47,7 +48,7 @@ function polygonsToPoints(geojsonText: string): string {
       return {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [x, y] },
-        properties: f.properties,
+        properties: { ...f.properties, fid: f.id ?? null },
       }
     })
     .filter(Boolean)
