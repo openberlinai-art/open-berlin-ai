@@ -39,7 +39,6 @@ const OSM_CAT_LABELS: Record<string, string> = {
   clubs:         'Clubs',
   osm_galleries: 'Galleries',
   street_art:    'Street Art',
-  osm_museum:    'Museums',
 }
 
 interface Props {
@@ -117,7 +116,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const osmClubs        = useOSMVenues('clubs',       layers.clubs,         mapBbox)
   const osmGalleries    = useOSMVenues('galleries',   layers.osm_galleries, mapBbox)
   const osmStreetArt    = useOSMVenues('street_art',  layers.street_art,    mapBbox)
-  const osmMuseum       = useOSMVenues('museum',      layers.osm_museum,    mapBbox)
+  const osmMuseumEnabled = layers.osm_museum || venueCat === 'museum'
+  const osmMuseum       = useOSMVenues('museum',      osmMuseumEnabled,     mapBbox)
 
   // Merge active OSM features into the venue list
   const activeOSMFeatures = [
@@ -127,7 +127,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     ...(layers.clubs         ? (osmClubs.data?.features      ?? []) : []),
     ...(layers.osm_galleries ? (osmGalleries.data?.features  ?? []) : []),
     ...(layers.street_art    ? (osmStreetArt.data?.features  ?? []) : []),
-    ...(layers.osm_museum    ? (osmMuseum.data?.features     ?? []) : []),
+    ...(osmMuseumEnabled     ? (osmMuseum.data?.features     ?? []) : []),
   ]
 
   const allVenueFeatures = mode === 'venues'
@@ -485,8 +485,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
           <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Venues</button>
           <span className="text-[10px] text-gray-300 mx-0.5">|</span>
-          <button onClick={() => setLayers(l => ({ ...l, parks: !l.parks }))} className={layers.parks ? btnActive : btn}>Parks</button>
-          <button onClick={() => setLayers(l => ({ ...l, playgrounds: !l.playgrounds }))} className={layers.playgrounds ? btnActive : btn}>Playgrounds</button>
           <button
             onClick={() => setLiveRadar(v => !v)}
             className={liveRadar ? btnActive : btn}
@@ -521,7 +519,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 ['clubs',         'Clubs'],
                 ['osm_galleries', 'Galleries'],
                 ['street_art',    'Street Art'],
-                ['osm_museum',    'Museums'],
+                ['parks',         'Parks'],
+                ['playgrounds',   'Playgrounds'],
               ] as const).map(([key, label]) => (
                 <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} className={layers[key] ? btnActive : btn}>
                   {label}
@@ -812,9 +811,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             layers={{
               ...layers,
               // Show venue-type layers based on the active category filter
-              venues:    mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
-              galleries: mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
-              museums:   mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
+              venues:     mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
+              galleries:  mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
+              museums:    mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
+              osm_museum: osmMuseumEnabled,
             }}
             mode={mode}
             venueCat={venueCat}
