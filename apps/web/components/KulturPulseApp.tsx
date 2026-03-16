@@ -504,7 +504,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
               <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Cultural</span>
               {(['all', 'museum', 'gallery', 'theatre', 'library', 'other'] as const).map(c => (
-                <button key={c} onClick={() => setVenueCat(c)} className={venueCat === c ? btnActive : btn}>
+                <button key={c} onClick={() => setVenueCat(venueCat === c && c !== 'all' ? 'all' : c)} className={venueCat === c ? btnActive : btn}>
                   {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
                 </button>
               ))}
