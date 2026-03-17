@@ -34,7 +34,7 @@ export async function fetchPlaygrounds(): Promise<GeoJSON.FeatureCollection> {
 }
 
 export async function fetchVenuesList(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ bbox, limit: '200' })
+  const params = new URLSearchParams({ bbox, limit: '500' })
   if (category) params.set('category', category)
   const res = await fetch(`${WORKER}/api/locations?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -132,6 +132,48 @@ export async function fetchOSMVenues(category: string, bbox?: string | null): Pr
   const res = await fetch(url)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
+// ─── POIs (expanded categories — D1 bbox + geohash query) ──────────────────
+
+export async function fetchPOIs(
+  group: string,
+  bbox: string,
+  category?: string,
+  region?: string,
+): Promise<GeoJSON.FeatureCollection> {
+  const params = new URLSearchParams({ group, bbox, limit: '500' })
+  if (category) params.set('category', category)
+  if (region) params.set('region', region)
+  const res = await fetch(`${WORKER}/api/pois?${params}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
+export interface POIDetail {
+  id:             string
+  category_group: string
+  category:       string
+  name:           string | null
+  lat:            number
+  lng:            number
+  geohash:        string
+  region:         string
+  address:        string | null
+  website:        string | null
+  phone:          string | null
+  opening_hours:  string | null
+  description:    string | null
+  operator:       string | null
+  tags_json:      string | null
+  refreshed_at:   string
+}
+
+export async function fetchPOIDetail(id: string): Promise<POIDetail> {
+  const res = await fetch(`${WORKER}/api/pois/${id}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json() as { data: POIDetail }
+  return json.data
 }
 
 // ─── Weather (Open-Meteo via worker proxy) ────────────────────────────────────

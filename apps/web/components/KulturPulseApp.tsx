@@ -12,7 +12,13 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues, useParks, usePlaygrounds } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs } from '@/hooks/useCulturalData'
+import { POI_GROUPS, getPOIColor, getPOILabel } from '@/lib/poi-config'
+import {
+  Castle, Milestone, Church, Camera, TreePine, Train,
+  UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
+  ChevronUp,
+} from 'lucide-react'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
@@ -73,6 +79,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     osm_galleries: false, street_art: false, osm_museum: false,
   })
 
+  // POI layer toggles — keys are "group:category" e.g. "heritage:castle"
+  const [poiLayers, setPOILayers] = useState<Record<string, boolean>>({})
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+
   const [showAuth,     setShowAuth]     = useState(false)
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
@@ -94,6 +104,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     events:    Array<{ id: string; title: string; date_start: string; category: string | null; location_name: string | null; lat: number | null; lng: number | null }>
     locations: Array<{ id: string; name: string; category: string | null; address: string | null; borough: string | null; lat: number | null; lng: number | null }>
     places:    Array<{ id: string; name: string; type: string; lat: number; lng: number }>
+    pois?:     Array<{ id: string; name: string | null; category_group: string; category: string; region: string; address: string | null; lat: number; lng: number }>
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -119,6 +130,47 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const osmMuseumEnabled = layers.osm_museum || venueCat === 'museum'
   const osmMuseum       = useOSMVenues('museum',      osmMuseumEnabled,     mapBbox)
 
+  // POI hooks — one per enabled group (fetch all categories for that group)
+  const enabledPOIGroups = [...new Set(
+    Object.entries(poiLayers).filter(([, v]) => v).map(([k]) => k.split(':')[0])
+  )]
+  // We call usePOIs for each of the 12 possible groups, enabled only when active
+  const poiHeritage      = usePOIs('heritage',      mapBbox, enabledPOIGroups.includes('heritage'))
+  const poiMonuments     = usePOIs('monuments',      mapBbox, enabledPOIGroups.includes('monuments'))
+  const poiWorship       = usePOIs('worship',        mapBbox, enabledPOIGroups.includes('worship'))
+  const poiTourism       = usePOIs('tourism',        mapBbox, enabledPOIGroups.includes('tourism'))
+  const poiNature        = usePOIs('nature',         mapBbox, enabledPOIGroups.includes('nature'))
+  const poiTransport     = usePOIs('transport',      mapBbox, enabledPOIGroups.includes('transport'))
+  const poiFoodDrink     = usePOIs('food_drink',     mapBbox, enabledPOIGroups.includes('food_drink'))
+  const poiSports        = usePOIs('sports',         mapBbox, enabledPOIGroups.includes('sports'))
+  const poiServices      = usePOIs('services',       mapBbox, enabledPOIGroups.includes('services'))
+  const poiNightlife     = usePOIs('nightlife',      mapBbox, enabledPOIGroups.includes('nightlife'))
+  const poiShopping      = usePOIs('shopping',       mapBbox, enabledPOIGroups.includes('shopping'))
+  const poiAccommodation = usePOIs('accommodation',  mapBbox, enabledPOIGroups.includes('accommodation'))
+
+  const poiGroupDataMap: Record<string, GeoJSON.FeatureCollection | undefined> = {
+    heritage: poiHeritage.data, monuments: poiMonuments.data, worship: poiWorship.data,
+    tourism: poiTourism.data, nature: poiNature.data, transport: poiTransport.data,
+    food_drink: poiFoodDrink.data, sports: poiSports.data, services: poiServices.data,
+    nightlife: poiNightlife.data, shopping: poiShopping.data, accommodation: poiAccommodation.data,
+  }
+
+  // Build poiData map (keyed by "group:category") for MapView — filter to only enabled categories
+  const poiData: Record<string, GeoJSON.FeatureCollection> = {}
+  for (const [layerKey, enabled] of Object.entries(poiLayers)) {
+    if (!enabled) continue
+    const [group, cat] = layerKey.split(':')
+    const groupData = poiGroupDataMap[group]
+    if (!groupData?.features?.length) continue
+    // Filter features to just this category
+    const filtered = groupData.features.filter(
+      f => (f.properties as Record<string, unknown>)?.category === cat
+    )
+    if (filtered.length > 0) {
+      poiData[layerKey] = { type: 'FeatureCollection', features: filtered }
+    }
+  }
+
   // Merge active OSM features into the venue list
   const activeOSMFeatures = [
     ...(layers.live_music    ? (osmLiveMusic.data?.features  ?? []) : []),
@@ -130,8 +182,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     ...(osmMuseumEnabled     ? (osmMuseum.data?.features     ?? []) : []),
   ]
 
+  const activePOIFeatures = Object.values(poiData).flatMap(fc => fc.features)
+
   const allVenueFeatures = mode === 'venues'
-    ? [...venueFeatures, ...activeOSMFeatures]
+    ? [...venueFeatures, ...activeOSMFeatures, ...activePOIFeatures]
     : venueFeatures
 
   const LIMIT = 50
@@ -187,7 +241,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         const [res] = await Promise.all([
           fetch(`/api/search?q=${encodeURIComponent(search.trim())}&lang=${lang}`),
         ])
-        const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places'>
+        const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places' | 'pois'> & { pois?: NonNullable<typeof searchResults>['pois'] }
 
         // Client-side search across parks, playgrounds, and all OSM venues
         const places: NonNullable<typeof searchResults>['places'] = []
@@ -214,7 +268,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         addFeatures(osmGalleries.data?.features,  'Gallery')
         addFeatures(osmStreetArt.data?.features,  'Street Art')
 
-        setSearchResults({ ...apiData, places: places.slice(0, 20) })
+        setSearchResults({ ...apiData, places: places.slice(0, 20), pois: apiData.pois ?? [] })
       } catch { /* ignore */ } finally {
         setSearching(false)
       }
@@ -510,7 +564,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ))}
             </div>
             {/* Cultural spots */}
-            <div className="px-4 py-1.5 border-b-2 border-black flex items-center gap-1.5 flex-wrap">
+            <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
               <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Spots</span>
               {([
                 ['live_music',    'Live Music'],
@@ -526,7 +580,55 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {label}
                 </button>
               ))}
-              <span className="ml-auto text-[11px] text-gray-400 shrink-0">
+            </div>
+
+            {/* POI category groups — compact inline pills */}
+            <div className="px-4 py-1.5 border-b-2 border-black">
+              <div className="flex items-center gap-1 flex-wrap mb-1">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Explore</span>
+                {POI_GROUPS.map(group => {
+                  const isExpanded = !!expandedGroups[group.key]
+                  const activeCount = group.categories.filter(c => poiLayers[`${group.key}:${c.key}`]).length
+                  const Icon = {
+                    Castle, Milestone, Church, Camera, TreePine, Train,
+                    UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
+                  }[group.icon] ?? Building2
+                  return (
+                    <button
+                      key={group.key}
+                      onClick={() => setExpandedGroups(g => ({ ...g, [group.key]: !g[group.key] }))}
+                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-black bg-gray-100 font-bold' : 'border-gray-300 hover:border-gray-400'}`}
+                    >
+                      <Icon size={10} className="shrink-0 text-gray-500" />
+                      {group.label}
+                      {activeCount > 0 && (
+                        <span className="text-[8px] bg-black text-white px-1 py-px font-bold leading-none">{activeCount}</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Expanded subcategories */}
+              {POI_GROUPS.filter(g => expandedGroups[g.key]).map(group => (
+                <div key={group.key} className="flex flex-wrap gap-1 pb-1">
+                  <span className="text-[9px] text-gray-400 w-full">{group.label}</span>
+                  {group.categories.map(cat => {
+                    const layerKey = `${group.key}:${cat.key}`
+                    const isActive = !!poiLayers[layerKey]
+                    return (
+                      <button
+                        key={cat.key}
+                        onClick={() => setPOILayers(l => ({ ...l, [layerKey]: !l[layerKey] }))}
+                        className={isActive ? btnActive : btn}
+                        style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                      >
+                        {cat.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+              <span className="text-[11px] text-gray-400">
                 {allVenueFeatures.length} venue{allVenueFeatures.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -622,7 +724,37 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     ))}
                   </div>
                 )}
-                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (
+                {/* POI results */}
+                {(searchResults?.pois?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Points of Interest ({searchResults!.pois!.length})
+                    </p>
+                    {searchResults!.pois!.map(poi => (
+                      <div
+                        key={poi.id}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          if (poi.lat && poi.lng) setFlyTo([poi.lng, poi.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{poi.name ?? 'Unnamed'}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {[poi.category, poi.region].filter(Boolean).join(' · ')}
+                        </p>
+                        <a
+                          href={`/pois/${poi.id.replace('/', '_')}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                        >
+                          Details →
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (searchResults.pois?.length ?? 0) === 0 && (
                   <div className="flex items-center justify-center h-32 text-sm text-gray-400">No results</div>
                 )}
               </>
@@ -655,13 +787,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ) : (
                 allVenueFeatures.map((f, i) => {
                   const p = f.properties as {
-                    id?: string; name?: string; category?: string
+                    id?: string; name?: string; category?: string; category_group?: string
                     address?: string; borough?: string
                     website?: string; phone?: string; opening_hours?: string; cuisine?: string
                   }
                   const coords = (f.geometry as GeoJSON.Point | undefined)?.coordinates as [number, number] | undefined
-                  const isOSM  = typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
-                  const catLabel = OSM_CAT_LABELS[p.category ?? ''] ?? p.category
+                  const isPOI  = typeof p.category_group === 'string' && p.category_group !== ''
+                  const isOSM  = !isPOI && typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
+                  const catLabel = isPOI
+                    ? getPOILabel(p.category_group!, p.category ?? '')
+                    : OSM_CAT_LABELS[p.category ?? ''] ?? p.category
+                  const poiColors = isPOI ? getPOIColor(p.category_group!, p.category ?? '') : null
                   return (
                     <div
                       key={p.id ?? i}
@@ -670,18 +806,34 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="font-bold text-sm text-gray-900 leading-snug truncate">{p.name ?? 'Unnamed'}</p>
+                          <p className="font-bold text-sm text-gray-900 leading-snug truncate">
+                            {p.name ?? (isPOI ? `Unnamed ${catLabel}` : 'Unnamed')}
+                          </p>
                           {p.address  && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{p.address}</p>}
                           {p.borough  && <p className="text-[10px] text-gray-400">{p.borough}</p>}
                           {p.opening_hours && <p className="text-[10px] text-gray-400 mt-0.5 truncate">🕐 {p.opening_hours}</p>}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           {catLabel && catLabel !== 'other' && (
-                            <span className="text-[10px] border-2 border-black px-1.5 py-0.5 font-bold bg-white capitalize">
+                            <span
+                              className="text-[10px] border-2 px-1.5 py-0.5 font-bold capitalize"
+                              style={poiColors
+                                ? { backgroundColor: poiColors.color, borderColor: poiColors.stroke, color: '#fff' }
+                                : { borderColor: '#000', backgroundColor: '#fff' }}
+                            >
                               {catLabel}
                             </span>
                           )}
-                          {!isOSM && p.id && (
+                          {isPOI && p.id && (
+                            <a
+                              href={`/pois/${p.id.replace('/', '_')}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                            >
+                              Details →
+                            </a>
+                          )}
+                          {!isPOI && !isOSM && p.id && (
                             <a
                               href={`/locations/${p.id}`}
                               onClick={e => e.stopPropagation()}
@@ -822,6 +974,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             flyTo={flyTo}
             openVenuePopup={surpriseVenuePopup}
             liveRadar={liveRadar}
+            poiData={poiData}
           />
         </ErrorBoundary>
       </div>
