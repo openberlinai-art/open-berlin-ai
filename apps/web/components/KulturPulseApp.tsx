@@ -47,6 +47,13 @@ const OSM_CAT_LABELS: Record<string, string> = {
   street_art:    'Street Art',
 }
 
+const VENUE_CAT_LABELS: Record<string, string> = {
+  museum: 'Museum', gallery: 'Gallery', theatre: 'Theatre', cinema: 'Cinema',
+  concert_hall: 'Concert Hall', club: 'Club', library: 'Library',
+  community_centre: 'Community', religious: 'Religious', education: 'Education',
+  sports_venue: 'Sports', open_air: 'Open Air', virtual: 'Virtual', other: 'Other',
+}
+
 interface Props {
   initialEvents: Event[]
   initialTotal:  number
@@ -557,9 +564,9 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             {/* Cultural venues */}
             <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
               <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Cultural</span>
-              {(['all', 'museum', 'gallery', 'theatre', 'library', 'other'] as const).map(c => (
+              {(['all', 'museum', 'gallery', 'theatre', 'cinema', 'concert_hall', 'club', 'library', 'community_centre', 'other'] as const).map(c => (
                 <button key={c} onClick={() => setVenueCat(venueCat === c && c !== 'all' ? 'all' : c)} className={venueCat === c ? btnActive : btn}>
-                  {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
+                  {c === 'all' ? 'All' : (VENUE_CAT_LABELS[c] ?? c)}
                 </button>
               ))}
             </div>
@@ -609,25 +616,41 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 })}
               </div>
               {/* Expanded subcategories */}
-              {POI_GROUPS.filter(g => expandedGroups[g.key]).map(group => (
-                <div key={group.key} className="flex flex-wrap gap-1 pb-1">
-                  <span className="text-[9px] text-gray-400 w-full">{group.label}</span>
-                  {group.categories.map(cat => {
-                    const layerKey = `${group.key}:${cat.key}`
-                    const isActive = !!poiLayers[layerKey]
-                    return (
+              {POI_GROUPS.filter(g => expandedGroups[g.key]).map(group => {
+                const allKeys = group.categories.map(c => `${group.key}:${c.key}`)
+                const allOn = allKeys.every(k => poiLayers[k])
+                return (
+                  <div key={group.key} className="flex flex-wrap gap-1 pb-1">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[9px] text-gray-400">{group.label}</span>
                       <button
-                        key={cat.key}
-                        onClick={() => setPOILayers(l => ({ ...l, [layerKey]: !l[layerKey] }))}
-                        className={isActive ? btnActive : btn}
-                        style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                        onClick={() => {
+                          const update: Record<string, boolean> = {}
+                          allKeys.forEach(k => { update[k] = !allOn })
+                          setPOILayers(l => ({ ...l, ...update }))
+                        }}
+                        className="text-[9px] text-gray-400 hover:text-black underline"
                       >
-                        {cat.label}
+                        {allOn ? 'Clear all' : 'Select all'}
                       </button>
-                    )
-                  })}
-                </div>
-              ))}
+                    </div>
+                    {group.categories.map(cat => {
+                      const layerKey = `${group.key}:${cat.key}`
+                      const isActive = !!poiLayers[layerKey]
+                      return (
+                        <button
+                          key={cat.key}
+                          onClick={() => setPOILayers(l => ({ ...l, [layerKey]: !l[layerKey] }))}
+                          className={isActive ? btnActive : btn}
+                          style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                        >
+                          {cat.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })}
               <span className="text-[11px] text-gray-400">
                 {allVenueFeatures.length} venue{allVenueFeatures.length !== 1 ? 's' : ''}
               </span>
@@ -796,7 +819,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   const isOSM  = !isPOI && typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
                   const catLabel = isPOI
                     ? getPOILabel(p.category_group!, p.category ?? '')
-                    : OSM_CAT_LABELS[p.category ?? ''] ?? p.category
+                    : OSM_CAT_LABELS[p.category ?? ''] ?? VENUE_CAT_LABELS[p.category ?? ''] ?? p.category
                   const poiColors = isPOI ? getPOIColor(p.category_group!, p.category ?? '') : null
                   return (
                     <div

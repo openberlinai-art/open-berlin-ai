@@ -1,13 +1,32 @@
 import type { Env, KulturdatenLocation } from './types'
 
-// Derive category from German location name keywords
-function mapCategory(name: string | null | undefined): string {
-  if (!name) return 'other'
-  const n = name.toLowerCase()
-  if (/museum|ausstellung|ausstellungsraum|kunsthalle|sammlung|gedenkst|memorial|historisch|jüdisch/.test(n)) return 'museum'
-  if (/galerie|gallery|kunstverein|projektraum|atelier|kunsthaus/.test(n)) return 'gallery'
-  if (/theater|theatre|bühne|spielstätte|oper|varieté|kabarett|philharmonie|konzerthaus|konzerthalle|volksbühne|tanztheater/.test(n)) return 'theatre'
-  if (/bibliothek|bücherei/.test(n))                         return 'library'
+// Derive category from German location name + description keywords
+function classifyText(text: string): string | null {
+  if (/museum|ausstellung|ausstellungsraum|kunsthalle|sammlung|gedenkst|memorial|historisch|jüdisch|haus der kultur/i.test(text)) return 'museum'
+  if (/galerie|gallery|kunstverein|projektraum|atelier|kunsthaus|kunst\s?raum|showroom/i.test(text)) return 'gallery'
+  if (/kino|cinema|filmtheater|freiluftkino/i.test(text)) return 'cinema'
+  if (/konzerthaus|konzerthalle|festsaal|columbiahalle|tempodrom|lido|astra|admiralspalast/i.test(text)) return 'concert_hall'
+  if (/(?<!golf)club|techno|berghain|tresor|watergate|sisyphos/i.test(text)) return 'club'
+  if (/theater|theatre|bühne|spielstätte|oper|varieté|kabarett|philharmonie|volksbühne|tanztheater|puppentheater|figurentheater|bka|hau\b|ballhaus/i.test(text)) return 'theatre'
+  if (/bibliothek|bücherei/i.test(text)) return 'library'
+  if (/stadtteilzentrum|bürgerhaus|kulturzentrum|familienzentrum|nachbarschafts|begegnungsstätte|gemeinschaftshaus/i.test(text)) return 'community_centre'
+  if (/kirche|gemeinde.{0,20}(?:evangel|kathol)|moschee|synagoge|dom\b|kapelle/i.test(text)) return 'religious'
+  if (/werkstatt|volkshochschule|\bvhs\b|akademie|bildungszentrum|lernwerkstatt/i.test(text)) return 'education'
+  if (/strandbad|schwimmhalle|sporthalle|stadion|sportplatz|turnhalle/i.test(text)) return 'sports_venue'
+  if (/freilichtbühne|open\s?air|waldbühne|zirkus|freiluft/i.test(text)) return 'open_air'
+  if (/\bonline\b|\bzoom\b|\bdigital\b|livestream|virtuell/i.test(text)) return 'virtual'
+  return null
+}
+
+function mapCategory(name: string | null | undefined, description?: string | null): string {
+  if (name) {
+    const cat = classifyText(name)
+    if (cat) return cat
+  }
+  if (description) {
+    const cat = classifyText(description)
+    if (cat) return cat
+  }
   return 'other'
 }
 
@@ -73,9 +92,10 @@ export async function ingestLocations(env: Env): Promise<number> {
       const batch = locations.slice(i, i + 50)
       await env.DB.batch(batch.map(loc => {
         const name          = loc.title?.de ?? loc.title?.en ?? null
+        const description   = loc.description?.de ?? loc.description?.en ?? null
         const lat           = loc.geo?.latitude  ?? null
         const lng           = loc.geo?.longitude ?? null
-        const category      = mapCategory(name)
+        const category      = mapCategory(name, description)
         const address       = loc.address
           ? [loc.address.streetAddress, loc.address.postalCode, loc.address.addressLocality]
               .filter(Boolean).join(', ')
@@ -83,7 +103,6 @@ export async function ingestLocations(env: Env): Promise<number> {
         const borough       = loc.borough        ?? null
         const website       = loc.website        ?? null
         const tags          = JSON.stringify(loc.tags ?? [])
-        const description   = loc.description?.de ?? loc.description?.en ?? null
         const phone         = loc.contact?.telephone ?? null
         const accessibility = loc.accessibility?.length
           ? JSON.stringify(loc.accessibility.map(a =>
