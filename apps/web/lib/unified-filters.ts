@@ -182,6 +182,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('vintage_shop', 'Vintage',      '#d97706', '#92400e', 'poi', 'vintage_shop'),
       vc('convenience',  'Convenience',  '#059669', '#047857', 'poi', 'convenience'),
       vc('florist',      'Florists',     '#ec4899', '#db2777', 'poi', 'florist'),
+      vc('bicycle_shop', 'Bike Shops',   '#15803d', '#14532d', 'poi', 'bicycle_shop'),
     ],
   },
 

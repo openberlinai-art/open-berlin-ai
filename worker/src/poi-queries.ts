@@ -123,6 +123,7 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   { key: 'vintage_shop',       group: 'shopping',      label: 'Vintage Shops' },
   { key: 'convenience',        group: 'shopping',      label: 'Convenience' },
   { key: 'florist',            group: 'shopping',      label: 'Florists' },
+  { key: 'bicycle_shop',       group: 'shopping',      label: 'Bike Shops' },
 
   // Accommodation
   { key: 'hotel',              group: 'accommodation', label: 'Hotels' },
@@ -248,6 +249,7 @@ const OVERPASS_QUERIES: Record<string, string> = {
   vintage_shop: `[out:json][timeout:30];(node[shop=second_hand]({BBOX});way[shop=second_hand]({BBOX});node[shop=vintage]({BBOX}););out center;`,
   convenience: `[out:json][timeout:60];(node[shop=convenience]({BBOX});way[shop=convenience]({BBOX}););out center;`,
   florist: `[out:json][timeout:30];(node[shop=florist]({BBOX});way[shop=florist]({BBOX}););out center;`,
+  bicycle_shop: `[out:json][timeout:30];(node[shop=bicycle]({BBOX});way[shop=bicycle]({BBOX}););out center;`,
 
   // Accommodation
   hotel: `[out:json][timeout:30];(node[tourism=hotel]({BBOX});way[tourism=hotel]({BBOX}););out center;`,

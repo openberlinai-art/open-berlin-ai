@@ -155,6 +155,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'vintage_shop', label: 'Vintage',      color: '#d97706', stroke: '#92400e' },
       { key: 'convenience',  label: 'Convenience',  color: '#059669', stroke: '#047857' },
       { key: 'florist',      label: 'Florists',     color: '#ec4899', stroke: '#db2777' },
+      { key: 'bicycle_shop', label: 'Bike Shops',   color: '#15803d', stroke: '#14532d' },
     ],
   },
   {
