@@ -187,6 +187,45 @@ CREATE TABLE IF NOT EXISTS osm_venues (
 CREATE INDEX IF NOT EXISTS idx_osm_venues_category ON osm_venues(category);
 CREATE INDEX IF NOT EXISTS idx_osm_venues_geo      ON osm_venues(lat, lng);
 
+-- ─── POIs (expanded OSM categories — Berlin + Brandenburg) ──────────────────
+
+CREATE TABLE IF NOT EXISTS pois (
+  id             TEXT    PRIMARY KEY,      -- "node/12345" or "way/67890"
+  category_group TEXT    NOT NULL,         -- heritage, monuments, worship, etc.
+  category       TEXT    NOT NULL,         -- castle, lake, restaurant, etc.
+  name           TEXT,
+  lat            REAL    NOT NULL,
+  lng            REAL    NOT NULL,
+  geohash        TEXT    NOT NULL,         -- 6-char geohash for spatial prefix queries
+  region         TEXT    NOT NULL DEFAULT 'berlin',  -- 'berlin' | 'brandenburg'
+  address        TEXT,
+  website        TEXT,
+  phone          TEXT,
+  opening_hours  TEXT,
+  description    TEXT,
+  operator       TEXT,
+  tags_json      TEXT,                     -- JSON: extra OSM tags (cuisine, sport, etc.)
+  refreshed_at   TEXT    DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pois_group_geohash ON pois(category_group, geohash);
+CREATE INDEX IF NOT EXISTS idx_pois_cat_geohash   ON pois(category, geohash);
+CREATE INDEX IF NOT EXISTS idx_pois_geo           ON pois(lat, lng);
+CREATE INDEX IF NOT EXISTS idx_pois_category      ON pois(category);
+
+-- ─── POI ingestion log ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS poi_ingestion_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  category      TEXT    NOT NULL,
+  region        TEXT    NOT NULL,
+  status        TEXT    NOT NULL,   -- 'running','success','failed'
+  row_count     INTEGER DEFAULT 0,
+  started_at    TEXT    DEFAULT (datetime('now')),
+  completed_at  TEXT,
+  error_message TEXT
+);
+
 -- ─── Rate limiting (best-effort, per-IP per window) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_limits (

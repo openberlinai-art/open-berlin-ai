@@ -14,6 +14,7 @@ import {
 import type { VBBStop, Departure } from '@/lib/opendata'
 import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
+import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
 const INITIAL_VIEW = { longitude: 13.405, latitude: 52.52, zoom: 11 }
@@ -51,6 +52,7 @@ interface Props {
   flyTo?:          [number, number] | null
   openVenuePopup?: ({ _key: number } & VenuePopupState) | null
   liveRadar?:      boolean
+  poiData?:        Record<string, GeoJSON.FeatureCollection>  // keyed by "group:category"
 }
 
 interface TransitPopupState {
@@ -140,7 +142,7 @@ interface RadarPopupState {
   direction: string
 }
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup, liveRadar = false }: Props) {
+export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup, liveRadar = false, poiData = {} }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -343,6 +345,43 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
       return
     }
 
+    // POI marker → show info popup (link to /pois/:id)
+    if ((layerId ?? '').startsWith('poi-') && (layerId ?? '').endsWith('-point')) {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      const catGroup = (props.category_group as string) ?? ''
+      const cat      = (props.category as string) ?? ''
+      setVenuePopup({
+        lat:      coords[1],
+        lng:      coords[0],
+        name:     (props.name as string) ?? `Unnamed ${getPOILabel(catGroup, cat)}`,
+        category: getPOILabel(catGroup, cat),
+        address:  (props.address as string) ?? undefined,
+        website:  (props.website as string) ?? undefined,
+        id:       `poi:${(props.id as string)?.replace('/', '_') ?? ''}`,
+      })
+      setTransitPopup(null)
+      setGreenspacePopup(null)
+      return
+    }
+
+    // POI cluster → zoom in
+    if ((layerId ?? '').startsWith('poi-') && (layerId ?? '').endsWith('-clusters')) {
+      const map = mapRef.current
+      if (!map) return
+      const clusterId  = feature.properties?.cluster_id as number
+      const sourceName = feature.source as string
+      const coords     = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      try {
+        const source = map.getMap().getSource(sourceName) as GeoJSONSource | undefined
+        source?.getClusterExpansionZoom(clusterId)
+          .then(zoom => map.flyTo({ center: coords, zoom: zoom + 1, duration: 400 }))
+          .catch(() => {})
+      } catch { /* ignore */ }
+      return
+    }
+
     // Radar vehicle → show line popup
     if (layerId === 'radar-vehicles') {
       const props  = feature.properties
@@ -484,6 +523,10 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     `osm-${c.key}-point`, `osm-${c.key}-clusters`,
   ])
 
+  const poiInteractiveIds = Object.keys(poiData).flatMap(key => [
+    `poi-${key}-point`, `poi-${key}-clusters`,
+  ])
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -503,6 +546,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           'parks-point', 'playgrounds-point',
           'radar-vehicles',
           ...osmInteractiveIds,
+          ...poiInteractiveIds,
         ]}
         onLoad={onLoad}
         onMoveEnd={onMoveEnd}
@@ -727,6 +771,58 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   'circle-radius':       6,
                   'circle-color':        cat.color,
                   'circle-stroke-color': cat.stroke,
+                  'circle-stroke-width': 1.5,
+                  'circle-opacity':      0.85,
+                }}
+              />
+            </Source>
+          )
+        })}
+
+        {/* ── POI layers (dynamic, keyed by group:category) ── */}
+        {Object.entries(poiData).map(([key, data]) => {
+          if (!data?.features?.length) return null
+          const [group, cat] = key.split(':')
+          const { color, stroke } = getPOIColor(group, cat)
+          return (
+            <Source
+              key={`poi-${key}`}
+              id={`poi-${key}`}
+              type="geojson"
+              data={data}
+              cluster={true}
+              clusterMaxZoom={14}
+              clusterRadius={40}
+            >
+              <Layer
+                id={`poi-${key}-clusters`}
+                type="circle"
+                filter={['has', 'point_count']}
+                paint={{
+                  'circle-color':   color,
+                  'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
+                  'circle-opacity': 0.85,
+                }}
+              />
+              <Layer
+                id={`poi-${key}-cluster-count`}
+                type="symbol"
+                filter={['has', 'point_count']}
+                layout={{
+                  'text-field': '{point_count_abbreviated}',
+                  'text-size':  11,
+                  'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
+                }}
+                paint={{ 'text-color': '#fff' }}
+              />
+              <Layer
+                id={`poi-${key}-point`}
+                type="circle"
+                filter={['!', ['has', 'point_count']]}
+                paint={{
+                  'circle-radius':       6,
+                  'circle-color':        color,
+                  'circle-stroke-color': stroke,
                   'circle-stroke-width': 1.5,
                   'circle-opacity':      0.85,
                 }}
@@ -995,7 +1091,15 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                   >
                     Street View
                   </a>
-                  {venuePopup.id && !venuePopup.id.startsWith('node/') && !venuePopup.id.startsWith('way/') && (
+                  {venuePopup.id && venuePopup.id.startsWith('poi:') && (
+                    <Link
+                      href={`/pois/${venuePopup.id.replace('poi:', '')}`}
+                      className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                    >
+                      View details →
+                    </Link>
+                  )}
+                  {venuePopup.id && !venuePopup.id.startsWith('node/') && !venuePopup.id.startsWith('way/') && !venuePopup.id.startsWith('poi:') && (
                     <Link
                       href={`/locations/${venuePopup.id}`}
                       className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"

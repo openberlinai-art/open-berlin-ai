@@ -9,6 +9,7 @@ import {
   fetchJourney,
   fetchOSMVenues,
   fetchWeather,
+  fetchPOIs,
 } from '@/lib/opendata'
 
 export function useParks(enabled: boolean) {
@@ -84,6 +85,22 @@ export function useWeather() {
     queryFn:         fetchWeather,
     staleTime:       10 * 60_000,
     refetchInterval: 10 * 60_000,
+  })
+}
+
+export function usePOIs(
+  group: string,
+  bbox: string | null,
+  enabled: boolean,
+  category?: string,
+  region?: string,
+) {
+  return useQuery({
+    queryKey:        ['pois', group, category ?? 'all', bbox ?? '', region ?? 'all'],
+    queryFn:         () => fetchPOIs(group, bbox!, category, region),
+    enabled:         enabled && bbox !== null,
+    staleTime:       5 * 60_000,
+    placeholderData: keepPreviousData,
   })
 }
 

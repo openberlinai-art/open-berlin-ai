@@ -5,6 +5,10 @@ import { ingestEvents } from './ingest'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
+import { ingestPOIs } from './poi-ingest'
+import { bboxToGeohashPrefixes } from './geohash'
+import { POI_CATEGORIES } from './poi-queries'
+import type { POICategoryGroup } from './poi-queries'
 
 const OSM_CATEGORIES = new Set([
   'live_music', 'jazz', 'cinema', 'clubs', 'galleries', 'street_art', 'museum',
@@ -304,6 +308,147 @@ app.get('/api/geodata/osm/:category', async c => {
   return c.json({ type: 'FeatureCollection', features }, 200, {
     'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
   })
+})
+
+// ─── GET /api/pois ─────────────────────────────────────────────────────────────
+// ?bbox=minLng,minLat,maxLng,maxLat (required) &group=heritage (required)
+// &category=castle (optional) &region=berlin|brandenburg (optional) &limit=300
+
+const POI_GROUPS_SET = new Set<string>([
+  'heritage','monuments','worship','tourism','nature','transport',
+  'food_drink','sports','services','nightlife','shopping','accommodation',
+])
+
+app.get('/api/pois', async c => {
+  const { bbox, group, category, region, limit = '300' } = c.req.query()
+
+  if (!bbox || !group) return c.json({ error: 'bbox and group are required' }, 400)
+  if (!POI_GROUPS_SET.has(group)) return c.json({ error: 'Unknown group' }, 400)
+
+  const parts = bbox.split(',').map(Number)
+  if (parts.length !== 4 || parts.some(n => isNaN(n))) {
+    return c.json({ error: 'Invalid bbox format' }, 400)
+  }
+  const [minLng, minLat, maxLng, maxLat] = parts
+  const cap = Math.min(500, Math.max(1, parseInt(limit, 10)))
+
+  // Try geohash-based query first
+  const prefixes = bboxToGeohashPrefixes(minLat, minLng, maxLat, maxLng)
+
+  let query: string
+  const params: (string | number)[] = []
+
+  if (prefixes.length <= 20 && prefixes.length > 0) {
+    // Fast path: geohash prefix lookup (prefixes are shorter than stored 6-char hashes)
+    const prefixLen = prefixes[0].length
+    const placeholders = prefixes.map(() => '?').join(',')
+    if (category) {
+      query = `SELECT * FROM pois WHERE category = ? AND substr(geohash, 1, ${prefixLen}) IN (${placeholders}) AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`
+      params.push(category, ...prefixes, minLat, maxLat, minLng, maxLng)
+    } else {
+      query = `SELECT * FROM pois WHERE category_group = ? AND substr(geohash, 1, ${prefixLen}) IN (${placeholders}) AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`
+      params.push(group, ...prefixes, minLat, maxLat, minLng, maxLng)
+    }
+  } else {
+    // Fallback: bbox-only query for wide zoom
+    if (category) {
+      query = `SELECT * FROM pois WHERE category = ? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`
+      params.push(category, minLat, maxLat, minLng, maxLng)
+    } else {
+      query = `SELECT * FROM pois WHERE category_group = ? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`
+      params.push(group, minLat, maxLat, minLng, maxLng)
+    }
+  }
+
+  if (region && (region === 'berlin' || region === 'brandenburg')) {
+    query += ' AND region = ?'
+    params.push(region)
+  }
+
+  query += ' LIMIT ?'
+  params.push(cap)
+
+  const { results } = await c.env.DB.prepare(query).bind(...params).all<Record<string, unknown>>()
+
+  const features = results.map(row => ({
+    type:     'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [row.lng, row.lat] },
+    properties: {
+      id:             row.id,
+      name:           row.name,
+      category_group: row.category_group,
+      category:       row.category,
+      region:         row.region,
+      address:        row.address,
+      website:        row.website,
+      phone:          row.phone,
+      opening_hours:  row.opening_hours,
+      description:    row.description,
+      operator:       row.operator,
+      tags_json:      row.tags_json,
+    },
+  }))
+
+  return c.json(
+    { type: 'FeatureCollection', features, truncated: results.length >= cap },
+    200,
+    { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' },
+  )
+})
+
+// ─── GET /api/pois/categories ─────────────────────────────────────────────────
+
+app.get('/api/pois/categories', async c => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT category_group, category, COUNT(*) as count FROM pois GROUP BY category_group, category ORDER BY category_group, category`
+  ).all<{ category_group: string; category: string; count: number }>()
+
+  return c.json({ data: results }, 200, {
+    'Cache-Control': 'public, max-age=3600',
+  })
+})
+
+// ─── GET /api/pois/:id ───────────────────────────────────────────────────────
+
+app.get('/api/pois/:id', async c => {
+  // ID comes as "node_12345" — convert underscore back to slash
+  const rawId = c.req.param('id')
+  const id = rawId.replace('_', '/')
+
+  const row = await c.env.DB.prepare(`SELECT * FROM pois WHERE id = ?`).bind(id)
+    .first<Record<string, unknown>>()
+  if (!row) return c.json({ error: 'Not found' }, 404)
+
+  return c.json({ data: row }, 200, {
+    'Cache-Control': 'public, max-age=3600',
+  })
+})
+
+// ─── POST /api/ingest-pois (protected) ────────────────────────────────────────
+
+app.post('/api/ingest-pois', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const region = (c.req.query('region') ?? 'berlin') as 'berlin' | 'brandenburg'
+  const group  = c.req.query('group') as POICategoryGroup | undefined
+
+  if (region !== 'berlin' && region !== 'brandenburg') {
+    return c.json({ error: 'region must be berlin or brandenburg' }, 400)
+  }
+  if (group && !POI_GROUPS_SET.has(group)) {
+    return c.json({ error: 'Unknown group' }, 400)
+  }
+
+  c.executionCtx.waitUntil(
+    ingestPOIs(c.env, region, group)
+      .then(r => console.log(`[poi-ingest:manual] ${region}/${group ?? 'all'}: ${r.total} rows, ${r.categories} categories`))
+      .catch(err => console.error('[poi-ingest:manual] failed:', err))
+  )
+
+  return c.json({ ok: true, message: `POI ingest started: region=${region}, group=${group ?? 'all'}` })
 })
 
 // ─── POST /api/vibe-check ─────────────────────────────────────────────────────
@@ -1005,7 +1150,7 @@ function normSql(col: string): string {
 app.get('/api/search', async c => {
   const raw  = (c.req.query('q') ?? '').trim()
   const lang = c.req.query('lang') ?? 'de'
-  if (raw.length < 2) return c.json({ events: [], locations: [] })
+  if (raw.length < 2) return c.json({ events: [], locations: [], pois: [] })
 
   // Translate the query to German so we always search the canonical German data
   let searchTerm = raw
@@ -1035,7 +1180,7 @@ app.get('/api/search', async c => {
   const norm    = normalizeQ(searchTerm)
   const pattern = `%${norm}%`
 
-  const [evRes, locRes] = await Promise.all([
+  const [evRes, locRes, poiRes] = await Promise.all([
     c.env.DB.prepare(`
       SELECT id, title, date_start, time_start, category, price_type,
              location_name, borough, lat, lng
@@ -1054,9 +1199,16 @@ app.get('/api/search', async c => {
         AND lat IS NOT NULL
       LIMIT 15
     `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`
+      SELECT id, name, category_group, category, region, address, lat, lng
+      FROM pois
+      WHERE ${normSql('name')} LIKE ?
+         OR ${normSql('address')} LIKE ?
+      LIMIT 15
+    `).bind(pattern, pattern).all<Record<string, unknown>>(),
   ])
 
-  return c.json({ events: evRes.results, locations: locRes.results })
+  return c.json({ events: evRes.results, locations: locRes.results, pois: poiRes.results })
 })
 
 // ─── POST /api/ingest (protected) ─────────────────────────────────────────────
@@ -1158,7 +1310,7 @@ export default {
         ])
       )
     } else if (event.cron === '0 2 * * *') {
-      // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup
+      // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin
       ctx.waitUntil(
         Promise.all([
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
@@ -1171,6 +1323,10 @@ export default {
             env.DB.prepare(`DELETE FROM rate_limits WHERE 1=1`),
           ]).then(([a, r]) => console.log(`[cleanup] auth_tokens=${a.meta.changes} rate_limits=${r.meta.changes}`))
             .catch(e => console.error('[cleanup]', e)),
+          // POI ingest — Berlin (daily)
+          ingestPOIs(env, 'berlin')
+            .then(r => console.log(`[poi-ingest:berlin] ${r.total} rows, ${r.categories} categories`))
+            .catch(err => console.error('[poi-ingest:berlin]', err)),
         ])
       )
     } else if (event.cron === '0 8 * * 1') {
@@ -1196,6 +1352,15 @@ export default {
           .then(s => console.log(`[pretranslate:cron] translated=${s.translated} skipped=${s.skipped}`))
           .catch(e => console.error('[pretranslate:cron]', e))
       )
+      // POI ingest — Brandenburg (only on Wednesdays)
+      const dayOfWeek = new Date().getUTCDay()
+      if (dayOfWeek === 3) { // Wednesday
+        ctx.waitUntil(
+          ingestPOIs(env, 'brandenburg')
+            .then(r => console.log(`[poi-ingest:brandenburg] ${r.total} rows, ${r.categories} categories`))
+            .catch(err => console.error('[poi-ingest:brandenburg]', err))
+        )
+      }
     } else {
       // Hourly ingest — next 30 days, fast (~7 pages)
       ctx.waitUntil(
