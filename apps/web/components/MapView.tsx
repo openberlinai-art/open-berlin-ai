@@ -9,9 +9,10 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { getCategoryHex } from '@/lib/utils'
 import type { Event }     from '@/lib/types'
 import {
-  useParks, usePlaygrounds, useVenuesByBbox, useTransitStops, useDepartures, useOSMVenues,
+  useTransitStops, useDepartures,
 } from '@/hooks/useCulturalData'
 import type { VBBStop, Departure } from '@/lib/opendata'
+import type { ResolvedFilters } from '@/lib/unified-filters'
 import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
@@ -28,31 +29,27 @@ const OSM_CATS = [
   { key: 'clubs',         color: '#7c3aed', stroke: '#4c1d95' },
   { key: 'galleries',     color: '#be123c', stroke: '#881337' },
   { key: 'street_art',    color: '#e879f9', stroke: '#a21caf' },
-  { key: 'osm_museum',    color: '#0891b2', stroke: '#164e63' },
+  { key: 'museum',        color: '#0891b2', stroke: '#164e63' },
 ] as const
-
-type OsmKey = typeof OSM_CATS[number]['key']
 
 const OSM_POINT_LAYERS   = new Set(OSM_CATS.map(c => `osm-${c.key}-point`))
 const OSM_CLUSTER_LAYERS = new Set(OSM_CATS.map(c => `osm-${c.key}-clusters`))
 
 interface Props {
-  events:        Event[]
-  activeId:      string | null
-  onEventSelect: (id: string | null) => void
-  layers: {
-    parks: boolean; playgrounds: boolean
-    venues: boolean; galleries: boolean; museums: boolean
-    live_music: boolean; jazz: boolean; cinema: boolean; clubs: boolean
-    osm_galleries: boolean; street_art: boolean; osm_museum: boolean
-  }
+  events:          Event[]
+  activeId:        string | null
+  onEventSelect:   (id: string | null) => void
+  resolvedFilters: ResolvedFilters
+  venueGeoJSON?:   GeoJSON.FeatureCollection  // pre-filtered D1 venues
   mode:            'events' | 'venues'
-  venueCat?:       string
   onBboxChange:    (bbox: string) => void
   flyTo?:          [number, number] | null
   openVenuePopup?: ({ _key: number } & VenuePopupState) | null
   liveRadar?:      boolean
   poiData?:        Record<string, GeoJSON.FeatureCollection>  // keyed by "group:category"
+  osmData?:        Record<string, GeoJSON.FeatureCollection>  // keyed by osm category key
+  parksData?:      GeoJSON.FeatureCollection
+  playgroundsData?: GeoJSON.FeatureCollection
 }
 
 interface TransitPopupState {
@@ -142,11 +139,17 @@ interface RadarPopupState {
   direction: string
 }
 
-export default function MapView({ events, activeId, onEventSelect, layers, mode, venueCat, onBboxChange, flyTo, openVenuePopup, liveRadar = false, poiData = {} }: Props) {
+export default function MapView({
+  events, activeId, onEventSelect,
+  resolvedFilters,
+  venueGeoJSON, mode, onBboxChange, flyTo, openVenuePopup,
+  liveRadar = false,
+  poiData = {}, osmData = {},
+  parksData, playgroundsData,
+}: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const [bbox,             setBbox]             = useState<string | null>(null)
   const [transitPopup,     setTransitPopup]     = useState<TransitPopupState | null>(null)
   const [venuePopup,       setVenuePopup]       = useState<VenuePopupState | null>(null)
   const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
@@ -155,38 +158,11 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
   const [radarData,        setRadarData]        = useState<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] })
   const [radarPopup,       setRadarPopup]       = useState<RadarPopupState | null>(null)
 
-  // ── Queries ──────────────────────────────────────────────────────────────────
+  // ── Queries (only transit still fetched here) ──────────────────────────────
 
-  const { data: parksData,       isFetching: parksFetching }       = useParks(layers.parks)
-  const { data: playgroundsData, isFetching: playgroundsFetching } = usePlaygrounds(layers.playgrounds)
-
-  const venuesBboxCat = venueCat && venueCat !== 'all' && !['museum', 'gallery'].includes(venueCat)
-    ? venueCat
-    : undefined
-
-  const { data: venuesData,    isFetching: venuesFetching,
-          isError: venuesError }                                    = useVenuesByBbox(bbox, layers.venues, venuesBboxCat)
-  const { data: galleriesData, isFetching: galleriesFetching }     = useVenuesByBbox(bbox, layers.galleries, 'gallery')
-  const { data: museumsData,   isFetching: museumsFetching }       = useVenuesByBbox(bbox, layers.museums, 'museum')
-
-  // OSM cultural venue layers
-  const { data: liveMusicData }  = useOSMVenues('live_music',  layers.live_music,    bbox)
-  const { data: jazzData }       = useOSMVenues('jazz',        layers.jazz,          bbox)
-  const { data: cinemaData }     = useOSMVenues('cinema',      layers.cinema,        bbox)
-  const { data: clubsData }      = useOSMVenues('clubs',       layers.clubs,         bbox)
-  const { data: galleriesData2 } = useOSMVenues('galleries',   layers.osm_galleries, bbox)
-  const { data: streetArtData }  = useOSMVenues('street_art',  layers.street_art,    bbox)
-  const { data: osmMuseumData }  = useOSMVenues('museum',      layers.osm_museum,    bbox)
-
-  const osmDataMap: Record<OsmKey, GeoJSON.FeatureCollection | undefined> = {
-    live_music:  liveMusicData,
-    jazz:        jazzData,
-    cinema:      cinemaData,
-    clubs:       clubsData,
-    galleries:   galleriesData2,
-    street_art:  streetArtData,
-    osm_museum:  osmMuseumData,
-  }
+  const showParks       = resolvedFilters.geodataLayers.has('parks')
+  const showPlaygrounds = resolvedFilters.geodataLayers.has('playgrounds')
+  const showVenues      = mode === 'venues' && !!venueGeoJSON?.features?.length
 
   const activeEvent = useMemo(
     () => events.find(e => e.id === activeId) ?? null,
@@ -243,7 +219,6 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     const b = map.getBounds()
     if (!b) return
     const bboxStr = `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`
-    setBbox(bboxStr)
     onBboxChange(bboxStr)
   }, [onBboxChange])
 
@@ -272,7 +247,6 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
 
     // Cluster → zoom in
     if (layerId === 'event-clusters' || layerId === 'venue-clusters' ||
-        layerId === 'gallery-clusters' || layerId === 'museum-clusters' ||
         OSM_CLUSTER_LAYERS.has(layerId ?? '')) {
       const map = mapRef.current
       if (!map) return
@@ -306,8 +280,8 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
       return
     }
 
-    // Venue / gallery / museum marker → show info popup
-    if (layerId === 'venues-point' || layerId === 'galleries-point' || layerId === 'museums-point') {
+    // D1 venue marker → show info popup
+    if (layerId === 'venues-point') {
       const props  = feature.properties
       if (!props) return
       const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
@@ -516,16 +490,18 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
     return () => clearInterval(interval)
   }, [liveRadar])
 
-  const isFetching = parksFetching || playgroundsFetching || venuesFetching || galleriesFetching || museumsFetching
-
   // Build interactiveLayerIds
-  const osmInteractiveIds = OSM_CATS.flatMap(c => [
-    `osm-${c.key}-point`, `osm-${c.key}-clusters`,
-  ])
+  const osmInteractiveIds = useMemo(() => {
+    return Object.keys(osmData).flatMap(key => [
+      `osm-${key}-point`, `osm-${key}-clusters`,
+    ])
+  }, [osmData])
 
-  const poiInteractiveIds = Object.keys(poiData).flatMap(key => [
-    `poi-${key}-point`, `poi-${key}-clusters`,
-  ])
+  const poiInteractiveIds = useMemo(() => {
+    return Object.keys(poiData).flatMap(key => [
+      `poi-${key}-point`, `poi-${key}-clusters`,
+    ])
+  }, [poiData])
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -540,9 +516,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         interactiveLayerIds={[
           'events-point', 'event-clusters',
           'transit-point',
-          'venues-point',    'venue-clusters',
-          'galleries-point', 'gallery-clusters',
-          'museums-point',   'museum-clusters',
+          'venues-point', 'venue-clusters',
           'parks-point', 'playgrounds-point',
           'radar-vehicles',
           ...osmInteractiveIds,
@@ -557,7 +531,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         <NavigationControl position="top-right" />
 
         {/* ── Parks (centroid points) ───────────── */}
-        {layers.parks && parksData && (
+        {showParks && parksData && (
           <Source id="parks" type="geojson" data={parksData}>
             <Layer
               id="parks-point"
@@ -574,7 +548,7 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         )}
 
         {/* ── Playgrounds (centroid points) ─────── */}
-        {layers.playgrounds && playgroundsData && (
+        {showPlaygrounds && playgroundsData && (
           <Source id="playgrounds" type="geojson" data={playgroundsData}>
             <Layer
               id="playgrounds-point"
@@ -590,12 +564,12 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           </Source>
         )}
 
-        {/* ── Venues (D1 bbox, clustered) ───────── */}
-        {layers.venues && venuesData && (
+        {/* ── D1 Venues (pre-filtered, clustered) ── */}
+        {showVenues && venueGeoJSON && (
           <Source
             id="venues"
             type="geojson"
-            data={venuesData}
+            data={venueGeoJSON}
             cluster={true}
             clusterMaxZoom={14}
             clusterRadius={40}
@@ -627,7 +601,16 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
               filter={['!', ['has', 'point_count']]}
               paint={{
                 'circle-radius':       6,
-                'circle-color':        '#b45309',
+                'circle-color':        ['match', ['get', 'category'],
+                  'museum',           '#b91c1c',
+                  'gallery',          '#7c3aed',
+                  'theatre',          '#0369a1',
+                  'concert_hall',     '#b45309',
+                  'cinema',           '#0891b2',
+                  'library',          '#0369a1',
+                  'community_centre', '#15803d',
+                  '#b45309',  // default
+                ],
                 'circle-stroke-color': '#78350f',
                 'circle-stroke-width': 1.5,
                 'circle-opacity':      0.85,
@@ -636,106 +619,16 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
           </Source>
         )}
 
-        {/* ── Galleries (D1 bbox, clustered) ───────── */}
-        {layers.galleries && galleriesData && (
-          <Source
-            id="galleries"
-            type="geojson"
-            data={galleriesData}
-            cluster={true}
-            clusterMaxZoom={14}
-            clusterRadius={40}
-          >
-            <Layer
-              id="gallery-clusters"
-              type="circle"
-              filter={['has', 'point_count']}
-              paint={{
-                'circle-color':  '#6d28d9',
-                'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
-                'circle-opacity': 0.85,
-              }}
-            />
-            <Layer
-              id="gallery-cluster-count"
-              type="symbol"
-              filter={['has', 'point_count']}
-              layout={{
-                'text-field': '{point_count_abbreviated}',
-                'text-size':  11,
-                'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-              }}
-              paint={{ 'text-color': '#fff' }}
-            />
-            <Layer
-              id="galleries-point"
-              type="circle"
-              filter={['!', ['has', 'point_count']]}
-              paint={{
-                'circle-radius':       6,
-                'circle-color':        '#7c3aed',
-                'circle-stroke-color': '#4c1d95',
-                'circle-stroke-width': 1.5,
-                'circle-opacity':      0.85,
-              }}
-            />
-          </Source>
-        )}
-
-        {/* ── Museums (D1 bbox, clustered) ─────────── */}
-        {layers.museums && museumsData && (
-          <Source
-            id="museums"
-            type="geojson"
-            data={museumsData}
-            cluster={true}
-            clusterMaxZoom={14}
-            clusterRadius={40}
-          >
-            <Layer
-              id="museum-clusters"
-              type="circle"
-              filter={['has', 'point_count']}
-              paint={{
-                'circle-color':  '#991b1b',
-                'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
-                'circle-opacity': 0.85,
-              }}
-            />
-            <Layer
-              id="museum-cluster-count"
-              type="symbol"
-              filter={['has', 'point_count']}
-              layout={{
-                'text-field': '{point_count_abbreviated}',
-                'text-size':  11,
-                'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-              }}
-              paint={{ 'text-color': '#fff' }}
-            />
-            <Layer
-              id="museums-point"
-              type="circle"
-              filter={['!', ['has', 'point_count']]}
-              paint={{
-                'circle-radius':       6,
-                'circle-color':        '#b91c1c',
-                'circle-stroke-color': '#7f1d1d',
-                'circle-stroke-width': 1.5,
-                'circle-opacity':      0.85,
-              }}
-            />
-          </Source>
-        )}
-
-        {/* ── OSM hipster venue layers ──────────────── */}
-        {OSM_CATS.map(cat => {
-          const data = osmDataMap[cat.key]
-          if (!layers[cat.key] || !data) return null
+        {/* ── OSM venue layers (from props) ──────────────── */}
+        {Object.entries(osmData).map(([key, data]) => {
+          if (!data?.features?.length) return null
+          const catConfig = OSM_CATS.find(c => c.key === key)
+          const color  = catConfig?.color  ?? '#6b7280'
+          const stroke = catConfig?.stroke ?? '#4b5563'
           return (
             <Source
-              key={cat.key}
-              id={`osm-${cat.key}`}
+              key={`osm-${key}`}
+              id={`osm-${key}`}
               type="geojson"
               data={data}
               cluster={true}
@@ -743,17 +636,17 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
               clusterRadius={40}
             >
               <Layer
-                id={`osm-${cat.key}-clusters`}
+                id={`osm-${key}-clusters`}
                 type="circle"
                 filter={['has', 'point_count']}
                 paint={{
-                  'circle-color':   cat.color,
+                  'circle-color':   color,
                   'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
                   'circle-opacity': 0.85,
                 }}
               />
               <Layer
-                id={`osm-${cat.key}-cluster-count`}
+                id={`osm-${key}-cluster-count`}
                 type="symbol"
                 filter={['has', 'point_count']}
                 layout={{
@@ -764,13 +657,13 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
                 paint={{ 'text-color': '#fff' }}
               />
               <Layer
-                id={`osm-${cat.key}-point`}
+                id={`osm-${key}-point`}
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
                 paint={{
                   'circle-radius':       6,
-                  'circle-color':        cat.color,
-                  'circle-stroke-color': cat.stroke,
+                  'circle-color':        color,
+                  'circle-stroke-color': stroke,
                   'circle-stroke-width': 1.5,
                   'circle-opacity':      0.85,
                 }}
@@ -1218,41 +1111,6 @@ export default function MapView({ events, activeId, onEventSelect, layers, mode,
         )}
       </Map>
 
-      {/* ── Loading / error badges ─────────────────── */}
-      {(isFetching || venuesError) && (
-        <div className="absolute bottom-8 left-2 z-10 flex flex-col gap-1 pointer-events-none">
-          {parksFetching && (
-            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
-              Loading parks…
-            </span>
-          )}
-          {playgroundsFetching && (
-            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
-              Loading playgrounds…
-            </span>
-          )}
-          {venuesFetching && (
-            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
-              Loading venues…
-            </span>
-          )}
-          {galleriesFetching && (
-            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
-              Loading galleries…
-            </span>
-          )}
-          {museumsFetching && (
-            <span className="text-[10px] bg-white/90 border border-black px-2 py-0.5">
-              Loading museums…
-            </span>
-          )}
-          {venuesError && (
-            <span className="text-[10px] bg-red-100 border border-red-400 text-red-700 px-2 py-0.5">
-              Venues unavailable
-            </span>
-          )}
-        </div>
-      )}
     </div>
   )
 }

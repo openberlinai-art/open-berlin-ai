@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
   List, Map, CalendarDays,
@@ -13,12 +13,10 @@ import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
 import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs } from '@/hooks/useCulturalData'
-import { POI_GROUPS, getPOIColor, getPOILabel } from '@/lib/poi-config'
+import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
-  Castle, Milestone, Church, Camera, TreePine, Train,
-  UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
-  ChevronUp,
-} from 'lucide-react'
+  FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFilters, getActiveCountForGroup,
+} from '@/lib/unified-filters'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
@@ -37,22 +35,6 @@ const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
   'Tours','Film','Theater','Talks','Literature','Other',
 ]
-
-const OSM_CAT_LABELS: Record<string, string> = {
-  live_music:    'Live Music',
-  jazz:          'Jazz',
-  cinema:        'Cinema',
-  clubs:         'Clubs',
-  osm_galleries: 'Galleries',
-  street_art:    'Street Art',
-}
-
-const VENUE_CAT_LABELS: Record<string, string> = {
-  museum: 'Museum', gallery: 'Gallery', theatre: 'Theatre', cinema: 'Cinema',
-  concert_hall: 'Concert Hall', club: 'Club', library: 'Library',
-  community_centre: 'Community', religious: 'Religious', education: 'Education',
-  sports_venue: 'Sports', open_air: 'Open Air', virtual: 'Virtual', other: 'Other',
-}
 
 interface Props {
   initialEvents: Event[]
@@ -80,15 +62,51 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const catRef                  = useRef<HTMLDivElement>(null)
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [layers, setLayers] = useState({
-    parks: false, playgrounds: false, venues: false, galleries: false, museums: false,
-    live_music: false, jazz: false, cinema: false, clubs: false,
-    osm_galleries: false, street_art: false, osm_museum: false,
-  })
 
-  // POI layer toggles — keys are "group:category" e.g. "heritage:castle"
-  const [poiLayers, setPOILayers] = useState<Record<string, boolean>>({})
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  // ─── Unified filter state ──────────────────────────────────────────────────
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(CULTURE_DEFAULTS))
+  const [expandedGroup, setExpandedGroup] = useState<string | null>('culture')
+
+  const resolved = useMemo(() => resolveActiveFilters(activeFilters), [activeFilters])
+
+  function toggleFilter(key: string) {
+    setActiveFilters(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function toggleGroupExpand(groupKey: string) {
+    setExpandedGroup(prev => prev === groupKey ? null : groupKey)
+  }
+
+  function selectAllGroup(groupKey: string) {
+    const group = FILTER_GROUPS.find(g => g.key === groupKey)
+    if (!group) return
+    setActiveFilters(prev => {
+      const next = new Set(prev)
+      group.categories.forEach(c => next.add(`${groupKey}:${c.key}`))
+      return next
+    })
+  }
+
+  function clearGroup(groupKey: string) {
+    const group = FILTER_GROUPS.find(g => g.key === groupKey)
+    if (!group) return
+    setActiveFilters(prev => {
+      const next = new Set(prev)
+      group.categories.forEach(c => next.delete(`${groupKey}:${c.key}`))
+      return next
+    })
+  }
+
+  function clearAllFilters() {
+    setActiveFilters(new Set(CULTURE_DEFAULTS))
+  }
+
+  // ─── Other state ──────────────────────────────────────────────────────────
 
   const [showAuth,     setShowAuth]     = useState(false)
   const [showLists,    setShowLists]    = useState(false)
@@ -96,7 +114,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [liveRadar,    setLiveRadar]    = useState(false)
   const [mode,      setMode]      = useState<'events' | 'venues'>('events')
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
-  const [venueCat,  setVenueCat]  = useState<string>('all')
   const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
   const [surpriseVenuePopup, setSurpriseVenuePopup] = useState<({ _key: number } & VenuePopupState) | null>(null)
@@ -115,45 +132,67 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  // ─── Data fetching — uses resolved filters ────────────────────────────────
+
+  // D1 venues — fetch all, filter client-side by resolved.venueCategories
   const { data: venuesGeo, isFetching: venuesFetching } = useVenuesList(
     mapBbox,
-    mode === 'venues',
-    venueCat === 'all' ? undefined : venueCat,
+    mode === 'venues' && resolved.venueCategories.length > 0,
   )
 
-  // Always fetch parks + playgrounds so search works regardless of layer toggle
+  // Always fetch parks + playgrounds (for search); map visibility from resolved.geodataLayers
   const { data: parksData }       = useParks(true)
   const { data: playgroundsData } = usePlaygrounds(true)
 
-  const venueFeatures = venuesGeo?.features ?? []
+  // Filter venue features to only active venue categories
+  const venueFeatures = useMemo(() => {
+    if (!venuesGeo?.features) return []
+    if (resolved.venueCategories.length === 0) return []
+    const catSet = new Set(resolved.venueCategories)
+    return venuesGeo.features.filter(f => {
+      const cat = (f.properties as Record<string, unknown>)?.category as string | undefined
+      return cat ? catSet.has(cat) : catSet.has('other')
+    })
+  }, [venuesGeo, resolved.venueCategories])
 
-  // OSM cultural venue layers — hooks must be called unconditionally; enabled by layer toggle
-  const osmLiveMusic    = useOSMVenues('live_music',  layers.live_music,    mapBbox)
-  const osmJazz         = useOSMVenues('jazz',        layers.jazz,          mapBbox)
-  const osmCinema       = useOSMVenues('cinema',      layers.cinema,        mapBbox)
-  const osmClubs        = useOSMVenues('clubs',       layers.clubs,         mapBbox)
-  const osmGalleries    = useOSMVenues('galleries',   layers.osm_galleries, mapBbox)
-  const osmStreetArt    = useOSMVenues('street_art',  layers.street_art,    mapBbox)
-  const osmMuseumEnabled = layers.osm_museum || venueCat === 'museum'
-  const osmMuseum       = useOSMVenues('museum',      osmMuseumEnabled,     mapBbox)
+  // OSM hooks — called unconditionally (React rules), enabled by resolved
+  const osmLiveMusic    = useOSMVenues('live_music',  resolved.osmCategories.includes('live_music'),    mapBbox)
+  const osmJazz         = useOSMVenues('jazz',        resolved.osmCategories.includes('jazz'),          mapBbox)
+  const osmCinema       = useOSMVenues('cinema',      resolved.osmCategories.includes('cinema'),        mapBbox)
+  const osmClubs        = useOSMVenues('clubs',       resolved.osmCategories.includes('clubs'),         mapBbox)
+  const osmGalleries    = useOSMVenues('galleries',   resolved.osmCategories.includes('galleries'),     mapBbox)
+  const osmStreetArt    = useOSMVenues('street_art',  resolved.osmCategories.includes('street_art'),    mapBbox)
+  const osmMuseum       = useOSMVenues('museum',      resolved.osmCategories.includes('museum'),        mapBbox)
 
-  // POI hooks — one per enabled group (fetch all categories for that group)
-  const enabledPOIGroups = [...new Set(
-    Object.entries(poiLayers).filter(([, v]) => v).map(([k]) => k.split(':')[0])
-  )]
-  // We call usePOIs for each of the 12 possible groups, enabled only when active
-  const poiHeritage      = usePOIs('heritage',      mapBbox, enabledPOIGroups.includes('heritage'))
-  const poiMonuments     = usePOIs('monuments',      mapBbox, enabledPOIGroups.includes('monuments'))
-  const poiWorship       = usePOIs('worship',        mapBbox, enabledPOIGroups.includes('worship'))
-  const poiTourism       = usePOIs('tourism',        mapBbox, enabledPOIGroups.includes('tourism'))
-  const poiNature        = usePOIs('nature',         mapBbox, enabledPOIGroups.includes('nature'))
-  const poiTransport     = usePOIs('transport',      mapBbox, enabledPOIGroups.includes('transport'))
-  const poiFoodDrink     = usePOIs('food_drink',     mapBbox, enabledPOIGroups.includes('food_drink'))
-  const poiSports        = usePOIs('sports',         mapBbox, enabledPOIGroups.includes('sports'))
-  const poiServices      = usePOIs('services',       mapBbox, enabledPOIGroups.includes('services'))
-  const poiNightlife     = usePOIs('nightlife',      mapBbox, enabledPOIGroups.includes('nightlife'))
-  const poiShopping      = usePOIs('shopping',       mapBbox, enabledPOIGroups.includes('shopping'))
-  const poiAccommodation = usePOIs('accommodation',  mapBbox, enabledPOIGroups.includes('accommodation'))
+  // Build osmData map for MapView
+  const osmData = useMemo(() => {
+    const map: Record<string, GeoJSON.FeatureCollection> = {}
+    const pairs: [string, typeof osmLiveMusic][] = [
+      ['live_music', osmLiveMusic], ['jazz', osmJazz], ['cinema', osmCinema],
+      ['clubs', osmClubs], ['galleries', osmGalleries], ['street_art', osmStreetArt],
+      ['museum', osmMuseum],
+    ]
+    for (const [key, hook] of pairs) {
+      if (resolved.osmCategories.includes(key) && hook.data?.features?.length) {
+        map[key] = hook.data
+      }
+    }
+    return map
+  }, [resolved.osmCategories, osmLiveMusic.data, osmJazz.data, osmCinema.data, osmClubs.data, osmGalleries.data, osmStreetArt.data, osmMuseum.data])
+
+  // POI hooks — one per API group, called unconditionally
+  const poiHeritage      = usePOIs('heritage',      mapBbox, resolved.poiGroups.has('heritage'))
+  const poiMonuments     = usePOIs('monuments',      mapBbox, resolved.poiGroups.has('monuments'))
+  const poiWorship       = usePOIs('worship',        mapBbox, resolved.poiGroups.has('worship'))
+  const poiTourism       = usePOIs('tourism',        mapBbox, resolved.poiGroups.has('tourism'))
+  const poiNature        = usePOIs('nature',         mapBbox, resolved.poiGroups.has('nature'))
+  const poiTransport     = usePOIs('transport',      mapBbox, resolved.poiGroups.has('transport'))
+  const poiFoodDrink     = usePOIs('food_drink',     mapBbox, resolved.poiGroups.has('food_drink'))
+  const poiSports        = usePOIs('sports',         mapBbox, resolved.poiGroups.has('sports'))
+  const poiServices      = usePOIs('services',       mapBbox, resolved.poiGroups.has('services'))
+  const poiNightlife     = usePOIs('nightlife',      mapBbox, resolved.poiGroups.has('nightlife'))
+  const poiShopping      = usePOIs('shopping',       mapBbox, resolved.poiGroups.has('shopping'))
+  const poiAccommodation = usePOIs('accommodation',  mapBbox, resolved.poiGroups.has('accommodation'))
 
   const poiGroupDataMap: Record<string, GeoJSON.FeatureCollection | undefined> = {
     heritage: poiHeritage.data, monuments: poiMonuments.data, worship: poiWorship.data,
@@ -162,38 +201,73 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     nightlife: poiNightlife.data, shopping: poiShopping.data, accommodation: poiAccommodation.data,
   }
 
-  // Build poiData map (keyed by "group:category") for MapView — filter to only enabled categories
-  const poiData: Record<string, GeoJSON.FeatureCollection> = {}
-  for (const [layerKey, enabled] of Object.entries(poiLayers)) {
-    if (!enabled) continue
-    const [group, cat] = layerKey.split(':')
-    const groupData = poiGroupDataMap[group]
-    if (!groupData?.features?.length) continue
-    // Filter features to just this category
-    const filtered = groupData.features.filter(
-      f => (f.properties as Record<string, unknown>)?.category === cat
-    )
-    if (filtered.length > 0) {
-      poiData[layerKey] = { type: 'FeatureCollection', features: filtered }
+  // Build poiData map: filter each group's features to only enabled categories
+  const poiData = useMemo(() => {
+    const result: Record<string, GeoJSON.FeatureCollection> = {}
+    for (const [apiGroup, activeCats] of resolved.poiGroups) {
+      const groupData = poiGroupDataMap[apiGroup]
+      if (!groupData?.features?.length) continue
+      for (const cat of activeCats) {
+        const filtered = groupData.features.filter(
+          f => (f.properties as Record<string, unknown>)?.category === cat
+        )
+        if (filtered.length > 0) {
+          result[`${apiGroup}:${cat}`] = { type: 'FeatureCollection', features: filtered }
+        }
+      }
     }
-  }
+    return result
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved.poiGroups, poiHeritage.data, poiMonuments.data, poiWorship.data, poiTourism.data, poiNature.data, poiTransport.data, poiFoodDrink.data, poiSports.data, poiServices.data, poiNightlife.data, poiShopping.data, poiAccommodation.data])
 
-  // Merge active OSM features into the venue list
-  const activeOSMFeatures = [
-    ...(layers.live_music    ? (osmLiveMusic.data?.features  ?? []) : []),
-    ...(layers.jazz          ? (osmJazz.data?.features       ?? []) : []),
-    ...(layers.cinema        ? (osmCinema.data?.features     ?? []) : []),
-    ...(layers.clubs         ? (osmClubs.data?.features      ?? []) : []),
-    ...(layers.osm_galleries ? (osmGalleries.data?.features  ?? []) : []),
-    ...(layers.street_art    ? (osmStreetArt.data?.features  ?? []) : []),
-    ...(osmMuseumEnabled     ? (osmMuseum.data?.features     ?? []) : []),
-  ]
+  // Merge all active features for the venue list
+  const activeOSMFeatures = useMemo(() =>
+    Object.values(osmData).flatMap(fc => fc.features),
+    [osmData]
+  )
 
-  const activePOIFeatures = Object.values(poiData).flatMap(fc => fc.features)
+  const activePOIFeatures = useMemo(() =>
+    Object.values(poiData).flatMap(fc => fc.features),
+    [poiData]
+  )
 
-  const allVenueFeatures = mode === 'venues'
-    ? [...venueFeatures, ...activeOSMFeatures, ...activePOIFeatures]
-    : venueFeatures
+  // Parks/playgrounds in bbox for the list
+  const visibleParksFeatures = useMemo(() => {
+    if (!resolved.geodataLayers.has('parks') || !parksData?.features) return []
+    if (!mapBbox) return parksData.features
+    const [minLng, minLat, maxLng, maxLat] = mapBbox.split(',').map(Number)
+    return parksData.features.filter(f => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat
+    })
+  }, [resolved.geodataLayers, parksData, mapBbox])
+
+  const visiblePlaygroundFeatures = useMemo(() => {
+    if (!resolved.geodataLayers.has('playgrounds') || !playgroundsData?.features) return []
+    if (!mapBbox) return playgroundsData.features
+    const [minLng, minLat, maxLng, maxLat] = mapBbox.split(',').map(Number)
+    return playgroundsData.features.filter(f => {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates
+      return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat
+    })
+  }, [resolved.geodataLayers, playgroundsData, mapBbox])
+
+  const allVenueFeatures = useMemo(() => {
+    if (mode !== 'venues') return venueFeatures
+    return [
+      ...venueFeatures,
+      ...activeOSMFeatures,
+      ...activePOIFeatures,
+      ...visibleParksFeatures.map(f => ({ ...f, properties: { ...f.properties, _source: 'park' as const } })),
+      ...visiblePlaygroundFeatures.map(f => ({ ...f, properties: { ...f.properties, _source: 'playground' as const } })),
+    ]
+  }, [mode, venueFeatures, activeOSMFeatures, activePOIFeatures, visibleParksFeatures, visiblePlaygroundFeatures])
+
+  // Build venue GeoJSON for MapView (pre-filtered D1 venues)
+  const venueGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => ({
+    type: 'FeatureCollection',
+    features: venueFeatures,
+  }), [venueFeatures])
 
   const LIMIT = 50
 
@@ -228,14 +302,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
-
-  // Auto-enable playgrounds layer when Kids category is active
-  useEffect(() => {
-    if (cats.includes('Kids')) {
-      setLayers(prev => prev.playgrounds ? prev : { ...prev, playgrounds: true })
-    }
-    // Intentionally never auto-disables — user controls the off state
-  }, [cats])
 
   // Debounced search — API + client-side GeoJSON filtering
   useEffect(() => {
@@ -311,6 +377,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // Shared button classes
   const btn = 'text-xs border-2 border-black px-2.5 py-1 bg-white text-black hover:bg-black hover:text-white'
   const btnActive = 'text-xs border-2 border-black px-2.5 py-1 bg-black text-white'
+
+  const anyFiltersActive = activeFilters.size > 0
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
@@ -541,10 +609,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* Mode toggle + map overlay toggles */}
+        {/* Mode toggle + live radar */}
         <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
           <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
-          <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Venues</button>
+          <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
           <span className="text-[10px] text-gray-300 mx-0.5">|</span>
           <button
             onClick={() => setLiveRadar(v => !v)}
@@ -558,104 +626,78 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           )}
         </div>
 
-        {/* Venues mode — subcategory filters */}
+        {/* ── Unified filter accordion (Places mode) ──────────────────────── */}
         {mode === 'venues' && (
-          <>
-            {/* Cultural venues */}
-            <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Cultural</span>
-              {(['all', 'museum', 'gallery', 'theatre', 'cinema', 'concert_hall', 'club', 'library', 'community_centre', 'other'] as const).map(c => (
-                <button key={c} onClick={() => setVenueCat(venueCat === c && c !== 'all' ? 'all' : c)} className={venueCat === c ? btnActive : btn}>
-                  {c === 'all' ? 'All' : (VENUE_CAT_LABELS[c] ?? c)}
-                </button>
-              ))}
-            </div>
-            {/* Cultural spots */}
-            <div className="px-4 py-1.5 border-b border-gray-100 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Spots</span>
-              {([
-                ['live_music',    'Live Music'],
-                ['jazz',          'Jazz'],
-                ['cinema',        'Cinema'],
-                ['clubs',         'Clubs'],
-                ['osm_galleries', 'Galleries'],
-                ['street_art',    'Street Art'],
-                ['parks',         'Parks'],
-                ['playgrounds',   'Playgrounds'],
-              ] as const).map(([key, label]) => (
-                <button key={key} onClick={() => setLayers(l => ({ ...l, [key]: !l[key] }))} className={layers[key] ? btnActive : btn}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* POI category groups — compact inline pills */}
-            <div className="px-4 py-1.5 border-b-2 border-black">
-              <div className="flex items-center gap-1 flex-wrap mb-1">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-300 shrink-0">Explore</span>
-                {POI_GROUPS.map(group => {
-                  const isExpanded = !!expandedGroups[group.key]
-                  const activeCount = group.categories.filter(c => poiLayers[`${group.key}:${c.key}`]).length
-                  const Icon = {
-                    Castle, Milestone, Church, Camera, TreePine, Train,
-                    UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
-                  }[group.icon] ?? Building2
-                  return (
-                    <button
-                      key={group.key}
-                      onClick={() => setExpandedGroups(g => ({ ...g, [group.key]: !g[group.key] }))}
-                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-black bg-gray-100 font-bold' : 'border-gray-300 hover:border-gray-400'}`}
-                    >
-                      <Icon size={10} className="shrink-0 text-gray-500" />
-                      {group.label}
-                      {activeCount > 0 && (
-                        <span className="text-[8px] bg-black text-white px-1 py-px font-bold leading-none">{activeCount}</span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-              {/* Expanded subcategories */}
-              {POI_GROUPS.filter(g => expandedGroups[g.key]).map(group => {
-                const allKeys = group.categories.map(c => `${group.key}:${c.key}`)
-                const allOn = allKeys.every(k => poiLayers[k])
+          <div className="px-4 py-1.5 border-b-2 border-black">
+            {/* Group pills */}
+            <div className="flex items-center gap-1 flex-wrap mb-1">
+              {FILTER_GROUPS.map(group => {
+                const activeCount = getActiveCountForGroup(group.key, activeFilters)
+                const isExpanded = expandedGroup === group.key
+                const Icon = group.icon
                 return (
-                  <div key={group.key} className="flex flex-wrap gap-1 pb-1">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-[9px] text-gray-400">{group.label}</span>
-                      <button
-                        onClick={() => {
-                          const update: Record<string, boolean> = {}
-                          allKeys.forEach(k => { update[k] = !allOn })
-                          setPOILayers(l => ({ ...l, ...update }))
-                        }}
-                        className="text-[9px] text-gray-400 hover:text-black underline"
-                      >
-                        {allOn ? 'Clear all' : 'Select all'}
-                      </button>
-                    </div>
-                    {group.categories.map(cat => {
-                      const layerKey = `${group.key}:${cat.key}`
-                      const isActive = !!poiLayers[layerKey]
-                      return (
-                        <button
-                          key={cat.key}
-                          onClick={() => setPOILayers(l => ({ ...l, [layerKey]: !l[layerKey] }))}
-                          className={isActive ? btnActive : btn}
-                          style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
-                        >
-                          {cat.label}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <button
+                    key={group.key}
+                    onClick={() => toggleGroupExpand(group.key)}
+                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-black bg-gray-100 font-bold' : 'border-gray-300 hover:border-gray-400'}`}
+                  >
+                    <Icon size={10} className="shrink-0 text-gray-500" />
+                    {group.label}
+                    {activeCount > 0 && (
+                      <span className="text-[8px] bg-black text-white px-1 py-px font-bold leading-none">{activeCount}</span>
+                    )}
+                  </button>
                 )
               })}
-              <span className="text-[11px] text-gray-400">
-                {allVenueFeatures.length} venue{allVenueFeatures.length !== 1 ? 's' : ''}
-              </span>
+              {anyFiltersActive && activeFilters.size !== CULTURE_DEFAULTS.size && (
+                <button
+                  onClick={clearAllFilters}
+                  className="text-[9px] text-gray-400 hover:text-black underline ml-1"
+                >
+                  Reset
+                </button>
+              )}
             </div>
-          </>
+
+            {/* Expanded subcategories for the one active group */}
+            {expandedGroup && (() => {
+              const group = FILTER_GROUPS.find(g => g.key === expandedGroup)
+              if (!group) return null
+              const allKeys = group.categories.map(c => `${group.key}:${c.key}`)
+              const allOn = allKeys.every(k => activeFilters.has(k))
+              return (
+                <div className="flex flex-wrap gap-1 pb-1">
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[9px] text-gray-400">{group.label}</span>
+                    <button
+                      onClick={() => allOn ? clearGroup(group.key) : selectAllGroup(group.key)}
+                      className="text-[9px] text-gray-400 hover:text-black underline"
+                    >
+                      {allOn ? 'Clear all' : 'Select all'}
+                    </button>
+                  </div>
+                  {group.categories.map(cat => {
+                    const filterKey = `${group.key}:${cat.key}`
+                    const isActive = activeFilters.has(filterKey)
+                    return (
+                      <button
+                        key={cat.key}
+                        onClick={() => toggleFilter(filterKey)}
+                        className={isActive ? btnActive : btn}
+                        style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                      >
+                        {cat.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            <span className="text-[11px] text-gray-400">
+              {allVenueFeatures.length} place{allVenueFeatures.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         )}
 
         {/* Search results / Event list / Venue list */}
@@ -799,73 +841,88 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ))
             )
           ) : (
-            /* ── Venue list (kulturdaten + active OSM) ── */
+            /* ── Venue list (unified: D1 + OSM + POI + parks/playgrounds) ── */
             <>
               {venuesFetching && allVenueFeatures.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
               ) : allVenueFeatures.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">
-                  {mapBbox ? 'No venues in view' : 'Pan the map to load venues'}
+                  {mapBbox ? 'No places in view' : 'Pan the map to load places'}
                 </div>
               ) : (
                 allVenueFeatures.map((f, i) => {
                   const p = f.properties as {
                     id?: string; name?: string; category?: string; category_group?: string
-                    address?: string; borough?: string
+                    address?: string; borough?: string; bezirkname?: string; objartname?: string
                     website?: string; phone?: string; opening_hours?: string; cuisine?: string
+                    namenr?: string; gml_id?: string; fid?: string
+                    _source?: 'park' | 'playground'
                   }
                   const coords = (f.geometry as GeoJSON.Point | undefined)?.coordinates as [number, number] | undefined
-                  const isPOI  = typeof p.category_group === 'string' && p.category_group !== ''
-                  const isOSM  = !isPOI && typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
-                  const catLabel = isPOI
-                    ? getPOILabel(p.category_group!, p.category ?? '')
-                    : OSM_CAT_LABELS[p.category ?? ''] ?? VENUE_CAT_LABELS[p.category ?? ''] ?? p.category
+                  const isPark       = p._source === 'park'
+                  const isPlayground = p._source === 'playground'
+                  const isPOI  = !isPark && !isPlayground && typeof p.category_group === 'string' && p.category_group !== ''
+                  const isOSM  = !isPOI && !isPark && !isPlayground && typeof p.id === 'string' && (p.id.startsWith('node/') || p.id.startsWith('way/'))
+
+                  const catLabel = isPark ? 'Park'
+                    : isPlayground ? 'Playground'
+                    : isPOI ? getPOILabel(p.category_group!, p.category ?? '')
+                    : getFilterLabel(p.category ?? '') ?? p.category
                   const poiColors = isPOI ? getPOIColor(p.category_group!, p.category ?? '') : null
+
+                  const displayName = isPark || isPlayground
+                    ? (p.namenr ?? p.name ?? 'Unnamed')
+                    : (p.name ?? (isPOI ? `Unnamed ${catLabel}` : 'Unnamed'))
+
+                  const displayAddress = isPark || isPlayground ? p.objartname : p.address
+                  const displayBorough = isPark || isPlayground ? p.bezirkname : p.borough
+
+                  const gid = isPark || isPlayground ? (p.gml_id ?? p.fid ?? null) : null
+                  const detailHref = isPark ? `/parks/${encodeURIComponent(gid!)}`
+                    : isPlayground ? `/playgrounds/${encodeURIComponent(gid!)}`
+                    : isPOI && p.id ? `/pois/${p.id.replace('/', '_')}`
+                    : !isPOI && !isOSM && p.id ? `/locations/${p.id}`
+                    : null
+
                   return (
                     <div
-                      key={p.id ?? i}
+                      key={p.id ?? gid ?? i}
                       className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                       onClick={() => { if (coords) setFlyTo(coords) }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-bold text-sm text-gray-900 leading-snug truncate">
-                            {p.name ?? (isPOI ? `Unnamed ${catLabel}` : 'Unnamed')}
+                            {displayName}
                           </p>
-                          {p.address  && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{p.address}</p>}
-                          {p.borough  && <p className="text-[10px] text-gray-400">{p.borough}</p>}
+                          {displayAddress && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{displayAddress}</p>}
+                          {displayBorough && <p className="text-[10px] text-gray-400">{displayBorough}</p>}
                           {p.opening_hours && <p className="text-[10px] text-gray-400 mt-0.5 truncate">🕐 {p.opening_hours}</p>}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           {catLabel && catLabel !== 'other' && (
                             <span
                               className="text-[10px] border-2 px-1.5 py-0.5 font-bold capitalize"
-                              style={poiColors
-                                ? { backgroundColor: poiColors.color, borderColor: poiColors.stroke, color: '#fff' }
-                                : { borderColor: '#000', backgroundColor: '#fff' }}
+                              style={
+                                isPark ? { borderColor: '#16a34a', color: '#16a34a' }
+                                : isPlayground ? { borderColor: '#a21caf', color: '#a21caf' }
+                                : poiColors ? { backgroundColor: poiColors.color, borderColor: poiColors.stroke, color: '#fff' }
+                                : { borderColor: '#000', backgroundColor: '#fff' }
+                              }
                             >
                               {catLabel}
                             </span>
                           )}
-                          {isPOI && p.id && (
+                          {detailHref && (
                             <a
-                              href={`/pois/${p.id.replace('/', '_')}`}
+                              href={detailHref}
                               onClick={e => e.stopPropagation()}
                               className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
                             >
                               Details →
                             </a>
                           )}
-                          {!isPOI && !isOSM && p.id && (
-                            <a
-                              href={`/locations/${p.id}`}
-                              onClick={e => e.stopPropagation()}
-                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
-                            >
-                              Details →
-                            </a>
-                          )}
-                          {isOSM && p.website && (
+                          {isOSM && p.website && !detailHref && (
                             <a
                               href={p.website}
                               target="_blank"
@@ -882,72 +939,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   )
                 })
               )}
-            {/* Parks & Playgrounds section (shown when either layer is ON) */}
-            {(layers.parks || layers.playgrounds) && (() => {
-              const bboxParts = mapBbox ? mapBbox.split(',').map(Number) : null
-              const inBbox = (coords: [number, number]) => {
-                if (!bboxParts) return true
-                const [minLng, minLat, maxLng, maxLat] = bboxParts
-                return coords[0] >= minLng && coords[0] <= maxLng && coords[1] >= minLat && coords[1] <= maxLat
-              }
-              const visibleParks = (layers.parks && parksData?.features)
-                ? parksData.features.filter(f => inBbox((f.geometry as GeoJSON.Point).coordinates as [number, number]))
-                : []
-              const visiblePlaygrounds = (layers.playgrounds && playgroundsData?.features)
-                ? playgroundsData.features.filter(f => inBbox((f.geometry as GeoJSON.Point).coordinates as [number, number]))
-                : []
-              const total = visibleParks.length + visiblePlaygrounds.length
-              if (total === 0) return null
-              return (
-                <div className="mt-2 border-t-2 border-black">
-                  <p className="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-gray-300 flex items-center gap-2">
-                    Parks &amp; Playgrounds
-                    <span className="text-[9px] font-bold text-gray-400">{total}</span>
-                  </p>
-                  {[
-                    ...visibleParks.map(f => ({ f, type: 'park' as const })),
-                    ...visiblePlaygrounds.map(f => ({ f, type: 'playground' as const })),
-                  ].map(({ f, type }, i) => {
-                    const p = f.properties as Record<string, string | null>
-                    const coords = (f.geometry as GeoJSON.Point).coordinates as [number, number]
-                    const name   = p.namenr ?? p.name ?? 'Unnamed'
-                    const gid    = p.gml_id ?? p.fid ?? null
-                    return (
-                      <div
-                        key={gid ?? i}
-                        className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                        onClick={() => setFlyTo(coords)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-bold text-sm text-gray-900 leading-snug truncate">{name}</p>
-                            {p.objartname && <p className="text-[10px] text-gray-500 mt-0.5">{p.objartname}</p>}
-                            {p.bezirkname && <p className="text-[10px] text-gray-400">{p.bezirkname}</p>}
-                          </div>
-                          <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span
-                              className="text-[10px] border-2 px-1.5 py-0.5 font-bold uppercase"
-                              style={type === 'park' ? { borderColor: '#16a34a', color: '#16a34a' } : { borderColor: '#a21caf', color: '#a21caf' }}
-                            >
-                              {type === 'park' ? 'Park' : 'Play'}
-                            </span>
-                            {gid && (
-                              <a
-                                href={`/${type === 'park' ? 'parks' : 'playgrounds'}/${encodeURIComponent(gid)}`}
-                                onClick={e => e.stopPropagation()}
-                                className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
-                              >
-                                Details →
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
             </>
           )}
         </div>
@@ -983,21 +974,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             events={events}
             activeId={activeId}
             onEventSelect={setActiveId}
-            layers={{
-              ...layers,
-              // Show venue-type layers based on the active category filter
-              venues:     mode === 'venues' && !['museum', 'gallery'].includes(venueCat),
-              galleries:  mode === 'venues' && (venueCat === 'all' || venueCat === 'gallery'),
-              museums:    mode === 'venues' && (venueCat === 'all' || venueCat === 'museum'),
-              osm_museum: osmMuseumEnabled,
-            }}
+            resolvedFilters={resolved}
+            venueGeoJSON={venueGeoJSON}
             mode={mode}
-            venueCat={venueCat}
             onBboxChange={setMapBbox}
             flyTo={flyTo}
             openVenuePopup={surpriseVenuePopup}
             liveRadar={liveRadar}
             poiData={poiData}
+            osmData={osmData}
+            parksData={parksData}
+            playgroundsData={playgroundsData}
           />
         </ErrorBoundary>
       </div>
@@ -1027,6 +1014,19 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       {showCalendar && <CalendarPanel onClose={() => setShowCalendar(false)} />}
     </div>
   )
+}
+
+// Helper for venue list labels
+function getFilterLabel(category: string): string | null {
+  const labels: Record<string, string> = {
+    museum: 'Museum', gallery: 'Gallery', theatre: 'Theatre', cinema: 'Cinema',
+    concert_hall: 'Concert Hall', club: 'Club', library: 'Library',
+    community_centre: 'Community', religious: 'Religious', education: 'Education',
+    sports_venue: 'Sports', open_air: 'Open Air', virtual: 'Virtual', other: 'Other',
+    live_music: 'Live Music', jazz: 'Jazz', clubs: 'Clubs',
+    osm_galleries: 'Galleries', street_art: 'Street Art',
+  }
+  return labels[category] ?? null
 }
 
 export default function KulturPulseApp(props: Props) {
