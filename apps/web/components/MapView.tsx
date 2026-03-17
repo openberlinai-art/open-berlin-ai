@@ -41,7 +41,7 @@ interface Props {
   onEventSelect:   (id: string | null) => void
   resolvedFilters: ResolvedFilters
   venueGeoJSON?:   GeoJSON.FeatureCollection  // pre-filtered D1 venues
-  mode:            'events' | 'venues'
+  mode:            'events' | 'venues' | 'listings'
   onBboxChange:    (bbox: string) => void
   flyTo?:          [number, number] | null
   openVenuePopup?: ({ _key: number } & VenuePopupState) | null
@@ -50,6 +50,7 @@ interface Props {
   osmData?:        Record<string, GeoJSON.FeatureCollection>  // keyed by osm category key
   parksData?:      GeoJSON.FeatureCollection
   playgroundsData?: GeoJSON.FeatureCollection
+  listingsData?:   GeoJSON.FeatureCollection
 }
 
 interface TransitPopupState {
@@ -146,6 +147,7 @@ export default function MapView({
   liveRadar = false,
   poiData = {}, osmData = {},
   parksData, playgroundsData,
+  listingsData,
 }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -154,6 +156,10 @@ export default function MapView({
   const [venuePopup,       setVenuePopup]       = useState<VenuePopupState | null>(null)
   const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
   const [activeTransitId,  setActiveTransitId]  = useState<string | null>(null)
+  const [listingPopup,     setListingPopup]     = useState<{
+    lat: number; lng: number; id: string; title: string; type: string
+    price_label: string; first_image_url: string | null
+  } | null>(null)
   const [cursor,           setCursor]           = useState('grab')
   const [radarData,        setRadarData]        = useState<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] })
   const [radarPopup,       setRadarPopup]       = useState<RadarPopupState | null>(null)
@@ -356,6 +362,41 @@ export default function MapView({
       return
     }
 
+    // Listing marker → show listing popup
+    if (layerId === 'listings-point') {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      setListingPopup({
+        lat:             coords[1],
+        lng:             coords[0],
+        id:              (props.id as string) ?? '',
+        title:           (props.title as string) ?? 'Listing',
+        type:            (props.type as string) ?? 'item',
+        price_label:     (props.price_label as string) ?? '',
+        first_image_url: (props.first_image_url as string) ?? null,
+      })
+      setVenuePopup(null)
+      setTransitPopup(null)
+      setGreenspacePopup(null)
+      return
+    }
+
+    // Listing cluster → zoom in
+    if (layerId === 'listings-clusters') {
+      const map = mapRef.current
+      if (!map) return
+      const clusterId  = feature.properties?.cluster_id as number
+      const coords     = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      try {
+        const source = map.getMap().getSource('listings-source') as GeoJSONSource | undefined
+        source?.getClusterExpansionZoom(clusterId)
+          .then(zoom => map.flyTo({ center: coords, zoom: zoom + 1, duration: 400 }))
+          .catch(() => {})
+      } catch { /* ignore */ }
+      return
+    }
+
     // Radar vehicle → show line popup
     if (layerId === 'radar-vehicles') {
       const props  = feature.properties
@@ -519,6 +560,7 @@ export default function MapView({
           'venues-point', 'venue-clusters',
           'parks-point', 'playgrounds-point',
           'radar-vehicles',
+          'listings-point', 'listings-clusters',
           ...osmInteractiveIds,
           ...poiInteractiveIds,
         ]}
@@ -826,6 +868,71 @@ export default function MapView({
           </Source>
         )}
 
+        {/* ── Listings markers ────────────────────── */}
+        {mode === 'listings' && listingsData && (
+          <Source id="listings-source" type="geojson" data={listingsData} cluster clusterMaxZoom={14} clusterRadius={40}>
+            <Layer
+              id="listings-clusters"
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={{
+                'circle-radius':       ['step', ['get', 'point_count'], 14, 10, 18, 50, 22],
+                'circle-color':        '#2563eb',
+                'circle-stroke-color': '#1e40af',
+                'circle-stroke-width': 2,
+                'circle-opacity':      0.85,
+              }}
+            />
+            <Layer
+              id="listings-cluster-count"
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={{
+                'text-field':   '{point_count_abbreviated}',
+                'text-size':    11,
+                'text-font':    ['Open Sans Bold'],
+              }}
+              paint={{ 'text-color': '#ffffff' }}
+            />
+            <Layer
+              id="listings-point"
+              type="circle"
+              filter={['!', ['has', 'point_count']]}
+              paint={{
+                'circle-radius':       7,
+                'circle-color':        [
+                  'match', ['get', 'type'],
+                  'apartment_rent', '#2563eb',
+                  'apartment_buy',  '#16a34a',
+                  'item',           '#d97706',
+                  'service',        '#7c3aed',
+                  '#6b7280',
+                ],
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 2,
+                'circle-opacity':      0.9,
+              }}
+            />
+            <Layer
+              id="listings-price"
+              type="symbol"
+              filter={['!', ['has', 'point_count']]}
+              layout={{
+                'text-field':   ['get', 'price_label'],
+                'text-size':    10,
+                'text-offset':  [0, 1.5],
+                'text-anchor':  'top',
+                'text-font':    ['Open Sans Bold'],
+              }}
+              paint={{
+                'text-color':      '#374151',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 1.5,
+              }}
+            />
+          </Source>
+        )}
+
         {/* ── Active event popup ───────────────────── */}
         {activeId && activeEvent?.lat && activeEvent?.lng && (
           <Popup
@@ -1106,6 +1213,52 @@ export default function MapView({
               {radarPopup.direction && (
                 <p className="text-[10px] text-gray-500 mt-0.5">→ {radarPopup.direction}</p>
               )}
+            </div>
+          </Popup>
+        )}
+        {/* ── Listing popup ────────────────────── */}
+        {listingPopup && (
+          <Popup
+            longitude={listingPopup.lng}
+            latitude={listingPopup.lat}
+            anchor="bottom"
+            closeButton={false}
+            onClose={() => setListingPopup(null)}
+            maxWidth="260px"
+          >
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
+              <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
+                <div>
+                  <p className="font-bold text-gray-900 leading-snug">{listingPopup.title}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide mt-0.5" style={{
+                    color: listingPopup.type === 'apartment_rent' ? '#2563eb'
+                         : listingPopup.type === 'apartment_buy'  ? '#16a34a'
+                         : listingPopup.type === 'item'           ? '#d97706'
+                         : '#7c3aed',
+                  }}>
+                    {listingPopup.type.replace('_', ' ')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setListingPopup(null)}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
+                  aria-label="Close"
+                >✕</button>
+              </div>
+              <div className="px-3 pb-2.5 space-y-1">
+                {listingPopup.first_image_url && (
+                  <img src={listingPopup.first_image_url} alt="" className="w-full h-20 object-cover border border-gray-200" />
+                )}
+                {listingPopup.price_label && (
+                  <p className="text-sm font-semibold text-gray-800">{listingPopup.price_label}</p>
+                )}
+                <Link
+                  href={`/listings/${listingPopup.id}`}
+                  className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                >
+                  Details →
+                </Link>
+              </div>
             </div>
           </Popup>
         )}

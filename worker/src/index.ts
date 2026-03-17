@@ -25,6 +25,10 @@ import {
 } from './lists'
 import { sendWeeklyDigest } from './digest'
 import { enrichLocationsWithImages } from './enrich-images'
+import {
+  getListings, getListing, createListing, updateListing,
+  deleteListing, uploadListingImage,
+} from './listings'
 import type { Env, ChatRequest } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -1285,6 +1289,82 @@ app.post('/api/geocode-batch', async c => {
     geocoded: { events: geocodedEvents, locations: geocodedLocations },
     remaining: { events: remainingEvents?.n ?? 0, locations: remainingLocations?.n ?? 0 },
   })
+})
+
+// ─── Listings ─────────────────────────────────────────────────────────────────
+
+app.get('/api/listings', async c => {
+  const { type, borough, bbox, status, format, page = '1', limit = '50' } = c.req.query()
+  const result = await getListings({
+    type:    type    || undefined,
+    borough: borough || undefined,
+    bbox:    bbox    || undefined,
+    status:  status  || undefined,
+    format:  format  || undefined,
+    page:    Math.max(1, parseInt(page, 10)),
+    limit:   Math.min(500, Math.max(1, parseInt(limit, 10))),
+  }, c.env.DB)
+  return c.json(result)
+})
+
+app.get('/api/listings/images/:key{.+}', async c => {
+  const key = c.req.param('key')
+  const obj = await c.env.GEODATA.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  obj.httpMetadata?.contentType ?? 'image/jpeg',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  })
+})
+
+app.get('/api/listings/:id', async c => {
+  const listing = await getListing(c.req.param('id'), c.env.DB)
+  if (!listing) return c.json({ error: 'Not found' }, 404)
+  return c.json({ data: listing })
+})
+
+app.post('/api/listings', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<Record<string, unknown>>()
+  if (!body.type || !body.title) return c.json({ error: 'type and title required' }, 400)
+  const listing = await createListing(auth.sub, body as Parameters<typeof createListing>[1], c.env.DB)
+  return c.json({ data: listing }, 201)
+})
+
+app.patch('/api/listings/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const fields = await c.req.json<Record<string, unknown>>()
+  const ok = await updateListing(c.req.param('id'), auth.sub, fields, c.env.DB)
+  if (!ok) return c.json({ error: 'Not found or not owner' }, 404)
+  return c.json({ ok: true })
+})
+
+app.delete('/api/listings/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const ok = await deleteListing(c.req.param('id'), auth.sub, c.env.DB, c.env.GEODATA)
+  if (!ok) return c.json({ error: 'Not found or not owner' }, 404)
+  return c.json({ ok: true })
+})
+
+app.post('/api/listings/:id/images', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.parseBody()
+  const file = body['file']
+  if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400)
+  const buf = await file.arrayBuffer()
+  const result = await uploadListingImage(
+    c.req.param('id'), auth.sub,
+    buf, file.name || `${Date.now()}.jpg`, file.type || 'image/jpeg',
+    c.env.DB, c.env.GEODATA,
+  )
+  if (!result.ok) return c.json({ error: result.error }, 400)
+  return c.json({ key: result.key })
 })
 
 // ─── Exports ──────────────────────────────────────────────────────────────────

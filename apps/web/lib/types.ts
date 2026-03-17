@@ -88,3 +88,52 @@ export interface ChatMessage {
   role:    'user' | 'assistant'
   content: string
 }
+
+// ─── Listings (classifieds) ────────────────────────────────────────────────
+
+export type ListingType = 'apartment_rent' | 'apartment_buy' | 'item' | 'service'
+export type ListingPriceType = 'fixed' | 'negotiable' | 'free' | 'per_month'
+export type ListingStatus = 'active' | 'sold' | 'expired'
+
+export interface Listing {
+  id:             string
+  user_id:        string
+  type:           ListingType
+  title:          string
+  description:    string | null
+  price_cents:    number | null
+  price_type:     ListingPriceType
+  currency:       string
+  category:       string | null
+  images:         string | null  // JSON array of R2 keys
+  lat:            number | null
+  lng:            number | null
+  address:        string | null
+  borough:        string | null
+  rooms:          number | null
+  sqm:            number | null
+  floor:          number | null
+  contact_method: 'email' | 'phone' | 'both'
+  contact_info:   string | null
+  status:         ListingStatus
+  created_at:     string
+  expires_at:     string | null
+  seller_name?:   string | null
+  seller_email?:  string
+}
+
+export interface ListingsResponse {
+  listings:   Listing[]
+  total:      number
+  page:       number
+  limit:      number
+}
+
+export interface ListingFilters {
+  type?:    string
+  borough?: string
+  bbox?:    string
+  page?:    number
+  limit?:   number
+  format?:  string
+}

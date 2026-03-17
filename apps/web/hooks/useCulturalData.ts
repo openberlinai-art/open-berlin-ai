@@ -10,6 +10,7 @@ import {
   fetchOSMVenues,
   fetchWeather,
   fetchPOIs,
+  fetchListingsByBbox,
 } from '@/lib/opendata'
 
 export function useParks(enabled: boolean) {
@@ -100,6 +101,16 @@ export function usePOIs(
     queryFn:         () => fetchPOIs(group, bbox!, category, region),
     enabled:         enabled && bbox !== null,
     staleTime:       5 * 60_000,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useListings(bbox: string | null, enabled: boolean, type?: string) {
+  return useQuery({
+    queryKey:        ['listings', bbox, type ?? 'all'],
+    queryFn:         () => fetchListingsByBbox(bbox!, type),
+    enabled:         enabled && bbox !== null,
+    staleTime:       2 * 60_000,
     placeholderData: keepPreviousData,
   })
 }

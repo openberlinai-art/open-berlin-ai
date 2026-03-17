@@ -12,7 +12,7 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
   FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFilters, getActiveCountForGroup,
@@ -22,6 +22,7 @@ import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
+import ListingsList from './ListingsList'
 import { useUser } from '@/providers/UserProvider'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -112,7 +113,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [liveRadar,    setLiveRadar]    = useState(false)
-  const [mode,      setMode]      = useState<'events' | 'venues'>('events')
+  const [mode,      setMode]      = useState<'events' | 'venues' | 'listings'>('events')
+  const [listingType, setListingType] = useState<string | undefined>(undefined)
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
@@ -219,6 +221,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     return result
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved.poiGroups, poiHeritage.data, poiMonuments.data, poiWorship.data, poiTourism.data, poiNature.data, poiTransport.data, poiFoodDrink.data, poiSports.data, poiServices.data, poiNightlife.data, poiShopping.data, poiAccommodation.data])
+
+  // Listings data
+  const { data: listingsGeo, isFetching: listingsFetching } = useListings(
+    mapBbox,
+    mode === 'listings',
+    listingType,
+  )
 
   // Merge all active features for the venue list
   const activeOSMFeatures = useMemo(() =>
@@ -613,6 +622,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
           <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
           <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
+          <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
           <span className="text-[10px] text-gray-300 mx-0.5">|</span>
           <button
             onClick={() => setLiveRadar(v => !v)}
@@ -696,6 +706,41 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
             <span className="text-[11px] text-gray-400">
               {allVenueFeatures.length} place{allVenueFeatures.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+
+        {/* ── Listings filter pills + new listing ──────────────────────── */}
+        {mode === 'listings' && (
+          <div className="px-4 py-1.5 border-b-2 border-black">
+            <div className="flex items-center gap-1 flex-wrap mb-1">
+              {([
+                { key: undefined,          label: 'All' },
+                { key: 'apartment_rent',   label: 'Rent' },
+                { key: 'apartment_buy',    label: 'Buy' },
+                { key: 'item',             label: 'Item' },
+                { key: 'service',          label: 'Service' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={label}
+                  onClick={() => setListingType(key)}
+                  className={listingType === key ? btnActive : btn}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  if (user) window.location.href = '/listings/new'
+                  else setShowAuth(true)
+                }}
+                className="text-xs border-2 border-black px-2.5 py-1 bg-black text-white hover:bg-gray-800 ml-auto"
+              >
+                + New
+              </button>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              {listingsFetching ? '…' : `${listingsGeo?.features?.length ?? 0} listing${(listingsGeo?.features?.length ?? 0) !== 1 ? 's' : ''}`}
             </span>
           </div>
         )}
@@ -824,6 +869,26 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 )}
               </>
             )
+          ) : mode === 'listings' ? (
+            <ListingsList
+              listings={(listingsGeo?.features ?? []).map(f => {
+                const p = f.properties as Record<string, unknown>
+                return {
+                  id:          (p.id as string) ?? '',
+                  type:        (p.type as string) ?? 'item',
+                  title:       (p.title as string) ?? 'Untitled',
+                  price_cents: (p.price_cents as number) ?? null,
+                  price_type:  (p.price_type as string) ?? 'fixed',
+                  currency:    'EUR',
+                  borough:     (p.borough as string) ?? null,
+                  images:      null,
+                  lat:         (f.geometry as GeoJSON.Point).coordinates[1],
+                  lng:         (f.geometry as GeoJSON.Point).coordinates[0],
+                }
+              })}
+              loading={listingsFetching}
+              onFlyTo={setFlyTo}
+            />
           ) : mode === 'events' ? (
             loading && events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
@@ -985,6 +1050,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             osmData={osmData}
             parksData={parksData}
             playgroundsData={playgroundsData}
+            listingsData={listingsGeo}
           />
         </ErrorBoundary>
       </div>

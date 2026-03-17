@@ -176,6 +176,19 @@ export async function fetchPOIDetail(id: string): Promise<POIDetail> {
   return json.data
 }
 
+// ─── Listings (D1, bbox-filtered, GeoJSON) ──────────────────────────────────
+
+export async function fetchListingsByBbox(
+  bbox: string,
+  type?: string,
+): Promise<GeoJSON.FeatureCollection> {
+  const params = new URLSearchParams({ bbox, format: 'geojson', limit: '500' })
+  if (type) params.set('type', type)
+  const res = await fetch(`${WORKER}/api/listings?${params}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
 // ─── Weather (Open-Meteo via worker proxy) ────────────────────────────────────
 
 export async function fetchWeather(): Promise<Record<string, unknown>> {
