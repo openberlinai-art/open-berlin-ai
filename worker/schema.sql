@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_lists_user ON lists(user_id);
 CREATE TABLE IF NOT EXISTS list_items (
   id        TEXT PRIMARY KEY,
   list_id   TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
-  item_type TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
+  item_type TEXT NOT NULL CHECK(item_type IN ('event', 'location', 'listing')),
   item_id   TEXT NOT NULL,
   notes     TEXT,
   added_at  TEXT DEFAULT (datetime('now')),
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS venue_vibes (
 CREATE TABLE IF NOT EXISTS user_attendance (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  item_type      TEXT NOT NULL CHECK(item_type IN ('event', 'location')),
+  item_type      TEXT NOT NULL CHECK(item_type IN ('event', 'location', 'listing')),
   item_id        TEXT NOT NULL,
   scheduled_for  TEXT,                             -- optional date override (YYYY-MM-DD)
   scheduled_time TEXT,                             -- optional time override (HH:MM)

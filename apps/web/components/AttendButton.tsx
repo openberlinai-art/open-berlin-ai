@@ -5,7 +5,7 @@ import { CalendarPlus, CalendarCheck, X } from 'lucide-react'
 import { useUser } from '@/providers/UserProvider'
 
 interface Props {
-  itemType:   'event' | 'location'
+  itemType:   'event' | 'location' | 'listing'
   itemId:     string
   onNeedAuth: () => void
 }

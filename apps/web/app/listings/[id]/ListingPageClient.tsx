@@ -4,12 +4,24 @@ import { useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
+import AddToListButton from '@/components/AddToListButton'
+import AttendButton from '@/components/AttendButton'
 import JourneyWidget from '@/components/JourneyWidget'
 import { useUser } from '@/providers/UserProvider'
 
 const VenueMap = dynamic(() => import('@/components/VenueMap'), { ssr: false })
 
 const WORKER = 'https://kulturpulse-worker.openberlinai.workers.dev'
+
+function ListingActions({ id, onNeedAuth }: { id: string; onNeedAuth: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <ShareButton />
+      <AttendButton itemType="listing" itemId={id} onNeedAuth={onNeedAuth} />
+      <AddToListButton itemType="listing" itemId={id} onNeedAuth={onNeedAuth} />
+    </div>
+  )
+}
 
 function ShareButton() {
   const [copied, setCopied] = useState(false)
@@ -50,7 +62,14 @@ export function ListingPageClient({
   const [showContact, setShowContact] = useState(false)
   const [marking, setMarking]         = useState(false)
   const [currentStatus, setCurrentStatus] = useState(status)
+  const [showAuth, setShowAuth] = useState(false)
+  const [AuthModal, setAuthModal] = useState<React.ComponentType<{ onClose: () => void }> | null>(null)
   const isOwner = user?.id === userId
+
+  function openAuth() {
+    import('@/components/AuthModal').then(m => setAuthModal(() => m.default)).catch(() => {})
+    setShowAuth(true)
+  }
 
   async function markStatus(newStatus: 'sold' | 'active') {
     if (!token) return
@@ -153,9 +172,9 @@ export function ListingPageClient({
         </div>
       )}
 
-      {/* Get Directions + Share */}
-      {lat && lng && (
-        <div className="flex gap-2 mb-4 flex-wrap">
+      {/* Get Directions + Actions */}
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
+        {lat && lng && (
           <a
             href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`}
             target="_blank"
@@ -164,9 +183,11 @@ export function ListingPageClient({
           >
             ↗ Get Directions
           </a>
-          <ShareButton />
-        </div>
-      )}
+        )}
+        <ListingActions id={id} onNeedAuth={openAuth} />
+      </div>
+
+      {showAuth && AuthModal && <AuthModal onClose={() => setShowAuth(false)} />}
     </>
   )
 }

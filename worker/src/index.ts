@@ -954,13 +954,14 @@ app.get('/api/attendance', async c => {
     .prepare(`
       SELECT
         ua.item_type, ua.item_id, ua.scheduled_for, ua.scheduled_time, ua.created_at,
-        CASE ua.item_type WHEN 'event'    THEN e.title    WHEN 'location' THEN l.name    END AS title,
-        CASE ua.item_type WHEN 'event'    THEN e.date_start                              END AS date_start,
-        CASE ua.item_type WHEN 'event'    THEN e.time_start                              END AS time_start,
-        CASE ua.item_type WHEN 'event'    THEN e.location_name WHEN 'location' THEN l.borough END AS subtitle
+        CASE ua.item_type WHEN 'event' THEN e.title WHEN 'location' THEN l.name WHEN 'listing' THEN li.title END AS title,
+        CASE ua.item_type WHEN 'event' THEN e.date_start END AS date_start,
+        CASE ua.item_type WHEN 'event' THEN e.time_start END AS time_start,
+        CASE ua.item_type WHEN 'event' THEN e.location_name WHEN 'location' THEN l.borough WHEN 'listing' THEN li.borough END AS subtitle
       FROM user_attendance ua
-      LEFT JOIN events    e ON ua.item_type = 'event'    AND ua.item_id = e.id
-      LEFT JOIN locations l ON ua.item_type = 'location' AND ua.item_id = l.id
+      LEFT JOIN events    e  ON ua.item_type = 'event'    AND ua.item_id = e.id
+      LEFT JOIN locations l  ON ua.item_type = 'location' AND ua.item_id = l.id
+      LEFT JOIN listings  li ON ua.item_type = 'listing'  AND ua.item_id = li.id
       WHERE ua.user_id = ?
       ORDER BY ua.created_at DESC
     `)
@@ -980,7 +981,7 @@ app.post('/api/attendance', async c => {
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const body = await c.req.json<{ item_type?: string; item_id?: string; scheduled_for?: string; scheduled_time?: string }>().catch(() => null)
   if (!body?.item_type || !body.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
-  if (body.item_type !== 'event' && body.item_type !== 'location') return c.json({ error: 'invalid item_type' }, 400)
+  if (body.item_type !== 'event' && body.item_type !== 'location' && body.item_type !== 'listing') return c.json({ error: 'invalid item_type' }, 400)
   const id = crypto.randomUUID()
   await c.env.DB.prepare(`
     INSERT INTO user_attendance (id, user_id, item_type, item_id, scheduled_for, scheduled_time)
@@ -1070,7 +1071,7 @@ app.post('/api/lists/:id/items', async c => {
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
   const body = await c.req.json<{ item_type?: string; item_id?: string; notes?: string | null }>().catch(() => null)
   if (!body?.item_type || !body.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
-  if (body.item_type !== 'event' && body.item_type !== 'location') return c.json({ error: 'invalid item_type' }, 400)
+  if (body.item_type !== 'event' && body.item_type !== 'location' && body.item_type !== 'listing') return c.json({ error: 'invalid item_type' }, 400)
   const item = await addListItem(c.req.param('id'), body.item_type, body.item_id, body.notes ?? null, c.env.DB)
   return c.json({ data: item }, 201)
 })
@@ -1108,6 +1109,8 @@ app.get('/api/lists/:id/public', async c => {
     const stmts = items.map(item =>
       item.item_type === 'event'
         ? c.env.DB.prepare(`SELECT title, date_start, location_name FROM events WHERE id = ?`).bind(item.item_id)
+        : item.item_type === 'listing'
+        ? c.env.DB.prepare(`SELECT title, borough FROM listings WHERE id = ?`).bind(item.item_id)
         : c.env.DB.prepare(`SELECT name, borough FROM locations WHERE id = ?`).bind(item.item_id)
     )
     const results = await c.env.DB.batch(stmts)
@@ -1115,6 +1118,8 @@ app.get('/api/lists/:id/public', async c => {
       const row = results[i].results[0] as Record<string, unknown> | undefined
       if (item.item_type === 'event') {
         return { ...item, title: (row?.title as string) ?? null, subtitle: [(row?.date_start as string), (row?.location_name as string)].filter(Boolean).join(' · ') || null }
+      } else if (item.item_type === 'listing') {
+        return { ...item, title: (row?.title as string) ?? null, subtitle: (row?.borough as string) ?? null }
       } else {
         return { ...item, title: (row?.name as string) ?? null, subtitle: (row?.borough as string) ?? null }
       }
