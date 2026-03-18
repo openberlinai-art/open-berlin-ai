@@ -46,6 +46,8 @@ const EXTRA_TAG_KEYS = [
   'memorial:type', 'artwork_type', 'castle_type', 'tower:type',
   'network', 'capacity', 'fee', 'wheelchair', 'outdoor_seating',
   'building', 'heritage', 'protection_title',
+  'craft', 'garden:type', 'nudism', 'musical_instrument',
+  'musical_instrument:access', 'emergency', 'karaoke', 'cocktails', 'live_music',
 ]
 
 function extractExtraTags(tags: Record<string, string> | undefined): string | null {

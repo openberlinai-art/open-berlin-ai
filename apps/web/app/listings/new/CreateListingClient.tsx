@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/providers/UserProvider'
@@ -19,6 +19,13 @@ const PRICE_TYPES: { key: ListingPriceType; label: string }[] = [
   { key: 'per_month',  label: '/mo' },
   { key: 'free',       label: 'Free' },
 ]
+
+const LISTING_CATEGORIES: Record<string, string[]> = {
+  apartment_rent: ['Studio', '1-Room', '2-Room', '3-Room', '4+ Rooms', 'WG-Zimmer', 'Loft', 'Penthouse'],
+  apartment_buy:  ['Studio', '1-Room', '2-Room', '3-Room', '4+ Rooms', 'WG-Zimmer', 'Loft', 'Penthouse'],
+  item:           ['Furniture', 'Electronics', 'Clothing', 'Books', 'Kitchen', 'Sports', 'Music', 'Tools', 'Kids', 'Bikes', 'Art', 'Other'],
+  service:        ['Cleaning', 'Moving', 'Repair', 'Teaching', 'Photography', 'Design', 'IT', 'Other'],
+}
 
 const BOROUGHS = [
   'Mitte', 'Friedrichshain-Kreuzberg', 'Pankow', 'Charlottenburg-Wilmersdorf',
@@ -43,10 +50,48 @@ export function CreateListingClient() {
   const [borough,       setBorough]       = useState('')
   const [contactMethod, setContactMethod] = useState<'email' | 'phone' | 'both'>('email')
   const [contactInfo,   setContactInfo]   = useState('')
+  const [lat,           setLat]           = useState<number | null>(null)
+  const [lng,           setLng]           = useState<number | null>(null)
   const [files,         setFiles]         = useState<File[]>([])
   const [submitting,    setSubmitting]    = useState(false)
   const [error,         setError]         = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Address autocomplete via Photon
+  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; lat: number; lng: number; borough?: string }>>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const addressDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const fetchAddressSuggestions = useCallback((query: string) => {
+    clearTimeout(addressDebounceRef.current)
+    if (query.length < 3) { setAddressSuggestions([]); return }
+    addressDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=52.52&lon=13.405&limit=6&lang=de`
+        )
+        if (!res.ok) return
+        const data = await res.json() as { features: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; housenumber?: string; city?: string; state?: string; county?: string } }> }
+        const results = data.features
+          .filter(f => f.properties.street || f.properties.name)
+          .map(f => {
+            const p = f.properties
+            const street = p.street ? `${p.street}${p.housenumber ? ` ${p.housenumber}` : ''}` : p.name ?? ''
+            const city = p.city ?? ''
+            return {
+              label: [street, city].filter(Boolean).join(', '),
+              lat: f.geometry.coordinates[1],
+              lng: f.geometry.coordinates[0],
+              borough: p.county ?? undefined,
+            }
+          })
+        setAddressSuggestions(results)
+        setShowSuggestions(true)
+      } catch { /* ignore */ }
+    }, 300)
+  }, [])
+
+  useEffect(() => () => clearTimeout(addressDebounceRef.current), [])
 
   const isApartment = type === 'apartment_rent' || type === 'apartment_buy'
 
@@ -73,7 +118,7 @@ export function CreateListingClient() {
 
     try {
       // 1. Create listing
-      const priceVal = priceCents.trim() ? Math.round(parseFloat(priceCents) * 100) : undefined
+      const priceVal = priceType === 'free' ? null : (priceCents.trim() ? Math.round(parseFloat(priceCents) * 100) : undefined)
       const res = await fetch('/api/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -88,6 +133,8 @@ export function CreateListingClient() {
           sqm:            sqm ? parseFloat(sqm) : undefined,
           floor:          floor ? parseInt(floor, 10) : undefined,
           address:        address.trim() || undefined,
+          lat:            lat ?? undefined,
+          lng:            lng ?? undefined,
           borough:        borough || undefined,
           contact_method: contactMethod,
           contact_info:   contactInfo.trim() || undefined,
@@ -150,7 +197,7 @@ export function CreateListingClient() {
               <button
                 key={opt.key}
                 type="button"
-                onClick={() => setType(opt.key)}
+                onClick={() => { setType(opt.key); setCategory('') }}
                 className={type === opt.key ? btnActive : btn}
                 style={type === opt.key ? { backgroundColor: opt.color, borderColor: opt.color } : undefined}
               >
@@ -171,22 +218,29 @@ export function CreateListingClient() {
             <textarea value={description} onChange={e => setDescription(e.target.value)} className={`${input} min-h-[80px]`} placeholder="Details about your listing…" />
           </div>
           <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Price (EUR)</label>
-              <input type="number" step="0.01" min="0" value={priceCents} onChange={e => setPriceCents(e.target.value)} className={input} placeholder="0.00" />
-            </div>
+            {priceType !== 'free' && (
+              <div className="flex-1">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Price (EUR)</label>
+                <input type="number" step="0.01" min="0" value={priceCents} onChange={e => setPriceCents(e.target.value)} className={input} placeholder="0.00" />
+              </div>
+            )}
             <div className="flex gap-1 pb-0.5">
               {PRICE_TYPES.map(pt => (
-                <button key={pt.key} type="button" onClick={() => setPriceType(pt.key)} className={priceType === pt.key ? btnActive : btn}>
+                <button key={pt.key} type="button" onClick={() => { setPriceType(pt.key); if (pt.key === 'free') setPriceCents('') }} className={priceType === pt.key ? btnActive : btn}>
                   {pt.label}
                 </button>
               ))}
             </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Category</label>
-            <input value={category} onChange={e => setCategory(e.target.value)} className={input} placeholder="e.g. Furniture, Electronics, Cleaning…" />
-          </div>
+          {type && LISTING_CATEGORIES[type] && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Category</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} className={input}>
+                <option value="">Select…</option>
+                {LISTING_CATEGORIES[type].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* 3. Apartment fields */}
@@ -213,9 +267,40 @@ export function CreateListingClient() {
         {/* 4. Location */}
         <div className="space-y-3">
           <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Location</p>
-          <div>
+          <div className="relative">
             <label className="text-[10px] text-gray-400 block mb-1">Address</label>
-            <input value={address} onChange={e => setAddress(e.target.value)} className={input} placeholder="Street and number" />
+            <input
+              value={address}
+              onChange={e => { setAddress(e.target.value); fetchAddressSuggestions(e.target.value) }}
+              onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              className={input}
+              placeholder="Street and number"
+              autoComplete="off"
+            />
+            {showSuggestions && addressSuggestions.length > 0 && (
+              <ul className="absolute z-50 left-0 right-0 bg-white border-2 border-black mt-0.5 max-h-48 overflow-y-auto shadow-[2px_2px_0_#000]">
+                {addressSuggestions.map((s, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-gray-100"
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        setAddress(s.label)
+                        setLat(s.lat)
+                        setLng(s.lng)
+                        if (s.borough && !borough) setBorough(s.borough)
+                        setShowSuggestions(false)
+                        setAddressSuggestions([])
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div>
             <label className="text-[10px] text-gray-400 block mb-1">Borough</label>

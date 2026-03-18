@@ -5,6 +5,7 @@ export type POICategoryGroup =
   | 'heritage' | 'monuments' | 'worship' | 'tourism' | 'nature'
   | 'transport' | 'food_drink' | 'sports' | 'services'
   | 'nightlife' | 'shopping' | 'accommodation'
+  | 'culture' | 'wellness' | 'education' | 'quirky'
 
 export type POICategory = typeof POI_CATEGORIES[number]['key']
 
@@ -131,6 +132,55 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   { key: 'campsite',           group: 'accommodation', label: 'Campsites' },
   { key: 'apartment',          group: 'accommodation', label: 'Apartments' },
   { key: 'guest_house',        group: 'accommodation', label: 'Guest Houses' },
+
+  // Culture (Arts & Culture)
+  { key: 'theatre',            group: 'culture',       label: 'Theatres' },
+  { key: 'arts_centre',        group: 'culture',       label: 'Arts Centres' },
+  { key: 'music_venue',        group: 'culture',       label: 'Music Venues' },
+  { key: 'community_centre',   group: 'culture',       label: 'Community Centres' },
+
+  // Wellness
+  { key: 'sauna',              group: 'wellness',      label: 'Saunas' },
+  { key: 'spa',                group: 'wellness',      label: 'Spas' },
+
+  // Education
+  { key: 'university',         group: 'education',     label: 'Universities' },
+  { key: 'language_school',    group: 'education',     label: 'Language Schools' },
+  { key: 'kindergarten',       group: 'education',     label: 'Kindergartens' },
+
+  // Quirky (Weird & Wonderful)
+  { key: 'photo_booth',        group: 'quirky',        label: 'Photo Booths' },
+  { key: 'public_bookcase',    group: 'quirky',        label: 'Book Exchanges' },
+  { key: 'drinking_water',     group: 'quirky',        label: 'Water Fountains' },
+  { key: 'public_piano',       group: 'quirky',        label: 'Public Pianos' },
+  { key: 'bbq_area',           group: 'quirky',        label: 'BBQ Areas' },
+  { key: 'nudist_area',        group: 'quirky',        label: 'FKK Areas' },
+  { key: 'defibrillator',      group: 'quirky',        label: 'Defibrillators' },
+
+  // Additions to existing groups
+  { key: 'stolperstein',       group: 'heritage',      label: 'Stolpersteine' },
+  { key: 'community_garden',   group: 'nature',        label: 'Community Gardens' },
+  { key: 'bathing_spot',       group: 'nature',        label: 'Bathing Spots' },
+  { key: 'brewery',            group: 'food_drink',    label: 'Breweries' },
+  { key: 'kebab',              group: 'food_drink',    label: 'Kebab' },
+  { key: 'vietnamese',         group: 'food_drink',    label: 'Vietnamese' },
+  { key: 'table_tennis',       group: 'sports',        label: 'Table Tennis' },
+  { key: 'bowling',            group: 'sports',        label: 'Bowling' },
+  { key: 'escape_room',        group: 'sports',        label: 'Escape Rooms' },
+  { key: 'mini_golf',          group: 'sports',        label: 'Mini Golf' },
+  { key: 'outdoor_gym',        group: 'sports',        label: 'Outdoor Gyms' },
+  { key: 'atm',                group: 'services',      label: 'ATMs' },
+  { key: 'laundry',            group: 'services',      label: 'Laundry' },
+  { key: 'veterinary',         group: 'services',      label: 'Veterinary' },
+  { key: 'recycling',          group: 'services',      label: 'Recycling' },
+  { key: 'cocktail_bar',       group: 'nightlife',     label: 'Cocktail Bars' },
+  { key: 'live_music_poi',     group: 'nightlife',     label: 'Live Music' },
+  { key: 'karaoke',            group: 'nightlife',     label: 'Karaoke' },
+  { key: 'organic_shop',       group: 'shopping',      label: 'Organic Shops' },
+  { key: 'wine_shop',          group: 'shopping',      label: 'Wine Shops' },
+  { key: 'charity_shop',       group: 'shopping',      label: 'Charity Shops' },
+  { key: 'scooter_rental',     group: 'transport',     label: 'Scooter Rental' },
+  { key: 'taxi',               group: 'transport',     label: 'Taxi Stands' },
 ]
 
 // Map category key → Overpass QL body (use {BBOX} placeholder)
@@ -257,6 +307,69 @@ const OVERPASS_QUERIES: Record<string, string> = {
   campsite: `[out:json][timeout:30];(node[tourism=camp_site]({BBOX});way[tourism=camp_site]({BBOX}););out center;`,
   apartment: `[out:json][timeout:30];(node[tourism=apartment]({BBOX});way[tourism=apartment]({BBOX}););out center;`,
   guest_house: `[out:json][timeout:30];(node[tourism=guest_house]({BBOX});way[tourism=guest_house]({BBOX}););out center;`,
+
+  // Culture (Arts & Culture)
+  theatre: `[out:json][timeout:30];(node[amenity=theatre]({BBOX});way[amenity=theatre]({BBOX}););out center;`,
+  arts_centre: `[out:json][timeout:30];(node[amenity=arts_centre]({BBOX});way[amenity=arts_centre]({BBOX}););out center;`,
+  music_venue: `[out:json][timeout:30];(node[amenity=music_venue]({BBOX});way[amenity=music_venue]({BBOX});node[amenity=concert_hall]({BBOX});way[amenity=concert_hall]({BBOX}););out center;`,
+  community_centre: `[out:json][timeout:30];(node[amenity=community_centre]({BBOX});way[amenity=community_centre]({BBOX}););out center;`,
+
+  // Wellness
+  sauna: `[out:json][timeout:30];(node[leisure=sauna]({BBOX});way[leisure=sauna]({BBOX}););out center;`,
+  spa: `[out:json][timeout:30];(node[amenity=spa]({BBOX});way[amenity=spa]({BBOX});node[leisure=spa]({BBOX});way[leisure=spa]({BBOX}););out center;`,
+
+  // Education
+  university: `[out:json][timeout:30];(node[amenity=university]({BBOX});way[amenity=university]({BBOX}););out center;`,
+  language_school: `[out:json][timeout:30];(node[amenity=language_school]({BBOX});way[amenity=language_school]({BBOX}););out center;`,
+  kindergarten: `[out:json][timeout:60];(node[amenity=kindergarten]({BBOX});way[amenity=kindergarten]({BBOX}););out center;`,
+
+  // Quirky (Weird & Wonderful)
+  photo_booth: `[out:json][timeout:30];(node[amenity=photo_booth]({BBOX});way[amenity=photo_booth]({BBOX}););out center;`,
+  public_bookcase: `[out:json][timeout:30];(node[amenity=public_bookcase]({BBOX});way[amenity=public_bookcase]({BBOX}););out center;`,
+  drinking_water: `[out:json][timeout:60];(node[amenity=drinking_water]({BBOX}););out center;`,
+  public_piano: `[out:json][timeout:30];(node[musical_instrument=piano][access=yes]({BBOX}););out center;`,
+  bbq_area: `[out:json][timeout:30];(node[amenity=bbq]({BBOX});way[amenity=bbq]({BBOX}););out center;`,
+  nudist_area: `[out:json][timeout:30];(node[nudism=yes]({BBOX});way[nudism=yes]({BBOX});node[nudism=designated]({BBOX});way[nudism=designated]({BBOX}););out center;`,
+  defibrillator: `[out:json][timeout:30];(node[emergency=defibrillator]({BBOX}););out center;`,
+
+  // Heritage additions
+  stolperstein: `[out:json][timeout:60];(node[historic=memorial]["memorial:type"=stolperstein]({BBOX}););out center;`,
+
+  // Nature additions
+  community_garden: `[out:json][timeout:30];(node[leisure=garden]["garden:type"=community]({BBOX});way[leisure=garden]["garden:type"=community]({BBOX}););out center;`,
+  bathing_spot: `[out:json][timeout:30];(node[leisure=bathing_place]({BBOX});way[leisure=bathing_place]({BBOX});node[sport=swimming][natural]({BBOX}););out center;`,
+
+  // Food & Drink additions
+  brewery: `[out:json][timeout:30];(node[craft=brewery]({BBOX});way[craft=brewery]({BBOX});node[microbrewery=yes]({BBOX}););out center;`,
+  kebab: `[out:json][timeout:60];(node[cuisine~"kebab|döner|doner",i]({BBOX});way[cuisine~"kebab|döner|doner",i]({BBOX}););out center;`,
+  vietnamese: `[out:json][timeout:30];(node[cuisine=vietnamese]({BBOX});way[cuisine=vietnamese]({BBOX}););out center;`,
+
+  // Sports additions
+  table_tennis: `[out:json][timeout:30];(node[sport=table_tennis]({BBOX});way[sport=table_tennis]({BBOX});node[leisure=pitch][sport=table_tennis]({BBOX}););out center;`,
+  bowling: `[out:json][timeout:30];(node[sport=bowling]({BBOX});way[sport=bowling]({BBOX});node[leisure=bowling_alley]({BBOX});way[leisure=bowling_alley]({BBOX}););out center;`,
+  escape_room: `[out:json][timeout:30];(node[leisure=escape_game]({BBOX});way[leisure=escape_game]({BBOX}););out center;`,
+  mini_golf: `[out:json][timeout:30];(node[leisure=miniature_golf]({BBOX});way[leisure=miniature_golf]({BBOX}););out center;`,
+  outdoor_gym: `[out:json][timeout:30];(node[leisure=fitness_station]({BBOX});way[leisure=fitness_station]({BBOX}););out center;`,
+
+  // Services additions
+  atm: `[out:json][timeout:60];(node[amenity=atm]({BBOX}););out center;`,
+  laundry: `[out:json][timeout:30];(node[shop=laundry]({BBOX});way[shop=laundry]({BBOX});node[amenity=laundry]({BBOX}););out center;`,
+  veterinary: `[out:json][timeout:30];(node[amenity=veterinary]({BBOX});way[amenity=veterinary]({BBOX}););out center;`,
+  recycling: `[out:json][timeout:60];(node[amenity=recycling]({BBOX}););out center;`,
+
+  // Nightlife additions
+  cocktail_bar: `[out:json][timeout:30];(node[amenity=bar][cocktails=yes]({BBOX});way[amenity=bar][cocktails=yes]({BBOX});node[amenity=bar][name~"[Cc]ocktail",i]({BBOX}););out center;`,
+  live_music_poi: `[out:json][timeout:30];(node[amenity=bar][live_music=yes]({BBOX});way[amenity=bar][live_music=yes]({BBOX});node[amenity=pub][live_music=yes]({BBOX}););out center;`,
+  karaoke: `[out:json][timeout:30];(node[amenity=bar][karaoke=yes]({BBOX});way[amenity=bar][karaoke=yes]({BBOX});node[leisure=karaoke_box]({BBOX}););out center;`,
+
+  // Shopping additions
+  organic_shop: `[out:json][timeout:30];(node[shop=organic]({BBOX});way[shop=organic]({BBOX});node[shop=supermarket][organic=only]({BBOX}););out center;`,
+  wine_shop: `[out:json][timeout:30];(node[shop=wine]({BBOX});way[shop=wine]({BBOX}););out center;`,
+  charity_shop: `[out:json][timeout:30];(node[shop=charity]({BBOX});way[shop=charity]({BBOX});node[shop=second_hand][charity=yes]({BBOX}););out center;`,
+
+  // Transport additions
+  scooter_rental: `[out:json][timeout:30];(node[amenity=kick-scooter_rental]({BBOX});way[amenity=kick-scooter_rental]({BBOX}););out center;`,
+  taxi: `[out:json][timeout:30];(node[amenity=taxi]({BBOX});way[amenity=taxi]({BBOX}););out center;`,
 }
 
 // Group metadata
@@ -273,4 +386,8 @@ export const POI_GROUPS: Array<{ key: POICategoryGroup; label: string }> = [
   { key: 'nightlife',     label: 'Nightlife' },
   { key: 'shopping',      label: 'Shopping' },
   { key: 'accommodation', label: 'Accommodation' },
+  { key: 'culture',       label: 'Arts & Culture' },
+  { key: 'wellness',      label: 'Wellness' },
+  { key: 'education',     label: 'Education' },
+  { key: 'quirky',        label: 'Weird & Wonderful' },
 ]

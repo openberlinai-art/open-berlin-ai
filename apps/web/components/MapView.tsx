@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Map, { Source, Layer, Popup, NavigationControl } from 'react-map-gl/maplibre'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
+import type maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import { getCategoryHex } from '@/lib/utils'
@@ -19,6 +20,45 @@ import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
 const INITIAL_VIEW = { longitude: 13.405, latitude: 52.52, zoom: 11 }
+
+// ─── Map group icon SVG paths (24x24 viewBox, white fill) ───────────────────────
+// Each value is a simplified SVG path from Lucide icons
+const MAP_GROUP_ICONS: Record<string, string> = {
+  culture:       'M2 3h20v5H2zm3 5v13h5V8zm7 0v13h5V8zM5 18h4M12 18h4', // Palette approx
+  nightlife:     'M8 22h8M7 10h10M12 2v2M12 10v12M5.3 7C4 5.7 4 4 5 3c2 2 4.5 2.5 7 2.5S16 5 18 3c1 1 1 2.7-.3 4', // Wine glass
+  food_drink:    'M3 11h18M3 11l2.3-6A2 2 0 0 1 7.2 3h9.5a2 2 0 0 1 1.9 1.4L21 11M5 11v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7M12 11v9', // UtensilsCrossed
+  outdoors:      'M12 2L7 12h10L12 2zM7 12L2 22h20L17 12', // TreePine
+  heritage:      'M3 21h18M4 21V10l8-6 8 6v11M9 21v-4a3 3 0 1 1 6 0v4', // Castle
+  monuments:     'M12 2v20M6 12h12M8 6l4-4 4 4', // Milestone
+  worship:       'M18 21H6a2 2 0 0 1-2-2V8l8-6 8 6v11a2 2 0 0 1-2 2zM12 2v20M2 8h20', // Church
+  transport:     'M4 11V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5M4 11h16M4 11v6h16v-6M8 17v2M16 17v2M8 9h.01M16 9h.01', // Train
+  shopping:      'M6 2L3 7v13a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7l-3-5zM3 7h18M16 11a4 4 0 0 1-8 0', // ShoppingBag
+  sports:        'M6.5 6.5A6.5 6.5 0 1 1 17.5 17.5M6.5 6.5h11M6.5 6.5v11M12 12v5M12 12h5', // Dumbbell
+  tourism:       'M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', // Camera
+  services:      'M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18zM6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4', // Building2
+  accommodation: 'M2 20V8l10-6 10 6v12M2 20h20M6 12h4v4H6zM14 12h4v8h-4z', // Bed
+  events:        'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM12 6v6l4 2', // Clock/calendar
+  listings:      'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2', // Clipboard
+}
+
+/** Register all group icons as MapLibre images */
+function registerMapIcons(map: maplibregl.Map) {
+  const entries = Object.entries(MAP_GROUP_ICONS)
+  let loaded = 0
+  entries.forEach(([key, pathD]) => {
+    const imgName = `icon-${key}`
+    if (map.hasImage(imgName)) { loaded++; return }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${pathD}"/></svg>`
+    const dataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+    const img = new Image(24, 24)
+    img.onload = () => {
+      if (!map.hasImage(imgName)) map.addImage(imgName, img, { sdf: false })
+      loaded++
+    }
+    img.onerror = () => { loaded++ }
+    img.src = dataUri
+  })
+}
 
 // ─── OSM category config ───────────────────────────────────────────────────────
 
@@ -228,7 +268,11 @@ export default function MapView({
     onBboxChange(bboxStr)
   }, [onBboxChange])
 
-  const onLoad    = useCallback(() => updateBbox(), [updateBbox])
+  const onLoad    = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (map) registerMapIcons(map)
+    updateBbox()
+  }, [updateBbox])
   const onMoveEnd = useCallback(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(updateBbox, 300)
@@ -579,11 +623,20 @@ export default function MapView({
               id="parks-point"
               type="circle"
               paint={{
-                'circle-radius':       6,
+                'circle-radius':       10,
                 'circle-color':        '#16a34a',
                 'circle-stroke-color': '#14532d',
-                'circle-stroke-width': 1.5,
-                'circle-opacity':      0.85,
+                'circle-stroke-width': 2,
+                'circle-opacity':      0.9,
+              }}
+            />
+            <Layer
+              id="parks-icon"
+              type="symbol"
+              layout={{
+                'icon-image':           'icon-outdoors',
+                'icon-size':            0.55,
+                'icon-allow-overlap':   true,
               }}
             />
           </Source>
@@ -596,11 +649,11 @@ export default function MapView({
               id="playgrounds-point"
               type="circle"
               paint={{
-                'circle-radius':       6,
+                'circle-radius':       10,
                 'circle-color':        '#e879f9',
                 'circle-stroke-color': '#86198f',
-                'circle-stroke-width': 1.5,
-                'circle-opacity':      0.85,
+                'circle-stroke-width': 2,
+                'circle-opacity':      0.9,
               }}
             />
           </Source>
@@ -642,7 +695,7 @@ export default function MapView({
               type="circle"
               filter={['!', ['has', 'point_count']]}
               paint={{
-                'circle-radius':       6,
+                'circle-radius':       10,
                 'circle-color':        ['match', ['get', 'category'],
                   'museum',           '#b91c1c',
                   'gallery',          '#7c3aed',
@@ -654,8 +707,18 @@ export default function MapView({
                   '#b45309',  // default
                 ],
                 'circle-stroke-color': '#78350f',
-                'circle-stroke-width': 1.5,
-                'circle-opacity':      0.85,
+                'circle-stroke-width': 2,
+                'circle-opacity':      0.9,
+              }}
+            />
+            <Layer
+              id="venues-icon"
+              type="symbol"
+              filter={['!', ['has', 'point_count']]}
+              layout={{
+                'icon-image':           'icon-culture',
+                'icon-size':            0.55,
+                'icon-allow-overlap':   true,
               }}
             />
           </Source>
@@ -703,11 +766,21 @@ export default function MapView({
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
                 paint={{
-                  'circle-radius':       6,
+                  'circle-radius':       10,
                   'circle-color':        color,
                   'circle-stroke-color': stroke,
-                  'circle-stroke-width': 1.5,
-                  'circle-opacity':      0.85,
+                  'circle-stroke-width': 2,
+                  'circle-opacity':      0.9,
+                }}
+              />
+              <Layer
+                id={`osm-${key}-icon`}
+                type="symbol"
+                filter={['!', ['has', 'point_count']]}
+                layout={{
+                  'icon-image':           'icon-culture',
+                  'icon-size':            0.55,
+                  'icon-allow-overlap':   true,
                 }}
               />
             </Source>
@@ -755,11 +828,21 @@ export default function MapView({
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
                 paint={{
-                  'circle-radius':       6,
+                  'circle-radius':       10,
                   'circle-color':        color,
                   'circle-stroke-color': stroke,
-                  'circle-stroke-width': 1.5,
-                  'circle-opacity':      0.85,
+                  'circle-stroke-width': 2,
+                  'circle-opacity':      0.9,
+                }}
+              />
+              <Layer
+                id={`poi-${key}-icon`}
+                type="symbol"
+                filter={['!', ['has', 'point_count']]}
+                layout={{
+                  'icon-image':           `icon-${group}`,
+                  'icon-size':            0.55,
+                  'icon-allow-overlap':   true,
                 }}
               />
             </Source>
@@ -781,7 +864,7 @@ export default function MapView({
             filter={['has', 'point_count']}
             paint={{
               'circle-color':  '#374151',
-              'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 30, 24],
+              'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 30, 30],
               'circle-opacity': 0.85,
             }}
           />
@@ -802,13 +885,23 @@ export default function MapView({
             filter={['!', ['has', 'point_count']]}
             paint={{
               'circle-radius': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], 11, 8],
+                ['==', ['get', 'id'], activeId ?? ''], 13, 10],
               'circle-color': ['get', 'color'],
               'circle-stroke-width': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], 3, 1.5],
+                ['==', ['get', 'id'], activeId ?? ''], 3, 2],
               'circle-stroke-color': ['case',
                 ['==', ['get', 'id'], activeId ?? ''], '#000', '#fff'],
               'circle-opacity': 0.9,
+            }}
+          />
+          <Layer
+            id="events-icon"
+            type="symbol"
+            filter={['!', ['has', 'point_count']]}
+            layout={{
+              'icon-image':           'icon-events',
+              'icon-size':            0.55,
+              'icon-allow-overlap':   true,
             }}
           />
         </Source>}
@@ -899,7 +992,7 @@ export default function MapView({
               type="circle"
               filter={['!', ['has', 'point_count']]}
               paint={{
-                'circle-radius':       7,
+                'circle-radius':       10,
                 'circle-color':        [
                   'match', ['get', 'type'],
                   'apartment_rent', '#2563eb',
@@ -911,6 +1004,16 @@ export default function MapView({
                 'circle-stroke-color': '#ffffff',
                 'circle-stroke-width': 2,
                 'circle-opacity':      0.9,
+              }}
+            />
+            <Layer
+              id="listings-icon"
+              type="symbol"
+              filter={['!', ['has', 'point_count']]}
+              layout={{
+                'icon-image':           'icon-listings',
+                'icon-size':            0.55,
+                'icon-allow-overlap':   true,
               }}
             />
             <Layer

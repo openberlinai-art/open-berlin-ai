@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useUser } from '@/providers/UserProvider'
@@ -19,6 +19,13 @@ const PRICE_TYPES: { key: ListingPriceType; label: string }[] = [
   { key: 'per_month',  label: '/mo' },
   { key: 'free',       label: 'Free' },
 ]
+
+const LISTING_CATEGORIES: Record<string, string[]> = {
+  apartment_rent: ['Studio', '1-Room', '2-Room', '3-Room', '4+ Rooms', 'WG-Zimmer', 'Loft', 'Penthouse'],
+  apartment_buy:  ['Studio', '1-Room', '2-Room', '3-Room', '4+ Rooms', 'WG-Zimmer', 'Loft', 'Penthouse'],
+  item:           ['Furniture', 'Electronics', 'Clothing', 'Books', 'Kitchen', 'Sports', 'Music', 'Tools', 'Kids', 'Bikes', 'Art', 'Other'],
+  service:        ['Cleaning', 'Moving', 'Repair', 'Teaching', 'Photography', 'Design', 'IT', 'Other'],
+}
 
 const BOROUGHS = [
   'Mitte', 'Friedrichshain-Kreuzberg', 'Pankow', 'Charlottenburg-Wilmersdorf',
@@ -43,12 +50,50 @@ export default function EditListingPage() {
   const [floor,         setFloor]         = useState('')
   const [address,       setAddress]       = useState('')
   const [borough,       setBorough]       = useState('')
+  const [lat,           setLat]           = useState<number | null>(null)
+  const [lng,           setLng]           = useState<number | null>(null)
   const [contactMethod, setContactMethod] = useState<'email' | 'phone' | 'both'>('email')
   const [contactInfo,   setContactInfo]   = useState('')
   const [newFiles,      setNewFiles]      = useState<File[]>([])
   const [submitting,    setSubmitting]    = useState(false)
   const [error,         setError]         = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Address autocomplete via Photon
+  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; lat: number; lng: number; borough?: string }>>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const addressDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const fetchAddressSuggestions = useCallback((query: string) => {
+    clearTimeout(addressDebounceRef.current)
+    if (query.length < 3) { setAddressSuggestions([]); return }
+    addressDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=52.52&lon=13.405&limit=6&lang=de`
+        )
+        if (!res.ok) return
+        const data = await res.json() as { features: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; housenumber?: string; city?: string; county?: string } }> }
+        const results = data.features
+          .filter(f => f.properties.street || f.properties.name)
+          .map(f => {
+            const p = f.properties
+            const street = p.street ? `${p.street}${p.housenumber ? ` ${p.housenumber}` : ''}` : p.name ?? ''
+            const city = p.city ?? ''
+            return {
+              label: [street, city].filter(Boolean).join(', '),
+              lat: f.geometry.coordinates[1],
+              lng: f.geometry.coordinates[0],
+              borough: p.county ?? undefined,
+            }
+          })
+        setAddressSuggestions(results)
+        setShowSuggestions(true)
+      } catch { /* ignore */ }
+    }, 300)
+  }, [])
+
+  useEffect(() => () => clearTimeout(addressDebounceRef.current), [])
 
   useEffect(() => {
     fetch(`/api/listings/${id}`)
@@ -66,6 +111,8 @@ export default function EditListingPage() {
         setFloor(l.floor != null ? l.floor.toString() : '')
         setAddress(l.address ?? '')
         setBorough(l.borough ?? '')
+        setLat(l.lat ?? null)
+        setLng(l.lng ?? null)
         setContactMethod(l.contact_method)
         setContactInfo(l.contact_info ?? '')
       })
@@ -104,20 +151,22 @@ export default function EditListingPage() {
     setError(null)
 
     try {
-      const priceVal = priceCents.trim() ? Math.round(parseFloat(priceCents) * 100) : undefined
+      const priceVal = priceType === 'free' ? null : (priceCents.trim() ? Math.round(parseFloat(priceCents) * 100) : null)
       const res = await fetch(`/api/listings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           title:          title.trim(),
           description:    description.trim() || null,
-          price_cents:    priceVal ?? null,
+          price_cents:    priceVal,
           price_type:     priceType,
           category:       category.trim() || null,
           rooms:          rooms ? parseFloat(rooms) : null,
           sqm:            sqm ? parseFloat(sqm) : null,
           floor:          floor ? parseInt(floor, 10) : null,
           address:        address.trim() || null,
+          lat:            lat ?? null,
+          lng:            lng ?? null,
           borough:        borough || null,
           contact_method: contactMethod,
           contact_info:   contactInfo.trim() || null,
@@ -184,22 +233,29 @@ export default function EditListingPage() {
             <textarea value={description} onChange={e => setDescription(e.target.value)} className={`${input} min-h-[80px]`} />
           </div>
           <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Price (EUR)</label>
-              <input type="number" step="0.01" min="0" value={priceCents} onChange={e => setPriceCents(e.target.value)} className={input} />
-            </div>
+            {priceType !== 'free' && (
+              <div className="flex-1">
+                <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Price (EUR)</label>
+                <input type="number" step="0.01" min="0" value={priceCents} onChange={e => setPriceCents(e.target.value)} className={input} />
+              </div>
+            )}
             <div className="flex gap-1 pb-0.5">
               {PRICE_TYPES.map(pt => (
-                <button key={pt.key} type="button" onClick={() => setPriceType(pt.key)} className={priceType === pt.key ? btnActive : btn}>
+                <button key={pt.key} type="button" onClick={() => { setPriceType(pt.key); if (pt.key === 'free') setPriceCents('') }} className={priceType === pt.key ? btnActive : btn}>
                   {pt.label}
                 </button>
               ))}
             </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Category</label>
-            <input value={category} onChange={e => setCategory(e.target.value)} className={input} />
-          </div>
+          {listing.type && LISTING_CATEGORIES[listing.type] && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1 block">Category</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} className={input}>
+                <option value="">Select…</option>
+                {LISTING_CATEGORIES[listing.type].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Apartment fields */}
@@ -226,7 +282,40 @@ export default function EditListingPage() {
         {/* Location */}
         <div className="space-y-3">
           <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Location</p>
-          <input value={address} onChange={e => setAddress(e.target.value)} className={input} placeholder="Address" />
+          <div className="relative">
+            <input
+              value={address}
+              onChange={e => { setAddress(e.target.value); fetchAddressSuggestions(e.target.value) }}
+              onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              className={input}
+              placeholder="Address"
+              autoComplete="off"
+            />
+            {showSuggestions && addressSuggestions.length > 0 && (
+              <ul className="absolute z-50 left-0 right-0 bg-white border-2 border-black mt-0.5 max-h-48 overflow-y-auto shadow-[2px_2px_0_#000]">
+                {addressSuggestions.map((s, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-gray-100"
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        setAddress(s.label)
+                        setLat(s.lat)
+                        setLng(s.lng)
+                        if (s.borough && !borough) setBorough(s.borough)
+                        setShowSuggestions(false)
+                        setAddressSuggestions([])
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <select value={borough} onChange={e => setBorough(e.target.value)} className={input}>
             <option value="">Borough…</option>
             {BOROUGHS.map(b => <option key={b} value={b}>{b}</option>)}

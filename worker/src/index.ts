@@ -321,6 +321,7 @@ app.get('/api/geodata/osm/:category', async c => {
 const POI_GROUPS_SET = new Set<string>([
   'heritage','monuments','worship','tourism','nature','transport',
   'food_drink','sports','services','nightlife','shopping','accommodation',
+  'culture','wellness','education','quirky',
 ])
 
 app.get('/api/pois', async c => {
@@ -1365,6 +1366,101 @@ app.post('/api/listings/:id/images', async c => {
   )
   if (!result.ok) return c.json({ error: result.error }, 400)
   return c.json({ key: result.key })
+})
+
+// ─── Seed listings ────────────────────────────────────────────────────────────
+
+app.post('/api/seed-listings', async c => {
+  const authHeader = c.req.header('Authorization') ?? ''
+  if (authHeader !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  // Use a fixed "system" user ID — create one if needed
+  const systemUserId = 'system-seed'
+  await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, datetime('now'))`
+  ).bind(systemUserId, 'seed@kulturpulse.berlin', 'KulturPulse').run()
+
+  const listings = [
+    {
+      id: 'seed-apt-1', user_id: systemUserId, type: 'apartment_rent',
+      title: 'Bright 2-room in Kreuzberg', description: 'Sunny 2-room apartment, 65m², Altbau with high ceilings. Close to Görlitzer Park. Available from April.',
+      price_cents: 95000, price_type: 'per_month', category: '2-Room',
+      lat: 52.4955, lng: 13.4370, address: 'Oranienstraße 42, Berlin',
+      borough: 'Friedrichshain-Kreuzberg', rooms: 2, sqm: 65, floor: 3,
+      contact_method: 'email', status: 'active',
+    },
+    {
+      id: 'seed-apt-2', user_id: systemUserId, type: 'apartment_buy',
+      title: 'Altbau 3-room Prenzlauer Berg', description: 'Beautiful Altbau apartment with balcony, parquet floors, and Berliner Zimmer. Top floor with elevator.',
+      price_cents: 35000000, price_type: 'fixed', category: '3-Room',
+      lat: 52.5390, lng: 13.4170, address: 'Kastanienallee 77, Berlin',
+      borough: 'Pankow', rooms: 3, sqm: 95, floor: 5,
+      contact_method: 'email', status: 'active',
+    },
+    {
+      id: 'seed-item-1', user_id: systemUserId, type: 'item',
+      title: 'IKEA KALLAX shelf white', description: '4x2 KALLAX shelf in white, good condition. Self-pickup in Mitte.',
+      price_cents: 2500, price_type: 'fixed', category: 'Furniture',
+      lat: 52.5233, lng: 13.4127, address: 'Torstraße 120, Berlin',
+      borough: 'Mitte', contact_method: 'email', status: 'active',
+    },
+    {
+      id: 'seed-item-2', user_id: systemUserId, type: 'item',
+      title: 'Canyon road bike 56cm', description: 'Canyon Endurace AL 7.0, 56cm frame. Shimano 105, ~3000km ridden. Minor scratches.',
+      price_cents: 80000, price_type: 'negotiable', category: 'Bikes',
+      lat: 52.4811, lng: 13.4353, address: 'Karl-Marx-Straße 85, Berlin',
+      borough: 'Neukölln', contact_method: 'both', status: 'active',
+    },
+    {
+      id: 'seed-item-3', user_id: systemUserId, type: 'item',
+      title: 'MacBook Pro M2 14"', description: '2023 MacBook Pro M2 Pro, 16GB RAM, 512GB SSD. AppleCare until 2025. Includes original charger.',
+      price_cents: 120000, price_type: 'fixed', category: 'Electronics',
+      lat: 52.5058, lng: 13.3225, address: 'Kantstraße 23, Berlin',
+      borough: 'Charlottenburg-Wilmersdorf', contact_method: 'email', status: 'active',
+    },
+    {
+      id: 'seed-item-4', user_id: systemUserId, type: 'item',
+      title: 'Free moving boxes (20x)', description: '20 sturdy moving boxes, various sizes. Free for pickup in Schöneberg.',
+      price_cents: null, price_type: 'free', category: 'Other',
+      lat: 52.4885, lng: 13.3535, address: 'Hauptstraße 15, Berlin',
+      borough: 'Tempelhof-Schöneberg', contact_method: 'email', status: 'active',
+    },
+    {
+      id: 'seed-svc-1', user_id: systemUserId, type: 'service',
+      title: 'Deep cleaning - apartments', description: 'Professional deep cleaning for apartments. Includes kitchen, bathroom, windows. All cleaning supplies provided.',
+      price_cents: 3000, price_type: 'negotiable', category: 'Cleaning',
+      lat: 52.5200, lng: 13.4050, address: 'Alexanderplatz 1, Berlin',
+      borough: 'Mitte', contact_method: 'both', status: 'active',
+    },
+    {
+      id: 'seed-svc-2', user_id: systemUserId, type: 'service',
+      title: 'Bike repair mobile service', description: 'Mobile bike repair — I come to you! Flat tires, brake adjustments, gear tuning. Same-day service available.',
+      price_cents: 2500, price_type: 'fixed', category: 'Repair',
+      lat: 52.5010, lng: 13.4490, address: 'Warschauer Straße 58, Berlin',
+      borough: 'Friedrichshain-Kreuzberg', contact_method: 'phone', status: 'active',
+    },
+  ]
+
+  let inserted = 0
+  for (const l of listings) {
+    try {
+      await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO listings (id, user_id, type, title, description, price_cents, price_type, category, lat, lng, address, borough, rooms, sqm, floor, contact_method, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      ).bind(
+        l.id, l.user_id, l.type, l.title, l.description,
+        l.price_cents, l.price_type, l.category,
+        l.lat ?? null, l.lng ?? null, l.address ?? null, l.borough ?? null,
+        l.rooms ?? null, l.sqm ?? null, l.floor ?? null,
+        l.contact_method, l.status,
+      ).run()
+      inserted++
+    } catch { /* already exists */ }
+  }
+
+  return c.json({ ok: true, inserted, total: listings.length })
 })
 
 // ─── Exports ──────────────────────────────────────────────────────────────────

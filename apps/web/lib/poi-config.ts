@@ -28,6 +28,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'bunker',              label: 'Bunkers',              color: '#525252', stroke: '#404040' },
       { key: 'berlin_wall',         label: 'Berlin Wall',          color: '#475569', stroke: '#334155' },
       { key: 'windmill',            label: 'Windmills',            color: '#65a30d', stroke: '#4d7c0f' },
+      { key: 'stolperstein',        label: 'Stolpersteine',        color: '#d4a017', stroke: '#b8860b' },
     ],
   },
   {
@@ -77,6 +78,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'cemetery_park',   label: 'Cemeteries',color: '#6b7280', stroke: '#4b5563' },
       { key: 'allotment_garden',label: 'Kleingarten',color:'#4d7c0f', stroke: '#365314' },
       { key: 'pond',            label: 'Ponds',     color: '#0284c7', stroke: '#0369a1' },
+      { key: 'community_garden',label: 'Community Gardens', color: '#4d7c0f', stroke: '#365314' },
+      { key: 'bathing_spot',    label: 'Bathing Spots',     color: '#0891b2', stroke: '#0e7490' },
     ],
   },
   {
@@ -89,7 +92,9 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'ferry',       label: 'Ferries',      color: '#0369a1', stroke: '#075985' },
       { key: 'parking',     label: 'Parking',      color: '#6b7280', stroke: '#4b5563' },
       { key: 'tram_stop',   label: 'Tram Stops',   color: '#dc2626', stroke: '#b91c1c' },
-      { key: 'car_sharing', label: 'Car Sharing',  color: '#059669', stroke: '#047857' },
+      { key: 'car_sharing',     label: 'Car Sharing',    color: '#059669', stroke: '#047857' },
+      { key: 'scooter_rental',  label: 'Scooter Rental', color: '#f59e0b', stroke: '#d97706' },
+      { key: 'taxi',            label: 'Taxi Stands',    color: '#eab308', stroke: '#ca8a04' },
     ],
   },
   {
@@ -103,6 +108,9 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'ice_cream',   label: 'Ice Cream',    color: '#ec4899', stroke: '#db2777' },
       { key: 'fast_food',   label: 'Fast Food',    color: '#ea580c', stroke: '#c2410c' },
       { key: 'food_court',  label: 'Food Courts',  color: '#d97706', stroke: '#b45309' },
+      { key: 'brewery',     label: 'Breweries',    color: '#92400e', stroke: '#78350f' },
+      { key: 'kebab',       label: 'Kebab',        color: '#ea580c', stroke: '#c2410c' },
+      { key: 'vietnamese',  label: 'Vietnamese',   color: '#059669', stroke: '#047857' },
     ],
   },
   {
@@ -117,6 +125,11 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'playground',      label: 'Playgrounds',    color: '#f59e0b', stroke: '#d97706' },
       { key: 'skatepark',       label: 'Skateparks',     color: '#6366f1', stroke: '#4f46e5' },
       { key: 'dog_park',        label: 'Dog Parks',      color: '#65a30d', stroke: '#4d7c0f' },
+      { key: 'table_tennis',    label: 'Table Tennis',   color: '#0891b2', stroke: '#0e7490' },
+      { key: 'bowling',         label: 'Bowling',        color: '#7c3aed', stroke: '#6d28d9' },
+      { key: 'escape_room',     label: 'Escape Rooms',   color: '#e11d48', stroke: '#be123c' },
+      { key: 'mini_golf',       label: 'Mini Golf',      color: '#16a34a', stroke: '#15803d' },
+      { key: 'outdoor_gym',     label: 'Outdoor Gyms',   color: '#ea580c', stroke: '#c2410c' },
     ],
   },
   {
@@ -132,6 +145,10 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'dentist',      label: 'Dentists',      color: '#0891b2', stroke: '#0e7490' },
       { key: 'doctor',       label: 'Doctors',       color: '#0284c7', stroke: '#0369a1' },
       { key: 'police',       label: 'Police',        color: '#1d4ed8', stroke: '#1e40af' },
+      { key: 'atm',          label: 'ATMs',          color: '#059669', stroke: '#047857' },
+      { key: 'laundry',      label: 'Laundry',       color: '#6b7280', stroke: '#4b5563' },
+      { key: 'veterinary',   label: 'Veterinary',    color: '#16a34a', stroke: '#15803d' },
+      { key: 'recycling',    label: 'Recycling',     color: '#4d7c0f', stroke: '#365314' },
     ],
   },
   {
@@ -142,6 +159,9 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'wine_bar',      label: 'Wine Bars',      color: '#9f1239', stroke: '#881337' },
       { key: 'hookah_lounge', label: 'Hookah Lounges', color: '#6b7280', stroke: '#4b5563' },
       { key: 'nightclub',     label: 'Clubs',          color: '#9333ea', stroke: '#7e22ce' },
+      { key: 'cocktail_bar',  label: 'Cocktail Bars',  color: '#be123c', stroke: '#881337' },
+      { key: 'live_music_poi',label: 'Live Music',     color: '#1d4ed8', stroke: '#1e3a8a' },
+      { key: 'karaoke',       label: 'Karaoke',        color: '#d946ef', stroke: '#a21caf' },
     ],
   },
   {
@@ -155,7 +175,10 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'vintage_shop', label: 'Vintage',      color: '#d97706', stroke: '#92400e' },
       { key: 'convenience',  label: 'Convenience',  color: '#059669', stroke: '#047857' },
       { key: 'florist',      label: 'Florists',     color: '#ec4899', stroke: '#db2777' },
-      { key: 'bicycle_shop', label: 'Bike Shops',   color: '#15803d', stroke: '#14532d' },
+      { key: 'bicycle_shop',  label: 'Bike Shops',    color: '#15803d', stroke: '#14532d' },
+      { key: 'organic_shop',  label: 'Organic Shops', color: '#65a30d', stroke: '#4d7c0f' },
+      { key: 'wine_shop',     label: 'Wine Shops',    color: '#9f1239', stroke: '#881337' },
+      { key: 'charity_shop',  label: 'Charity Shops', color: '#0891b2', stroke: '#0e7490' },
     ],
   },
   {
@@ -166,6 +189,42 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'campsite',    label: 'Campsites',    color: '#16a34a', stroke: '#15803d' },
       { key: 'apartment',   label: 'Apartments',   color: '#ea580c', stroke: '#c2410c' },
       { key: 'guest_house', label: 'Guest Houses', color: '#0891b2', stroke: '#0e7490' },
+    ],
+  },
+  {
+    key: 'culture', label: 'Arts & Culture', icon: 'Palette',
+    categories: [
+      { key: 'theatre',            label: 'Theatres',          color: '#0369a1', stroke: '#075985' },
+      { key: 'arts_centre',        label: 'Arts Centres',      color: '#7c3aed', stroke: '#6d28d9' },
+      { key: 'music_venue',        label: 'Music Venues',      color: '#b45309', stroke: '#78350f' },
+      { key: 'community_centre',   label: 'Community Centres', color: '#15803d', stroke: '#14532d' },
+    ],
+  },
+  {
+    key: 'wellness', label: 'Wellness', icon: 'Heart',
+    categories: [
+      { key: 'sauna', label: 'Saunas', color: '#ea580c', stroke: '#c2410c' },
+      { key: 'spa',   label: 'Spas',   color: '#0891b2', stroke: '#0e7490' },
+    ],
+  },
+  {
+    key: 'education', label: 'Education', icon: 'GraduationCap',
+    categories: [
+      { key: 'university',      label: 'Universities',    color: '#1d4ed8', stroke: '#1e40af' },
+      { key: 'language_school',  label: 'Language Schools', color: '#059669', stroke: '#047857' },
+      { key: 'kindergarten',     label: 'Kindergartens',   color: '#f59e0b', stroke: '#d97706' },
+    ],
+  },
+  {
+    key: 'quirky', label: 'Weird & Wonderful', icon: 'Sparkles',
+    categories: [
+      { key: 'photo_booth',     label: 'Photo Booths',    color: '#7c3aed', stroke: '#6d28d9' },
+      { key: 'public_bookcase', label: 'Book Exchanges',  color: '#0369a1', stroke: '#075985' },
+      { key: 'drinking_water',  label: 'Water Fountains', color: '#0284c7', stroke: '#0369a1' },
+      { key: 'public_piano',    label: 'Public Pianos',   color: '#e11d48', stroke: '#be123c' },
+      { key: 'bbq_area',        label: 'BBQ Areas',       color: '#ea580c', stroke: '#c2410c' },
+      { key: 'nudist_area',     label: 'FKK Areas',       color: '#d97706', stroke: '#b45309' },
+      { key: 'defibrillator',   label: 'Defibrillators',  color: '#dc2626', stroke: '#b91c1c' },
     ],
   },
 ]
