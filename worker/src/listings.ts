@@ -47,6 +47,7 @@ export interface ListingFilters {
   status?:  string
   user_id?: string
   format?:  string   // 'geojson'
+  street?:  string
   page?:    number
   limit?:   number
 }
@@ -98,6 +99,10 @@ export async function getListings(
     wheres.push(`lat BETWEEN ? AND ?`)
     wheres.push(`lng BETWEEN ? AND ?`)
     values.push(minLat, maxLat, minLng, maxLng)
+  }
+  if (filters.street) {
+    wheres.push(`LOWER(address) LIKE ?`)
+    values.push(`%${filters.street.toLowerCase()}%`)
   }
 
   const where = wheres.length ? `WHERE ${wheres.join(' AND ')}` : ''

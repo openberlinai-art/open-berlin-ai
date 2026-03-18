@@ -226,6 +226,23 @@ CREATE TABLE IF NOT EXISTS poi_ingestion_log (
   error_message TEXT
 );
 
+-- ─── Berlin streets (Overpass → D1, refreshed weekly) ─────────────────────────
+
+CREATE TABLE IF NOT EXISTS streets (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL,
+  name_norm    TEXT NOT NULL,   -- lowercase, diacritics-stripped for fast LIKE
+  lat          REAL NOT NULL,   -- centroid
+  lng          REAL NOT NULL,
+  postcode     TEXT,
+  borough      TEXT,
+  region       TEXT NOT NULL DEFAULT 'berlin',
+  osm_id       INTEGER,
+  refreshed_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_streets_name_norm ON streets(name_norm);
+CREATE INDEX IF NOT EXISTS idx_streets_region    ON streets(region);
+
 -- ─── Rate limiting (best-effort, per-IP per window) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_limits (

@@ -115,6 +115,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [liveRadar,    setLiveRadar]    = useState(false)
   const [mode,      setMode]      = useState<'events' | 'venues' | 'listings'>('events')
   const [listingType, setListingType] = useState<string | undefined>(undefined)
+  const [listingStreetFilter, setListingStreetFilter] = useState<string | undefined>(undefined)
+  const [listingStreetQuery, setListingStreetQuery] = useState('')
+  const [listingStreetSuggestions, setListingStreetSuggestions] = useState<Array<{ name: string; lat: number; lng: number; postcode: string | null; borough: string | null }>>([])
+  const [showStreetSuggestions, setShowStreetSuggestions] = useState(false)
+  const streetDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [mapBbox,   setMapBbox]   = useState<string | null>(null)
   const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
@@ -131,6 +136,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     locations: Array<{ id: string; name: string; category: string | null; address: string | null; borough: string | null; lat: number | null; lng: number | null }>
     places:    Array<{ id: string; name: string; type: string; lat: number; lng: number }>
     pois?:     Array<{ id: string; name: string | null; category_group: string; category: string; region: string; address: string | null; lat: number; lng: number }>
+    streets?:  Array<{ name: string; lat: number; lng: number; postcode: string | null; borough: string | null }>
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -227,6 +233,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     mapBbox,
     mode === 'listings',
     listingType,
+    listingStreetFilter,
   )
 
   // Merge all active features for the venue list
@@ -323,7 +330,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         const [res] = await Promise.all([
           fetch(`/api/search?q=${encodeURIComponent(search.trim())}&lang=${lang}`),
         ])
-        const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places' | 'pois'> & { pois?: NonNullable<typeof searchResults>['pois'] }
+        const apiData = await res.json() as Omit<NonNullable<typeof searchResults>, 'places' | 'pois' | 'streets'> & { pois?: NonNullable<typeof searchResults>['pois']; streets?: NonNullable<typeof searchResults>['streets'] }
 
         // Client-side search across parks, playgrounds, and all OSM venues
         const places: NonNullable<typeof searchResults>['places'] = []
@@ -350,7 +357,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         addFeatures(osmGalleries.data?.features,  'Gallery')
         addFeatures(osmStreetArt.data?.features,  'Street Art')
 
-        setSearchResults({ ...apiData, places: places.slice(0, 20), pois: apiData.pois ?? [] })
+        setSearchResults({ ...apiData, places: places.slice(0, 20), pois: apiData.pois ?? [], streets: apiData.streets ?? [] })
       } catch { /* ignore */ } finally {
         setSearching(false)
       }
@@ -482,7 +489,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search events, venues, parks…"
+              placeholder="Search events, venues, streets…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full text-xs border-2 border-black pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_#000]"
@@ -739,7 +746,68 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 + New
               </button>
             </div>
-            <span className="text-[11px] text-gray-400">
+            {/* Street filter */}
+            <div className="relative mt-1">
+              <input
+                type="text"
+                placeholder="Filter by street…"
+                value={listingStreetFilter ?? listingStreetQuery}
+                onChange={e => {
+                  const v = e.target.value
+                  setListingStreetQuery(v)
+                  if (listingStreetFilter) setListingStreetFilter(undefined)
+                  clearTimeout(streetDebounceRef.current)
+                  if (v.length < 2) { setListingStreetSuggestions([]); return }
+                  streetDebounceRef.current = setTimeout(async () => {
+                    try {
+                      const res = await fetch(`/api/streets?q=${encodeURIComponent(v)}&limit=6`)
+                      if (res.ok) {
+                        const data = await res.json() as typeof listingStreetSuggestions
+                        setListingStreetSuggestions(data)
+                        setShowStreetSuggestions(true)
+                      }
+                    } catch { /* ignore */ }
+                  }, 250)
+                }}
+                onFocus={() => listingStreetSuggestions.length > 0 && setShowStreetSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 200)}
+                className="w-full text-xs border-2 border-black px-2.5 py-1 outline-none focus:shadow-[2px_2px_0_#000] pr-7"
+                autoComplete="off"
+              />
+              {listingStreetFilter && (
+                <button
+                  onClick={() => { setListingStreetFilter(undefined); setListingStreetQuery(''); setListingStreetSuggestions([]) }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+                >
+                  <X size={11} />
+                </button>
+              )}
+              {showStreetSuggestions && listingStreetSuggestions.length > 0 && (
+                <ul className="absolute z-50 left-0 right-0 bg-white border-2 border-black mt-0.5 max-h-40 overflow-y-auto shadow-[2px_2px_0_#000]">
+                  {listingStreetSuggestions.map((s, i) => (
+                    <li key={`${s.name}-${s.postcode}-${i}`}>
+                      <button
+                        type="button"
+                        className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-gray-100"
+                        onMouseDown={e => {
+                          e.preventDefault()
+                          setListingStreetFilter(s.name)
+                          setListingStreetQuery('')
+                          setShowStreetSuggestions(false)
+                          setListingStreetSuggestions([])
+                          setFlyTo([s.lng, s.lat])
+                        }}
+                      >
+                        <span className="font-medium">{s.name}</span>
+                        {s.postcode && <span className="text-gray-400 ml-1">{s.postcode}</span>}
+                        {s.borough && <span className="text-gray-400 ml-1">· {s.borough}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <span className="text-[11px] text-gray-400 mt-1">
               {listingsFetching ? '…' : `${listingsGeo?.features?.length ?? 0} listing${(listingsGeo?.features?.length ?? 0) !== 1 ? 's' : ''}`}
             </span>
           </div>
@@ -864,7 +932,30 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     ))}
                   </div>
                 )}
-                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (searchResults.pois?.length ?? 0) === 0 && (
+                {/* Street results */}
+                {(searchResults?.streets?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Streets ({searchResults!.streets!.length})
+                    </p>
+                    {searchResults!.streets!.map((st, i) => (
+                      <div
+                        key={`${st.name}-${st.postcode}-${i}`}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([st.lng, st.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{st.name}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {[st.postcode, st.borough].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 && (
                   <div className="flex items-center justify-center h-32 text-sm text-gray-400">No results</div>
                 )}
               </>

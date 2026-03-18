@@ -176,14 +176,37 @@ export async function fetchPOIDetail(id: string): Promise<POIDetail> {
   return json.data
 }
 
+// ─── Streets (D1 autocomplete) ──────────────────────────────────────────────
+
+export interface StreetSuggestion {
+  name:     string
+  lat:      number
+  lng:      number
+  postcode: string | null
+  borough:  string | null
+}
+
+export async function fetchStreetSuggestions(
+  query: string,
+  limit = 10,
+): Promise<StreetSuggestion[]> {
+  if (query.length < 2) return []
+  const params = new URLSearchParams({ q: query, limit: String(limit) })
+  const res = await fetch(`${WORKER}/api/streets?${params}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<StreetSuggestion[]>
+}
+
 // ─── Listings (D1, bbox-filtered, GeoJSON) ──────────────────────────────────
 
 export async function fetchListingsByBbox(
   bbox: string,
   type?: string,
+  street?: string,
 ): Promise<GeoJSON.FeatureCollection> {
   const params = new URLSearchParams({ bbox, format: 'geojson', limit: '500' })
   if (type) params.set('type', type)
+  if (street) params.set('street', street)
   const res = await fetch(`${WORKER}/api/listings?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>

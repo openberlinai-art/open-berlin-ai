@@ -6,6 +6,7 @@ import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
 import { ingestPOIs } from './poi-ingest'
+import { ingestStreets } from './street-ingest'
 import { bboxToGeohashPrefixes } from './geohash'
 import { POI_CATEGORIES } from './poi-queries'
 import type { POICategoryGroup } from './poi-queries'
@@ -454,6 +455,48 @@ app.post('/api/ingest-pois', async c => {
   )
 
   return c.json({ ok: true, message: `POI ingest started: region=${region}, group=${group ?? 'all'}` })
+})
+
+// ─── GET /api/streets ──────────────────────────────────────────────────────────
+
+app.get('/api/streets', async c => {
+  const q = (c.req.query('q') ?? '').trim()
+  if (q.length < 2) return c.json([])
+
+  const limit = Math.min(20, Math.max(1, Number(c.req.query('limit') ?? '10')))
+  const norm = normalizeQ(q)
+  const prefix = `${norm}%`
+  const contains = `%${norm}%`
+
+  // Prefix match first (uses index), then contains match, deduplicated
+  const { results } = await c.env.DB.prepare(`
+    SELECT name, lat, lng, postcode, borough FROM streets
+    WHERE name_norm LIKE ? OR name_norm LIKE ?
+    ORDER BY CASE WHEN name_norm LIKE ? THEN 0 ELSE 1 END, name
+    LIMIT ?
+  `).bind(prefix, contains, prefix, limit).all<{
+    name: string; lat: number; lng: number; postcode: string | null; borough: string | null
+  }>()
+
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.json(results)
+})
+
+// ─── POST /api/ingest-streets (protected) ────────────────────────────────────
+
+app.post('/api/ingest-streets', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  c.executionCtx.waitUntil(
+    ingestStreets(c.env)
+      .then(r => console.log(`[street-ingest:manual] ${r.total} streets`))
+      .catch(err => console.error('[street-ingest:manual] failed:', err))
+  )
+
+  return c.json({ ok: true, message: 'Street ingest started' })
 })
 
 // ─── POST /api/vibe-check ─────────────────────────────────────────────────────
@@ -1155,7 +1198,7 @@ function normSql(col: string): string {
 app.get('/api/search', async c => {
   const raw  = (c.req.query('q') ?? '').trim()
   const lang = c.req.query('lang') ?? 'de'
-  if (raw.length < 2) return c.json({ events: [], locations: [], pois: [] })
+  if (raw.length < 2) return c.json({ events: [], locations: [], pois: [], streets: [] })
 
   // Translate the query to German so we always search the canonical German data
   let searchTerm = raw
@@ -1185,7 +1228,9 @@ app.get('/api/search', async c => {
   const norm    = normalizeQ(searchTerm)
   const pattern = `%${norm}%`
 
-  const [evRes, locRes, poiRes] = await Promise.all([
+  const prefix = `${norm}%`
+
+  const [evRes, locRes, poiRes, streetRes] = await Promise.all([
     c.env.DB.prepare(`
       SELECT id, title, date_start, time_start, category, price_type,
              location_name, borough, lat, lng
@@ -1211,9 +1256,15 @@ app.get('/api/search', async c => {
          OR ${normSql('address')} LIKE ?
       LIMIT 15
     `).bind(pattern, pattern).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`
+      SELECT name, lat, lng, postcode, borough FROM streets
+      WHERE name_norm LIKE ? OR name_norm LIKE ?
+      ORDER BY CASE WHEN name_norm LIKE ? THEN 0 ELSE 1 END, name
+      LIMIT 8
+    `).bind(prefix, pattern, prefix).all<Record<string, unknown>>(),
   ])
 
-  return c.json({ events: evRes.results, locations: locRes.results, pois: poiRes.results })
+  return c.json({ events: evRes.results, locations: locRes.results, pois: poiRes.results, streets: streetRes.results })
 })
 
 // ─── POST /api/ingest (protected) ─────────────────────────────────────────────
@@ -1295,13 +1346,14 @@ app.post('/api/geocode-batch', async c => {
 // ─── Listings ─────────────────────────────────────────────────────────────────
 
 app.get('/api/listings', async c => {
-  const { type, borough, bbox, status, format, page = '1', limit = '50' } = c.req.query()
+  const { type, borough, bbox, status, format, street, page = '1', limit = '50' } = c.req.query()
   const result = await getListings({
     type:    type    || undefined,
     borough: borough || undefined,
     bbox:    bbox    || undefined,
     status:  status  || undefined,
     format:  format  || undefined,
+    street:  street  || undefined,
     page:    Math.max(1, parseInt(page, 10)),
     limit:   Math.min(500, Math.max(1, parseInt(limit, 10))),
   }, c.env.DB)
@@ -1505,6 +1557,14 @@ export default {
             .catch(err => console.error('[poi-ingest:berlin]', err)),
         ])
       )
+      // Street ingest — weekly on Sundays only
+      if (new Date().getUTCDay() === 0) {
+        ctx.waitUntil(
+          ingestStreets(env)
+            .then(r => console.log(`[street-ingest:cron] ${r.total} streets`))
+            .catch(err => console.error('[street-ingest:cron]', err))
+        )
+      }
     } else if (event.cron === '0 8 * * 1') {
       // Weekly digest — Monday 8am UTC
       ctx.waitUntil(

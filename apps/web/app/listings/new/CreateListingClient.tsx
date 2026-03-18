@@ -57,34 +57,54 @@ export function CreateListingClient() {
   const [error,         setError]         = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Address autocomplete via Photon
-  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; lat: number; lng: number; borough?: string }>>([])
+  // Address autocomplete — hybrid: local streets + Photon
+  const [addressSuggestions, setAddressSuggestions] = useState<Array<{ label: string; lat: number; lng: number; borough?: string; source: 'local' | 'photon' }>>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const addressDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const fetchAddressSuggestions = useCallback((query: string) => {
     clearTimeout(addressDebounceRef.current)
-    if (query.length < 3) { setAddressSuggestions([]); return }
+    if (query.length < 2) { setAddressSuggestions([]); return }
     addressDebounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=52.52&lon=13.405&limit=6&lang=de`
-        )
-        if (!res.ok) return
-        const data = await res.json() as { features: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; housenumber?: string; city?: string; state?: string; county?: string } }> }
-        const results = data.features
-          .filter(f => f.properties.street || f.properties.name)
-          .map(f => {
+        const [localRes, photonRes] = await Promise.allSettled([
+          fetch(`/api/streets?q=${encodeURIComponent(query)}&limit=4`).then(r => r.ok ? r.json() as Promise<Array<{ name: string; lat: number; lng: number; postcode: string | null; borough: string | null }>> : []),
+          query.length >= 3
+            ? fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=52.52&lon=13.405&limit=4&lang=de`).then(r => r.ok ? r.json() as Promise<{ features: Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; housenumber?: string; city?: string; county?: string } }> }> : { features: [] })
+            : Promise.resolve({ features: [] as Array<{ geometry: { coordinates: [number, number] }; properties: { name?: string; street?: string; housenumber?: string; city?: string; county?: string } }> }),
+        ])
+
+        const results: typeof addressSuggestions = []
+
+        // Local street results first (faster, Berlin-specific)
+        if (localRes.status === 'fulfilled') {
+          for (const s of localRes.value) {
+            results.push({
+              label: [s.name, s.postcode].filter(Boolean).join(', '),
+              lat: s.lat, lng: s.lng,
+              borough: s.borough ?? undefined,
+              source: 'local',
+            })
+          }
+        }
+
+        // Photon results
+        if (photonRes.status === 'fulfilled') {
+          for (const f of photonRes.value.features) {
+            if (!f.properties.street && !f.properties.name) continue
             const p = f.properties
             const street = p.street ? `${p.street}${p.housenumber ? ` ${p.housenumber}` : ''}` : p.name ?? ''
             const city = p.city ?? ''
-            return {
+            results.push({
               label: [street, city].filter(Boolean).join(', '),
               lat: f.geometry.coordinates[1],
               lng: f.geometry.coordinates[0],
               borough: p.county ?? undefined,
-            }
-          })
+              source: 'photon',
+            })
+          }
+        }
+
         setAddressSuggestions(results)
         setShowSuggestions(true)
       } catch { /* ignore */ }
@@ -295,7 +315,8 @@ export function CreateListingClient() {
                         setAddressSuggestions([])
                       }}
                     >
-                      {s.label}
+                      <span>{s.label}</span>
+                      {s.source === 'local' && <span className="text-[9px] text-gray-400 ml-1">Berlin</span>}
                     </button>
                   </li>
                 ))}

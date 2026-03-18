@@ -11,6 +11,7 @@ import {
   fetchWeather,
   fetchPOIs,
   fetchListingsByBbox,
+  fetchStreetSuggestions,
 } from '@/lib/opendata'
 
 export function useParks(enabled: boolean) {
@@ -105,13 +106,22 @@ export function usePOIs(
   })
 }
 
-export function useListings(bbox: string | null, enabled: boolean, type?: string) {
+export function useListings(bbox: string | null, enabled: boolean, type?: string, street?: string) {
   return useQuery({
-    queryKey:        ['listings', bbox, type ?? 'all'],
-    queryFn:         () => fetchListingsByBbox(bbox!, type),
+    queryKey:        ['listings', bbox, type ?? 'all', street ?? ''],
+    queryFn:         () => fetchListingsByBbox(bbox!, type, street),
     enabled:         enabled && bbox !== null,
     staleTime:       2 * 60_000,
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useStreetSearch(query: string, enabled: boolean) {
+  return useQuery({
+    queryKey:  ['streets', query],
+    queryFn:   () => fetchStreetSuggestions(query),
+    enabled:   enabled && query.length >= 2,
+    staleTime: Infinity,
   })
 }
 
