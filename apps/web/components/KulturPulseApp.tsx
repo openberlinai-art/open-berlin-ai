@@ -204,12 +204,18 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const poiNightlife     = usePOIs('nightlife',      mapBbox, resolved.poiGroups.has('nightlife'))
   const poiShopping      = usePOIs('shopping',       mapBbox, resolved.poiGroups.has('shopping'))
   const poiAccommodation = usePOIs('accommodation',  mapBbox, resolved.poiGroups.has('accommodation'))
+  const poiCulture       = usePOIs('culture',         mapBbox, resolved.poiGroups.has('culture'))
+  const poiWellness      = usePOIs('wellness',        mapBbox, resolved.poiGroups.has('wellness'))
+  const poiEducation     = usePOIs('education',       mapBbox, resolved.poiGroups.has('education'))
+  const poiQuirky        = usePOIs('quirky',          mapBbox, resolved.poiGroups.has('quirky'))
 
   const poiGroupDataMap: Record<string, GeoJSON.FeatureCollection | undefined> = {
     heritage: poiHeritage.data, monuments: poiMonuments.data, worship: poiWorship.data,
     tourism: poiTourism.data, nature: poiNature.data, transport: poiTransport.data,
     food_drink: poiFoodDrink.data, sports: poiSports.data, services: poiServices.data,
     nightlife: poiNightlife.data, shopping: poiShopping.data, accommodation: poiAccommodation.data,
+    culture: poiCulture.data, wellness: poiWellness.data,
+    education: poiEducation.data, quirky: poiQuirky.data,
   }
 
   // Build poiData map: filter each group's features to only enabled categories
@@ -229,7 +235,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     }
     return result
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved.poiGroups, poiHeritage.data, poiMonuments.data, poiWorship.data, poiTourism.data, poiNature.data, poiTransport.data, poiFoodDrink.data, poiSports.data, poiServices.data, poiNightlife.data, poiShopping.data, poiAccommodation.data])
+  }, [resolved.poiGroups, poiHeritage.data, poiMonuments.data, poiWorship.data, poiTourism.data, poiNature.data, poiTransport.data, poiFoodDrink.data, poiSports.data, poiServices.data, poiNightlife.data, poiShopping.data, poiAccommodation.data, poiCulture.data, poiWellness.data, poiEducation.data, poiQuirky.data])
 
   // Listings data
   const { data: listingsGeo, isFetching: listingsFetching } = useListings(

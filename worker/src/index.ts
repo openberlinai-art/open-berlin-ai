@@ -26,6 +26,7 @@ import {
 } from './lists'
 import { sendWeeklyDigest } from './digest'
 import { enrichLocationsWithImages } from './enrich-images'
+import { enrichPOIImages } from './enrich-poi-images'
 import {
   getListings, getListing, createListing, updateListing,
   deleteListing, uploadListingImage,
@@ -1312,6 +1313,17 @@ app.post('/api/enrich-images', async c => {
   return c.json({ ok: true, matched: count })
 })
 
+// ─── POST /api/enrich-poi-images (protected) ─────────────────────────────────
+
+app.post('/api/enrich-poi-images', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const count = await enrichPOIImages(c.env.DB)
+  return c.json({ ok: true, enriched: count })
+})
+
 // ─── POST /api/refresh-geodata (protected) ────────────────────────────────────
 
 app.post('/api/refresh-geodata', async c => {
@@ -1557,9 +1569,11 @@ export default {
             env.DB.prepare(`DELETE FROM rate_limits WHERE 1=1`),
           ]).then(([a, r]) => console.log(`[cleanup] auth_tokens=${a.meta.changes} rate_limits=${r.meta.changes}`))
             .catch(e => console.error('[cleanup]', e)),
-          // POI ingest — Berlin (daily)
+          // POI ingest — Berlin (daily) + Wikidata image enrichment
           ingestPOIs(env, 'berlin')
             .then(r => console.log(`[poi-ingest:berlin] ${r.total} rows, ${r.categories} categories`))
+            .then(() => enrichPOIImages(env.DB))
+            .then(n => console.log(`[enrich-poi-images] ${n} POIs enriched`))
             .catch(err => console.error('[poi-ingest:berlin]', err)),
         ])
       )
