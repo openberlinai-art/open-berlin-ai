@@ -2,7 +2,6 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const WORKER    = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
 const TOKEN_KEY = 'kp_token'
 
 function VerifyInner() {
@@ -15,7 +14,7 @@ function VerifyInner() {
     const token = searchParams.get('token')
     if (!token) { setStatus('error'); setError('No token provided.'); return }
 
-    fetch(`${WORKER}/api/auth/verify?token=${encodeURIComponent(token)}`)
+    fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`)
       .then(async res => {
         if (!res.ok) {
           const json = await res.json() as { error?: string }

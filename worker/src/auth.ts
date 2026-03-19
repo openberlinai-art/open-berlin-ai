@@ -67,6 +67,11 @@ export async function sendMagicLink(email: string, env: Env): Promise<{ dev_link
   const token     = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
+  // Clean up old tokens for this email to prevent accumulation of stale tokens
+  await env.DB.prepare(
+    `DELETE FROM auth_tokens WHERE email = ?`
+  ).bind(email).run()
+
   await env.DB.prepare(
     `INSERT INTO auth_tokens (token, email, expires_at) VALUES (?, ?, ?)
      ON CONFLICT(token) DO NOTHING`

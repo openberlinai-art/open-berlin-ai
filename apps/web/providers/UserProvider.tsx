@@ -208,8 +208,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [token, refreshLists, refreshNotifications, refreshAttendance, refreshProfile])
 
   const login = useCallback(async (email: string): Promise<{ dev_link?: string }> => {
-    const res = await apiFetch('/api/auth/magic-link', null, {
+    const res = await fetch('/api/auth/magic-link', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body:   JSON.stringify({ email }),
     })
     if (!res.ok) {

@@ -31,3 +31,4 @@ npm-debug.log*
 # Build artifacts
 apps/web/tsconfig.tsbuildinfo
 .claude/launch.json
+.vercel

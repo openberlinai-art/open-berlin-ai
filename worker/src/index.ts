@@ -867,7 +867,8 @@ app.post('/api/auth/magic-link', async c => {
     const result = await sendMagicLink(body.email.toLowerCase(), c.env)
     return c.json({ ok: true, ...result })
   } catch (err) {
-    return c.json({ error: (err as Error).message }, 500)
+    console.error('[magic-link]', err)
+    return c.json({ error: 'Could not send sign-in link. Please try again.' }, 500)
   }
 })
 
