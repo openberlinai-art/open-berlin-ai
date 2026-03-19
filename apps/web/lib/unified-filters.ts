@@ -2,6 +2,7 @@
 // Each subcategory key is globally unique: "groupKey:categoryKey"
 
 import type { LucideIcon } from 'lucide-react'
+import { isCategoryVisibleAtZoom } from './zoom-tiers'
 import {
   Castle, Milestone, Church, Camera, TreePine, Train,
   UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
@@ -402,4 +403,57 @@ export function getActiveCountForGroup(groupKey: string, activeFilters: Set<stri
   const group = _groupMap.get(groupKey)
   if (!group) return 0
   return group.categories.filter(c => activeFilters.has(`${groupKey}:${c.key}`)).length
+}
+
+// ─── Zoom-aware filter resolution ───────────────────────────────────────────
+
+/** Like resolveActiveFilters but skips categories not visible at the given zoom */
+export function resolveActiveFiltersForZoom(activeFilters: Set<string>, zoom: number): ResolvedFilters {
+  const venueCategories: string[] = []
+  const osmCategories:   string[] = []
+  const poiGroups        = new Map<string, Set<string>>()
+  const geodataLayers    = new Set<string>()
+
+  for (const filterKey of activeFilters) {
+    if (!isCategoryVisibleAtZoom(filterKey, zoom)) continue
+
+    const cat = _catMap.get(filterKey)
+    if (!cat) continue
+
+    const groupKey = filterKey.split(':')[0]
+
+    switch (cat.source) {
+      case 'venue':
+        venueCategories.push(cat.sourceKey)
+        break
+      case 'osm':
+        osmCategories.push(cat.sourceKey)
+        break
+      case 'poi': {
+        const group = _groupMap.get(groupKey)
+        const apiGroup = group?.poiGroup ?? _poiGroupForCategory(cat.sourceKey)
+        if (apiGroup) {
+          if (!poiGroups.has(apiGroup)) poiGroups.set(apiGroup, new Set())
+          poiGroups.get(apiGroup)!.add(cat.sourceKey)
+        }
+        break
+      }
+      case 'geodata':
+        geodataLayers.add(cat.sourceKey)
+        break
+    }
+  }
+
+  return { venueCategories, osmCategories, poiGroups, geodataLayers }
+}
+
+/** Count how many active filters are hidden due to zoom level */
+export function countZoomSuppressedFilters(activeFilters: Set<string>, zoom: number): number {
+  let count = 0
+  for (const filterKey of activeFilters) {
+    if (_catMap.has(filterKey) && !isCategoryVisibleAtZoom(filterKey, zoom)) {
+      count++
+    }
+  }
+  return count
 }

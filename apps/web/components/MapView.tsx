@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useCulturalData'
 import type { VBBStop, Departure } from '@/lib/opendata'
 import type { ResolvedFilters } from '@/lib/unified-filters'
+import { getMinZoomForFilter } from '@/lib/zoom-tiers'
 import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
@@ -82,7 +83,7 @@ interface Props {
   resolvedFilters: ResolvedFilters
   venueGeoJSON?:   GeoJSON.FeatureCollection  // pre-filtered D1 venues
   mode:            'events' | 'venues' | 'listings'
-  onBboxChange:    (bbox: string) => void
+  onBboxChange:    (bbox: string, zoom: number) => void
   flyTo?:          [number, number] | null
   openVenuePopup?: ({ _key: number } & VenuePopupState) | null
   liveRadar?:      boolean
@@ -265,7 +266,8 @@ export default function MapView({
     const b = map.getBounds()
     if (!b) return
     const bboxStr = `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`
-    onBboxChange(bboxStr)
+    const zoom = Math.floor(map.getZoom())
+    onBboxChange(bboxStr, zoom)
   }, [onBboxChange])
 
   const onLoad    = useCallback(() => {
@@ -792,6 +794,7 @@ export default function MapView({
           if (!data?.features?.length) return null
           const [group, cat] = key.split(':')
           const { color, stroke } = getPOIColor(group, cat)
+          const minZoom = getMinZoomForFilter(key)
           return (
             <Source
               key={`poi-${key}`}
@@ -806,6 +809,7 @@ export default function MapView({
                 id={`poi-${key}-clusters`}
                 type="circle"
                 filter={['has', 'point_count']}
+                minzoom={minZoom}
                 paint={{
                   'circle-color':   color,
                   'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
@@ -816,6 +820,7 @@ export default function MapView({
                 id={`poi-${key}-cluster-count`}
                 type="symbol"
                 filter={['has', 'point_count']}
+                minzoom={minZoom}
                 layout={{
                   'text-field': '{point_count_abbreviated}',
                   'text-size':  11,
@@ -827,6 +832,7 @@ export default function MapView({
                 id={`poi-${key}-point`}
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
+                minzoom={minZoom}
                 paint={{
                   'circle-radius':       10,
                   'circle-color':        color,
@@ -839,6 +845,7 @@ export default function MapView({
                 id={`poi-${key}-icon`}
                 type="symbol"
                 filter={['!', ['has', 'point_count']]}
+                minzoom={minZoom}
                 layout={{
                   'icon-image':           `icon-${group}`,
                   'icon-size':            0.55,

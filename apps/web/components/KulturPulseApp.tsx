@@ -15,8 +15,9 @@ import EventCard                from './EventCard'
 import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
-  FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFilters, getActiveCountForGroup,
+  FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom, countZoomSuppressedFilters, getActiveCountForGroup,
 } from '@/lib/unified-filters'
+import { isCategoryVisibleAtZoom } from '@/lib/zoom-tiers'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import NotificationsBell        from './NotificationsBell'
@@ -68,7 +69,9 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(CULTURE_DEFAULTS))
   const [expandedGroup, setExpandedGroup] = useState<string | null>('culture')
 
-  const resolved = useMemo(() => resolveActiveFilters(activeFilters), [activeFilters])
+  const [mapZoom, setMapZoom] = useState(11)
+  const resolved = useMemo(() => resolveActiveFiltersForZoom(activeFilters, mapZoom), [activeFilters, mapZoom])
+  const suppressedCount = useMemo(() => countZoomSuppressedFilters(activeFilters, mapZoom), [activeFilters, mapZoom])
 
   function toggleFilter(key: string) {
     setActiveFilters(prev => {
@@ -696,12 +699,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {group.categories.map(cat => {
                     const filterKey = `${group.key}:${cat.key}`
                     const isActive = activeFilters.has(filterKey)
+                    const zoomHidden = isActive && !isCategoryVisibleAtZoom(filterKey, mapZoom)
                     return (
                       <button
                         key={cat.key}
                         onClick={() => toggleFilter(filterKey)}
                         className={isActive ? btnActive : btn}
-                        style={isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                        style={{
+                          ...(isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined),
+                          ...(zoomHidden ? { opacity: 0.4 } : undefined),
+                        }}
+                        title={zoomHidden ? 'Zoom in to see these on the map' : undefined}
                       >
                         {cat.label}
                       </button>
@@ -713,6 +721,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
             <span className="text-[11px] text-gray-400">
               {allVenueFeatures.length} place{allVenueFeatures.length !== 1 ? 's' : ''}
+              {suppressedCount > 0 && (
+                <span className="text-[10px] text-amber-500 ml-1">
+                  Zoom in for {suppressedCount} more
+                </span>
+              )}
             </span>
           </div>
         )}
@@ -1133,7 +1146,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             resolvedFilters={resolved}
             venueGeoJSON={venueGeoJSON}
             mode={mode}
-            onBboxChange={setMapBbox}
+            onBboxChange={useCallback((bbox: string, zoom: number) => { setMapBbox(bbox); setMapZoom(zoom) }, [])}
             flyTo={flyTo}
             openVenuePopup={surpriseVenuePopup}
             liveRadar={liveRadar}
