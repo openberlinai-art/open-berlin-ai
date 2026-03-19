@@ -4,7 +4,11 @@ import {
   type ReactNode,
 } from 'react'
 
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
+// Client-side: use relative path (Next.js rewrites /api/* → worker), avoids CORS
+// Server-side: call worker directly
+const WORKER = typeof window === 'undefined'
+  ? (process.env.WORKER_API_URL ?? 'http://localhost:8787')
+  : ''
 const TOKEN_KEY = 'kp_token'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -131,7 +135,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setUser({ id: payload.sub, email: payload.email, display_name: null })
       // Auto-refresh if expiry is within 7 days
       if (payload.exp - Date.now() / 1000 < 7 * 86400) {
-        fetch(`${WORKER}/api/auth/refresh`, {
+        fetch(`/api/auth/refresh`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${stored}` },
         })

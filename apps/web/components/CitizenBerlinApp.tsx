@@ -408,7 +408,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       {/* ── Left panel ─────────────────────────────────── */}
-      <div className={`flex flex-col border-r-2 border-black bg-white w-full md:w-[380px] md:shrink-0 ${mobileView === 'map' ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex flex-col border-r-2 border-black bg-white w-full md:w-[445px] md:shrink-0 ${mobileView === 'map' ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b-2 border-black">
@@ -446,7 +446,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     }
                   }
                 }}
-                className="text-xs border-2 border-black px-2 py-1 hover:bg-black hover:text-white font-bold"
+                className="text-[10px] border border-black px-1.5 py-0.5 hover:bg-black hover:text-white font-bold"
                 title="Surprise Me"
               >
                 ✦ Surprise
@@ -854,7 +854,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Search results / Event list / Venue list */}
         <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
-          {search.trim() ? (
+          {search.trim() && mode !== 'listings' ? (
             /* ── Search results ── */
             searching && !searchResults ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Searching…</div>
