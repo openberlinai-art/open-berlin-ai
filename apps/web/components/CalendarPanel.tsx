@@ -6,7 +6,7 @@ import { useUser } from '@/providers/UserProvider'
 type CalendarView = 'list' | 'day' | 'week' | 'month' | 'year'
 
 interface EnrichedItem {
-  item_type:       'event' | 'location'
+  item_type:       'event' | 'location' | 'listing'
   item_id:         string
   created_at:      string
   scheduled_for?:  string | null
