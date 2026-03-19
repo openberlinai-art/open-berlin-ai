@@ -538,6 +538,26 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               )}
               {calOpen && (
                 <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000]">
+                  <div className="flex gap-1 px-2 pt-2">
+                    {([
+                      ['Today', 0],
+                      ['3 days', 2],
+                      ['Week', 6],
+                    ] as const).map(([label, offset]) => {
+                      const from = todayISO()
+                      const to = offset === 0 ? from : (() => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
+                      const active = dateFrom === from && dateTo === to
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => { setDateFrom(from); setDateTo(to); setPage(1); setCalOpen(false) }}
+                          className={active ? btnActive : btn}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
                   <DayPicker
                     mode="range"
                     selected={selectedRange}

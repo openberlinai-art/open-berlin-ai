@@ -5,7 +5,11 @@
 
 import type { Location, Event } from './types'
 
-const WORKER    = 'https://citizen-berlin-worker.openberlinai.workers.dev'
+// Client-side: use relative path (Next.js rewrites /api/* → worker), avoids CORS
+// Server-side: call worker directly
+const WORKER = typeof window === 'undefined'
+  ? (process.env.WORKER_API_URL ?? 'http://localhost:8787')
+  : ''
 const VBB_BASE  = 'https://v6.bvg.transport.rest'
 const VBB_PROXY = '/api/proxy/vbb'
 
