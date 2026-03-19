@@ -44,7 +44,7 @@ export interface KPNotification {
 }
 
 export interface KPAttendanceItem {
-  item_type:      'event' | 'location'
+  item_type:      'event' | 'location' | 'listing'
   item_id:        string
   scheduled_for?: string | null
   scheduled_time?: string | null
