@@ -16,6 +16,8 @@ const config: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.kulturdaten.berlin' },
+      { protocol: 'https', hostname: 'commons.wikimedia.org' },
+      { protocol: 'https', hostname: 'upload.wikimedia.org' },
     ],
   },
 }

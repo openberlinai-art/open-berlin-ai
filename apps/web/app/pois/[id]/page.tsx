@@ -53,6 +53,18 @@ export default async function POIPage({ params }: Props) {
         </span>
       </div>
 
+      {poi.image_url && (
+        <div className="max-w-2xl mx-auto mt-6 px-4">
+          <div className="border-2 border-black overflow-hidden">
+            <img
+              src={poi.image_url}
+              alt={poi.name ?? label}
+              className="w-full h-auto object-cover max-h-[360px]"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Name + category badges */}
         <div className="mb-4">

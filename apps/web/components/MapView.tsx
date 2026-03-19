@@ -101,14 +101,15 @@ interface TransitPopupState {
 }
 
 export interface VenuePopupState {
-  lat:      number
-  lng:      number
-  name:     string
-  category: string
-  address?: string
-  website?: string
-  id?:      string
-  borough?: string
+  lat:       number
+  lng:       number
+  name:      string
+  category:  string
+  address?:  string
+  website?:  string
+  id?:       string
+  borough?:  string
+  image_url?: string
 }
 
 interface GreenspacePopupState {
@@ -379,13 +380,14 @@ export default function MapView({
       const catGroup = (props.category_group as string) ?? ''
       const cat      = (props.category as string) ?? ''
       setVenuePopup({
-        lat:      coords[1],
-        lng:      coords[0],
-        name:     (props.name as string) ?? `Unnamed ${getPOILabel(catGroup, cat)}`,
-        category: getPOILabel(catGroup, cat),
-        address:  (props.address as string) ?? undefined,
-        website:  (props.website as string) ?? undefined,
-        id:       `poi:${(props.id as string)?.replace('/', '_') ?? ''}`,
+        lat:       coords[1],
+        lng:       coords[0],
+        name:      (props.name as string) ?? `Unnamed ${getPOILabel(catGroup, cat)}`,
+        category:  getPOILabel(catGroup, cat),
+        address:   (props.address as string) ?? undefined,
+        website:   (props.website as string) ?? undefined,
+        id:        `poi:${(props.id as string)?.replace('/', '_') ?? ''}`,
+        image_url: (props.image_url as string) ?? undefined,
       })
       setTransitPopup(null)
       setGreenspacePopup(null)
@@ -1156,6 +1158,14 @@ export default function MapView({
             maxWidth="280px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
+              {venuePopup.image_url && (
+                <img
+                  src={venuePopup.image_url}
+                  alt={venuePopup.name}
+                  loading="lazy"
+                  className="w-full h-28 object-cover"
+                />
+              )}
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
                 <div>
                   <p className="font-bold text-gray-900 leading-snug">{venuePopup.name}</p>

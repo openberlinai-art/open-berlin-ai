@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS pois (
   description    TEXT,
   operator       TEXT,
   tags_json      TEXT,                     -- JSON: extra OSM tags (cuisine, sport, etc.)
+  image_url      TEXT,                     -- resolved Wikimedia Commons thumbnail URL
   refreshed_at   TEXT    DEFAULT (datetime('now'))
 );
 

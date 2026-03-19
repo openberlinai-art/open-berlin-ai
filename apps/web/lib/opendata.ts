@@ -166,6 +166,7 @@ export interface POIDetail {
   description:    string | null
   operator:       string | null
   tags_json:      string | null
+  image_url:      string | null
   refreshed_at:   string
 }
 

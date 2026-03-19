@@ -48,7 +48,28 @@ const EXTRA_TAG_KEYS = [
   'building', 'heritage', 'protection_title',
   'craft', 'garden:type', 'nudism', 'musical_instrument',
   'musical_instrument:access', 'emergency', 'karaoke', 'cocktails', 'live_music',
+  'wikidata', 'wikipedia',
 ]
+
+function commonsThumbUrl(filename: string, width = 600): string {
+  const name = filename.replace(/^File:/, '').replace(/ /g, '_')
+  return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(name)}?width=${width}`
+}
+
+function resolveImageUrl(tags: Record<string, string> | undefined): string | null {
+  if (!tags) return null
+  const img = tags['image']
+  if (img) {
+    if (img.startsWith('http')) return img
+    if (img.startsWith('File:')) return commonsThumbUrl(img)
+  }
+  const commons = tags['wikimedia_commons']
+  if (commons) {
+    const file = commons.startsWith('File:') ? commons : `File:${commons}`
+    return commonsThumbUrl(file)
+  }
+  return null
+}
 
 function extractExtraTags(tags: Record<string, string> | undefined): string | null {
   if (!tags) return null
@@ -107,8 +128,8 @@ export async function ingestPOIs(
 
   const stmt = env.DB.prepare(
     `INSERT OR REPLACE INTO pois
-     (id, category_group, category, name, lat, lng, geohash, region, address, website, phone, opening_hours, description, operator, tags_json, refreshed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+     (id, category_group, category, name, lat, lng, geohash, region, address, website, phone, opening_hours, description, operator, tags_json, image_url, refreshed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
   )
 
   let totalRows = 0
@@ -142,7 +163,7 @@ export async function ingestPOIs(
         id: string; name: string | null; lat: number; lng: number; geohash: string
         rowRegion: string; address: string | null; website: string | null; phone: string | null
         opening_hours: string | null; description: string | null; operator: string | null
-        tags_json: string | null
+        tags_json: string | null; image_url: string | null
       }> = []
 
       for (const el of elements) {
@@ -173,6 +194,7 @@ export async function ingestPOIs(
           description:   tags.description ?? null,
           operator:      tags.operator ?? tags.brand ?? null,
           tags_json:     extractExtraTags(tags),
+          image_url:     resolveImageUrl(tags),
         })
       }
 
@@ -189,7 +211,7 @@ export async function ingestPOIs(
             stmt.bind(
               r.id, cat.group, cat.key, r.name, r.lat, r.lng, r.geohash,
               r.rowRegion, r.address, r.website, r.phone, r.opening_hours,
-              r.description, r.operator, r.tags_json,
+              r.description, r.operator, r.tags_json, r.image_url,
             )
           )
         )

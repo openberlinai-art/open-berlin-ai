@@ -392,6 +392,7 @@ app.get('/api/pois', async c => {
       description:    row.description,
       operator:       row.operator,
       tags_json:      row.tags_json,
+      image_url:      row.image_url,
     },
   }))
 
