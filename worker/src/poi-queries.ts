@@ -159,11 +159,15 @@ export const POI_CATEGORIES: POICategoryDef[] = [
 
   // Additions to existing groups
   { key: 'stolperstein',       group: 'heritage',      label: 'Stolpersteine' },
+  { key: 'industrial_heritage',group: 'heritage',      label: 'Industrial Heritage' },
+  { key: 'historic_cemetery',  group: 'heritage',      label: 'Historic Cemeteries' },
   { key: 'community_garden',   group: 'nature',        label: 'Community Gardens' },
   { key: 'bathing_spot',       group: 'nature',        label: 'Bathing Spots' },
   { key: 'brewery',            group: 'food_drink',    label: 'Breweries' },
   { key: 'kebab',              group: 'food_drink',    label: 'Kebab' },
   { key: 'vietnamese',         group: 'food_drink',    label: 'Vietnamese' },
+  { key: 'vegan',              group: 'food_drink',    label: 'Vegan' },
+  { key: 'wochenmarkt',        group: 'food_drink',    label: 'Weekly Markets' },
   { key: 'table_tennis',       group: 'sports',        label: 'Table Tennis' },
   { key: 'bowling',            group: 'sports',        label: 'Bowling' },
   { key: 'escape_room',        group: 'sports',        label: 'Escape Rooms' },
@@ -173,14 +177,25 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   { key: 'laundry',            group: 'services',      label: 'Laundry' },
   { key: 'veterinary',         group: 'services',      label: 'Veterinary' },
   { key: 'recycling',          group: 'services',      label: 'Recycling' },
+  { key: 'social_facility',    group: 'services',      label: 'Social Services' },
+  { key: 'nette_toilette',     group: 'services',      label: 'Nette Toilette' },
   { key: 'cocktail_bar',       group: 'nightlife',     label: 'Cocktail Bars' },
   { key: 'live_music_poi',     group: 'nightlife',     label: 'Live Music' },
   { key: 'karaoke',            group: 'nightlife',     label: 'Karaoke' },
+  { key: 'rooftop_bar',        group: 'nightlife',     label: 'Rooftop Bars' },
   { key: 'organic_shop',       group: 'shopping',      label: 'Organic Shops' },
   { key: 'wine_shop',          group: 'shopping',      label: 'Wine Shops' },
   { key: 'charity_shop',       group: 'shopping',      label: 'Charity Shops' },
+  { key: 'pet_shop',           group: 'shopping',      label: 'Pet Shops' },
   { key: 'scooter_rental',     group: 'transport',     label: 'Scooter Rental' },
   { key: 'taxi',               group: 'transport',     label: 'Taxi Stands' },
+  { key: 'bus_stop',           group: 'transport',     label: 'Bus Stops' },
+  { key: 'bicycle_parking',    group: 'transport',     label: 'Bike Parking' },
+  { key: 'outdoor_cinema',     group: 'culture',       label: 'Outdoor Cinemas' },
+  { key: 'spaeti',             group: 'quirky',        label: 'Spätis' },
+  { key: 'tattoo',             group: 'quirky',        label: 'Tattoo Shops' },
+  { key: 'repair_cafe',        group: 'quirky',        label: 'Repair Cafés' },
+  { key: 'mural',              group: 'quirky',        label: 'Murals' },
 ]
 
 // Map category key → Overpass QL body (use {BBOX} placeholder)
@@ -334,6 +349,8 @@ const OVERPASS_QUERIES: Record<string, string> = {
 
   // Heritage additions
   stolperstein: `[out:json][timeout:60];(node[historic=memorial]["memorial:type"=stolperstein]({BBOX}););out center;`,
+  industrial_heritage: `[out:json][timeout:30];(node[historic=industrial]({BBOX});way[historic=industrial]({BBOX});node[man_made=watermill]({BBOX});way[man_made=watermill]({BBOX}););out center;`,
+  historic_cemetery: `[out:json][timeout:30];(way[landuse=cemetery][historic]({BBOX});way[landuse=cemetery][heritage]({BBOX}););out center;`,
 
   // Nature additions
   community_garden: `[out:json][timeout:30];(node[leisure=garden]["garden:type"=community]({BBOX});way[leisure=garden]["garden:type"=community]({BBOX}););out center;`,
@@ -343,6 +360,8 @@ const OVERPASS_QUERIES: Record<string, string> = {
   brewery: `[out:json][timeout:30];(node[craft=brewery]({BBOX});way[craft=brewery]({BBOX});node[microbrewery=yes]({BBOX}););out center;`,
   kebab: `[out:json][timeout:60];(node[cuisine~"kebab|döner|doner",i]({BBOX});way[cuisine~"kebab|döner|doner",i]({BBOX}););out center;`,
   vietnamese: `[out:json][timeout:30];(node[cuisine=vietnamese]({BBOX});way[cuisine=vietnamese]({BBOX}););out center;`,
+  vegan: `[out:json][timeout:30];(node["diet:vegan"=only]({BBOX});way["diet:vegan"=only]({BBOX});node[cuisine=vegan]({BBOX});way[cuisine=vegan]({BBOX}););out center;`,
+  wochenmarkt: `[out:json][timeout:30];(node[amenity=marketplace][name~"[Ww]ochen",i]({BBOX});way[amenity=marketplace][name~"[Ww]ochen",i]({BBOX}););out center;`,
 
   // Sports additions
   table_tennis: `[out:json][timeout:30];(node[sport=table_tennis]({BBOX});way[sport=table_tennis]({BBOX});node[leisure=pitch][sport=table_tennis]({BBOX}););out center;`,
@@ -356,20 +375,35 @@ const OVERPASS_QUERIES: Record<string, string> = {
   laundry: `[out:json][timeout:30];(node[shop=laundry]({BBOX});way[shop=laundry]({BBOX});node[amenity=laundry]({BBOX}););out center;`,
   veterinary: `[out:json][timeout:30];(node[amenity=veterinary]({BBOX});way[amenity=veterinary]({BBOX}););out center;`,
   recycling: `[out:json][timeout:60];(node[amenity=recycling]({BBOX}););out center;`,
+  social_facility: `[out:json][timeout:30];(node[social_facility]({BBOX});way[social_facility]({BBOX}););out center;`,
+  nette_toilette: `[out:json][timeout:30];(node[amenity=toilets]["toilets:scheme"=nette_toilette]({BBOX}););out center;`,
 
   // Nightlife additions
   cocktail_bar: `[out:json][timeout:30];(node[amenity=bar][cocktails=yes]({BBOX});way[amenity=bar][cocktails=yes]({BBOX});node[amenity=bar][name~"[Cc]ocktail",i]({BBOX}););out center;`,
   live_music_poi: `[out:json][timeout:30];(node[amenity=bar][live_music=yes]({BBOX});way[amenity=bar][live_music=yes]({BBOX});node[amenity=pub][live_music=yes]({BBOX}););out center;`,
   karaoke: `[out:json][timeout:30];(node[amenity=bar][karaoke=yes]({BBOX});way[amenity=bar][karaoke=yes]({BBOX});node[leisure=karaoke_box]({BBOX}););out center;`,
+  rooftop_bar: `[out:json][timeout:30];(node[amenity=bar][outdoor_seating=rooftop]({BBOX});way[amenity=bar][outdoor_seating=rooftop]({BBOX});node[amenity=restaurant][outdoor_seating=rooftop]({BBOX});way[amenity=restaurant][outdoor_seating=rooftop]({BBOX}););out center;`,
 
   // Shopping additions
   organic_shop: `[out:json][timeout:30];(node[shop=organic]({BBOX});way[shop=organic]({BBOX});node[shop=supermarket][organic=only]({BBOX}););out center;`,
   wine_shop: `[out:json][timeout:30];(node[shop=wine]({BBOX});way[shop=wine]({BBOX}););out center;`,
   charity_shop: `[out:json][timeout:30];(node[shop=charity]({BBOX});way[shop=charity]({BBOX});node[shop=second_hand][charity=yes]({BBOX}););out center;`,
+  pet_shop: `[out:json][timeout:30];(node[shop=pet]({BBOX});way[shop=pet]({BBOX}););out center;`,
 
   // Transport additions
   scooter_rental: `[out:json][timeout:30];(node[amenity=kick-scooter_rental]({BBOX});way[amenity=kick-scooter_rental]({BBOX}););out center;`,
   taxi: `[out:json][timeout:30];(node[amenity=taxi]({BBOX});way[amenity=taxi]({BBOX}););out center;`,
+  bus_stop: `[out:json][timeout:60];(node[highway=bus_stop]({BBOX}););out center;`,
+  bicycle_parking: `[out:json][timeout:60];(node[amenity=bicycle_parking]({BBOX}););out center;`,
+
+  // Culture additions
+  outdoor_cinema: `[out:json][timeout:30];(node[amenity=cinema][open_air=yes]({BBOX});way[amenity=cinema][open_air=yes]({BBOX}););out center;`,
+
+  // Quirky additions
+  spaeti: `[out:json][timeout:60];(node[shop=kiosk]({BBOX});way[shop=kiosk]({BBOX});node[shop=convenience][name~"[Ss]pät",i]({BBOX}););out center;`,
+  tattoo: `[out:json][timeout:30];(node[shop=tattoo]({BBOX});way[shop=tattoo]({BBOX}););out center;`,
+  repair_cafe: `[out:json][timeout:30];(node[leisure=hackerspace]({BBOX});way[leisure=hackerspace]({BBOX});node[repair=yes]({BBOX});way[repair=yes]({BBOX}););out center;`,
+  mural: `[out:json][timeout:30];(node[artwork_type=mural]({BBOX});way[artwork_type=mural]({BBOX}););out center;`,
 }
 
 // Group metadata
