@@ -618,7 +618,7 @@ export default function MapView({
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        <NavigationControl position="top-right" />
+        <NavigationControl position="top-right" showCompass={false} />
         <GeolocateControl position="top-right" trackUserLocation />
 
         {/* ── Parks (centroid points) ───────────── */}
