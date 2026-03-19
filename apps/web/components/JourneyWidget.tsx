@@ -73,14 +73,29 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
 
   function plan() {
     setOpen(true)
+    setError(null)
+    setJourneys([])
+    setIdx(0)
     if (!navigator.geolocation) {
       setShowManual(true)
       return
     }
+    // Check permission first to skip the browser prompt if already denied
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'denied') {
+          setShowManual(true)
+          return
+        }
+        requestGeolocation()
+      }).catch(() => requestGeolocation())
+    } else {
+      requestGeolocation()
+    }
+  }
+
+  function requestGeolocation() {
     setLoading(true)
-    setError(null)
-    setJourneys([])
-    setIdx(0)
     navigator.geolocation.getCurrentPosition(
       async pos => {
         await doFetchJourney(pos.coords.latitude, pos.coords.longitude)
@@ -148,7 +163,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
       {/* Manual address fallback */}
       {showManual && !loading && (
         <div className="mt-1">
-          <p className="text-xs text-gray-500 mb-1.5">Enter your starting address:</p>
+          <p className="text-xs text-gray-500 mb-1.5">Location unavailable — enter your starting address:</p>
           <div className="relative">
             <input
               type="text"
