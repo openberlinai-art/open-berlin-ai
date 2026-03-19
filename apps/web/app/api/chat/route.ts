@@ -4,7 +4,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const workerUrl = process.env.WORKER_API_URL ?? 'http://localhost:8787'
+    const workerUrl = process.env.WORKER_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
     const res = await fetch(`${workerUrl}/api/chat`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
