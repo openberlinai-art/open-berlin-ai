@@ -16,6 +16,7 @@ export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props)
   const [added,         setAdded]         = useState<Set<string>>(new Set())
   const [newName,       setNewName]       = useState('')
   const [creating,      setCreating]      = useState(false)
+  const [error,         setError]         = useState('')
   const [pendingListId, setPendingListId] = useState<string | null>(null)
   const [notes,         setNotes]         = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -60,10 +61,13 @@ export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props)
     e.preventDefault()
     if (!newName.trim()) return
     setCreating(true)
+    setError('')
     try {
       const list = await createList(newName.trim(), '', false)
       await handleAdd(list.id)
       setNewName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create list')
     } finally {
       setCreating(false)
     }
@@ -131,6 +135,7 @@ export default function AddToListButton({ itemType, itemId, onNeedAuth }: Props)
             </div>
           )}
           <div className="border-t border-gray-200">
+            {error && <p className="text-[10px] text-red-600 font-bold px-2 pt-1">{error}</p>}
             <form onSubmit={handleCreate} className="flex gap-1 p-2">
               <input
                 type="text"

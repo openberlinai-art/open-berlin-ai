@@ -243,48 +243,77 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const createList = useCallback(async (name: string, description: string, isPublic: boolean): Promise<KPList> => {
-    const t = token!
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) throw new Error('Not signed in')
     const res = await apiFetch('/api/lists', t, {
       method: 'POST',
       body:   JSON.stringify({ name, description, is_public: isPublic }),
     })
+    if (!res.ok) {
+      let message = 'Failed to create list'
+      try {
+        const err = await res.json() as { error?: string }
+        message = err.error ?? message
+      } catch { /* non-JSON response */ }
+      throw new Error(message)
+    }
     const json = await res.json() as { data: KPList }
     await refreshLists()
     return json.data
   }, [token, refreshLists])
 
   const deleteList = useCallback(async (listId: string) => {
-    await apiFetch(`/api/lists/${listId}`, token!, { method: 'DELETE' })
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch(`/api/lists/${listId}`, t, { method: 'DELETE' })
     await refreshLists()
   }, [token, refreshLists])
 
   const addToList = useCallback(async (listId: string, itemType: 'event' | 'location' | 'listing', itemId: string, notes?: string) => {
-    await apiFetch(`/api/lists/${listId}/items`, token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) throw new Error('Not signed in')
+    const res = await apiFetch(`/api/lists/${listId}/items`, t, {
       method: 'POST',
       body:   JSON.stringify({ item_type: itemType, item_id: itemId, notes: notes ?? null }),
     })
+    if (!res.ok) {
+      let message = 'Failed to add item'
+      try {
+        const err = await res.json() as { error?: string }
+        message = err.error ?? message
+      } catch { /* non-JSON response */ }
+      throw new Error(message)
+    }
     await refreshLists()
   }, [token, refreshLists])
 
   const removeFromList = useCallback(async (listId: string, itemId: string) => {
-    await apiFetch(`/api/lists/${listId}/items/${itemId}`, token!, { method: 'DELETE' })
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch(`/api/lists/${listId}/items/${itemId}`, t, { method: 'DELETE' })
     await refreshLists()
   }, [token, refreshLists])
 
   const getListItems = useCallback(async (listId: string): Promise<KPListItem[]> => {
-    const res = await apiFetch(`/api/lists/${listId}/items`, token!)
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return []
+    const res = await apiFetch(`/api/lists/${listId}/items`, t)
     if (!res.ok) return []
     const json = await res.json() as { data: KPListItem[] }
     return json.data
   }, [token])
 
   const markNotificationRead = useCallback(async (id: string | 'all') => {
-    await apiFetch(`/api/notifications/${id}`, token!, { method: 'PATCH' })
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch(`/api/notifications/${id}`, t, { method: 'PATCH' })
     await refreshNotifications()
   }, [token, refreshNotifications])
 
   const updateDisplayName = useCallback(async (name: string) => {
-    await apiFetch('/api/auth/profile', token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch('/api/auth/profile', t, {
       method: 'POST',
       body:   JSON.stringify({ display_name: name }),
     })
@@ -292,7 +321,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   const shareList = useCallback(async (listId: string, email: string): Promise<{ ok: boolean; error?: string }> => {
-    const res = await apiFetch(`/api/lists/${listId}/share`, token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return { ok: false, error: 'Not signed in' }
+    const res = await apiFetch(`/api/lists/${listId}/share`, t, {
       method: 'POST',
       body:   JSON.stringify({ email }),
     })
@@ -304,7 +335,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [attendance])
 
   const attend = useCallback(async (itemType: 'event' | 'location' | 'listing', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => {
-    await apiFetch('/api/attendance', token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch('/api/attendance', t, {
       method: 'POST',
       body:   JSON.stringify({ item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null }),
     })
@@ -317,13 +350,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [token, refreshAttendance])
 
   const unattend = useCallback(async (itemType: 'event' | 'location' | 'listing', itemId: string) => {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
     const params = new URLSearchParams({ item_type: itemType, item_id: itemId })
-    await apiFetch(`/api/attendance?${params}`, token!, { method: 'DELETE' })
+    await apiFetch(`/api/attendance?${params}`, t, { method: 'DELETE' })
     setAttendance(prev => prev.filter(a => !(a.item_type === itemType && a.item_id === itemId)))
   }, [token])
 
   const updatePreferences = useCallback(async (prefs: KPPreferences) => {
-    await apiFetch('/api/auth/preferences', token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch('/api/auth/preferences', t, {
       method: 'PATCH',
       body:   JSON.stringify(prefs),
     })
@@ -331,7 +368,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   const updateDigestOptIn = useCallback(async (value: boolean) => {
-    await apiFetch('/api/auth/profile', token!, {
+    const t = token ?? localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    await apiFetch('/api/auth/profile', t, {
       method: 'PATCH',
       body:   JSON.stringify({ digest_opt_in: value }),
     })

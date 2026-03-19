@@ -18,6 +18,7 @@ export default function ListsDrawer({ onClose }: Props) {
   const [newName,     setNewName]     = useState('')
   const [creating,    setCreating]    = useState(false)
   const [showCreate,  setShowCreate]  = useState(false)
+  const [createError, setCreateError] = useState('')
   const [shareListId, setShareListId] = useState<string | null>(null)
   const [shareEmail,  setShareEmail]  = useState('')
   const [shareStatus, setShareStatus] = useState<Record<string, 'idle' | 'sending' | 'ok' | 'error'>>({})
@@ -77,10 +78,13 @@ export default function ListsDrawer({ onClose }: Props) {
     e.preventDefault()
     if (!newName.trim()) return
     setCreating(true)
+    setCreateError('')
     try {
       await createList(newName.trim(), '', false)
       setNewName('')
       setShowCreate(false)
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create list')
     } finally {
       setCreating(false)
     }
@@ -135,10 +139,13 @@ export default function ListsDrawer({ onClose }: Props) {
               <button type="submit" disabled={creating || !newName.trim()} className="text-xs border-2 border-black px-2 py-1 bg-black text-white hover:bg-white hover:text-black disabled:opacity-40 shrink-0">
                 {creating ? '…' : 'Create'}
               </button>
-              <button type="button" onClick={() => { setShowCreate(false); setNewName('') }} className="text-xs border-2 border-black px-2 py-1 hover:bg-black hover:text-white shrink-0">
+              <button type="button" onClick={() => { setShowCreate(false); setNewName(''); setCreateError('') }} className="text-xs border-2 border-black px-2 py-1 hover:bg-black hover:text-white shrink-0">
                 ✕
               </button>
             </form>
+          )}
+          {createError && (
+            <p className="text-[10px] text-red-600 font-bold mt-1">{createError}</p>
           )}
         </div>
 
