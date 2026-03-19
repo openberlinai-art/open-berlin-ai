@@ -1,7 +1,7 @@
 'use client'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import Map, { Source, Layer, Popup, NavigationControl } from 'react-map-gl/maplibre'
+import Map, { Source, Layer, Popup, NavigationControl, GeolocateControl } from 'react-map-gl/maplibre'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
 import type maplibregl from 'maplibre-gl'
@@ -619,6 +619,7 @@ export default function MapView({
         onMouseLeave={onMouseLeave}
       >
         <NavigationControl position="top-right" />
+        <GeolocateControl position="top-right" trackUserLocation />
 
         {/* ── Parks (centroid points) ───────────── */}
         {showParks && parksData && (
