@@ -14,12 +14,12 @@ const franklin = Libre_Franklin({
 })
 
 export const metadata: Metadata = {
-  title:       'KulturPulse — Berlin Culture Radar',
+  title:       'Citizen.Berlin — Berlin Culture Radar',
   description: 'Discover upcoming cultural events across Berlin: exhibitions, music, dance, film, theatre, and more.',
   manifest:    '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'KulturPulse' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Citizen.Berlin' },
   openGraph: {
-    title:       'KulturPulse',
+    title:       'Citizen.Berlin',
     description: 'Berlin culture events, live.',
     type:        'website',
   },

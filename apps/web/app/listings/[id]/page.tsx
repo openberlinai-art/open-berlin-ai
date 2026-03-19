@@ -30,11 +30,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const listing = await fetchListing(id)
     return {
-      title:       `${listing.title} — KulturPulse`,
+      title:       `${listing.title} — Citizen.Berlin`,
       description: [TYPE_LABELS[listing.type], listing.borough, listing.address].filter(Boolean).join(' · '),
     }
   } catch {
-    return { title: 'Listing — KulturPulse' }
+    return { title: 'Listing — Citizen.Berlin' }
   }
 }
 

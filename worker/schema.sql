@@ -1,5 +1,5 @@
--- KulturPulse D1 Schema
--- Run: wrangler d1 execute kulturpulse-db --remote --file=worker/schema.sql
+-- Citizen.Berlin D1 Schema
+-- Run: wrangler d1 execute citizen-berlin-db --remote --file=worker/schema.sql
 
 CREATE TABLE IF NOT EXISTS events (
   id              TEXT    PRIMARY KEY,
@@ -292,7 +292,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at);
 -- users:      digest_opt_in, preferences (already in live DB)
 -- user_attendance: scheduled_for, scheduled_time (already in live DB)
 -- New indexes (run if not exists):
---   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_location_id ON events(location_id)"
---   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_schedule_status ON events(schedule_status)"
---   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_digest ON users(digest_opt_in)"
---   wrangler d1 execute kulturpulse-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_display_name ON users(LOWER(display_name))"
+--   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_location_id ON events(location_id)"
+--   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_schedule_status ON events(schedule_status)"
+--   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_digest ON users(digest_opt_in)"
+--   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_display_name ON users(LOWER(display_name))"

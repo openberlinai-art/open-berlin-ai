@@ -1,13 +1,13 @@
 {
-  "name": "kulturpulse-worker",
+  "name": "citizen-berlin-worker",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "lint": "tsc --noEmit",
-    "migrate:local": "wrangler d1 execute kulturpulse-db --local --file=../schema.sql",
-    "migrate:remote": "wrangler d1 execute kulturpulse-db --remote --file=../schema.sql"
+    "migrate:local": "wrangler d1 execute citizen-berlin-db --local --file=../schema.sql",
+    "migrate:remote": "wrangler d1 execute citizen-berlin-db --remote --file=../schema.sql"
   },
   "dependencies": {
     "hono": "^4.6.3"

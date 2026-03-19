@@ -17,11 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const poi = await fetchPOIDetail(id)
     const label = getPOILabel(poi.category_group, poi.category)
     return {
-      title:       `${poi.name ?? label} — KulturPulse`,
+      title:       `${poi.name ?? label} — Citizen.Berlin`,
       description: [poi.description, label, poi.address, poi.region].filter(Boolean).join(' · '),
     }
   } catch {
-    return { title: 'POI — KulturPulse' }
+    return { title: 'POI — Citizen.Berlin' }
   }
 }
 

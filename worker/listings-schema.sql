@@ -1,5 +1,5 @@
 -- Listings table migration
--- Run: wrangler d1 execute kulturpulse-db --remote --file=worker/listings-schema.sql
+-- Run: wrangler d1 execute citizen-berlin-db --remote --file=worker/listings-schema.sql
 
 CREATE TABLE IF NOT EXISTS listings (
   id               TEXT    PRIMARY KEY,

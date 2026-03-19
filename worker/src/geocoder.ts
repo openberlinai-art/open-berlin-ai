@@ -125,7 +125,7 @@ async function callNominatim(
 
     const res = await fetch(url, {
       signal:  controller.signal,
-      headers: { 'User-Agent': 'kulturpulse-berlin/1.0 (openberlinai.workers.dev)' },
+      headers: { 'User-Agent': 'citizen-berlin/1.0 (openberlinai.workers.dev)' },
     })
     clearTimeout(timer)
 

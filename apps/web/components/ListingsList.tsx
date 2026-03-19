@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 
-const WORKER = 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = 'https://citizen-berlin-worker.openberlinai.workers.dev'
 
 const TYPE_BADGES: Record<string, { color: string; label: string }> = {
   apartment_rent: { color: '#2563eb', label: 'Rent' },

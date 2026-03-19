@@ -18,11 +18,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const loc = await fetchLocation(id)
     return {
-      title:       `${loc.name ?? 'Venue'} — KulturPulse`,
+      title:       `${loc.name ?? 'Venue'} — Citizen.Berlin`,
       description: [loc.description, loc.category, loc.address, loc.borough].filter(Boolean).join(' · '),
     }
   } catch {
-    return { title: 'Venue — KulturPulse' }
+    return { title: 'Venue — Citizen.Berlin' }
   }
 }
 

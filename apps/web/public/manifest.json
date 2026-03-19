@@ -1,6 +1,6 @@
 {
-  "name": "KulturPulse Berlin",
-  "short_name": "KulturPulse",
+  "name": "Citizen.Berlin",
+  "short_name": "Citizen.Berlin",
   "description": "Berlin culture events, live.",
   "start_url": "/",
   "display": "standalone",

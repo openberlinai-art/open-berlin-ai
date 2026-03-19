@@ -60,7 +60,7 @@ function commonsThumb(fileUrl: string, width = 800): string {
 async function fetchWikidata(): Promise<Map<string, WikidataItem>> {
   const url = `${SPARQL_ENDPOINT}?query=${encodeURIComponent(SPARQL_QUERY)}&format=json`
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'KulturPulse Berlin/1.0 (https://kulturpulse.berlin)' },
+    headers: { 'User-Agent': 'Citizen.Berlin/1.0 (https://citizen.berlin)' },
     // cf: { cacheTtl: 3600 }  // Cache in Cloudflare for 1 hour
   })
   if (!res.ok) throw new Error(`Wikidata SPARQL HTTP ${res.status}`)

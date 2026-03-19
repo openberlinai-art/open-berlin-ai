@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void
 }
 
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
 
 export default function AuthModal({ onClose }: Props) {
   const { login, logout, user, token, updateDisplayName } = useUser()

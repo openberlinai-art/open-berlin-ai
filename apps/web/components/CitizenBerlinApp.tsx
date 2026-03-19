@@ -413,7 +413,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b-2 border-black">
           <div className="flex items-center justify-between mb-0.5">
-            <h1 className="text-lg font-bold tracking-tight">KulturPulse</h1>
+            <h1 className="text-lg font-bold tracking-tight">Citizen.Berlin</h1>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => {
@@ -1205,6 +1205,6 @@ function getFilterLabel(category: string): string | null {
   return labels[category] ?? null
 }
 
-export default function KulturPulseApp(props: Props) {
+export default function CitizenBerlinApp(props: Props) {
   return <AppInner {...props} />
 }

@@ -5,7 +5,7 @@
 
 import type { Location, Event } from './types'
 
-const WORKER    = 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER    = 'https://citizen-berlin-worker.openberlinai.workers.dev'
 const VBB_BASE  = 'https://v6.bvg.transport.rest'
 const VBB_PROXY = '/api/proxy/vbb'
 

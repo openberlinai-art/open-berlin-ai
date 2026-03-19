@@ -4,7 +4,7 @@ import GreenspaceDetail from '@/components/GreenspaceDetail'
 
 export const revalidate = 86400
 
-const WORKER = 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = 'https://citizen-berlin-worker.openberlinai.workers.dev'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -24,11 +24,11 @@ async function fetchPark(id: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const feature = await fetchPark(id)
-  if (!feature) return { title: 'Park — KulturPulse' }
+  if (!feature) return { title: 'Park — Citizen.Berlin' }
   const p = feature.properties
   const name = p.namenr ?? p.name ?? 'Park'
   return {
-    title:       `${name} — KulturPulse`,
+    title:       `${name} — Citizen.Berlin`,
     description: [p.objartname, p.ortstlname, p.bezirkname].filter(Boolean).join(' · '),
   }
 }

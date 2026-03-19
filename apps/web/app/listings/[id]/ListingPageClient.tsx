@@ -11,7 +11,7 @@ import { useUser } from '@/providers/UserProvider'
 
 const VenueMap = dynamic(() => import('@/components/VenueMap'), { ssr: false })
 
-const WORKER = 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = 'https://citizen-berlin-worker.openberlinai.workers.dev'
 
 function ListingActions({ id, onNeedAuth }: { id: string; onNeedAuth: () => void }) {
   return (

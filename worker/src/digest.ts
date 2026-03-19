@@ -54,7 +54,7 @@ export async function sendWeeklyDigest(env: Env): Promise<void> {
     byDate.set(ev.date_start, list)
   }
 
-  const frontendUrl = env.FRONTEND_URL || 'https://kulturpulse.berlin'
+  const frontendUrl = env.FRONTEND_URL || 'https://citizen.berlin'
 
   // Build HTML
   const formatDate = (d: string) => {
@@ -93,7 +93,7 @@ export async function sendWeeklyDigest(env: Env): Promise<void> {
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#fff;border:2px solid #000;padding:32px;">
         <tr>
           <td style="padding-bottom:24px;border-bottom:2px solid #000;">
-            <span style="font-size:20px;font-weight:800;letter-spacing:-0.02em;">KulturPulse</span>
+            <span style="font-size:20px;font-weight:800;letter-spacing:-0.02em;">Citizen.Berlin</span>
             <span style="font-size:12px;color:#6b7280;display:block;margin-top:2px;">Berlin culture events · Weekly digest</span>
           </td>
         </tr>
@@ -129,7 +129,7 @@ export async function sendWeeklyDigest(env: Env): Promise<void> {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sender:      { name: 'KulturPulse', email: env.BREVO_SENDER_EMAIL },
+          sender:      { name: 'Citizen.Berlin', email: env.BREVO_SENDER_EMAIL },
           to:          [{ email: user.email }],
           subject:     `Your weekly Berlin culture digest · ${formatDate(dateFrom)}`,
           htmlContent: html,

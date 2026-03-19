@@ -87,11 +87,11 @@ export async function sendMagicLink(email: string, env: Env): Promise<{ dev_link
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      sender:      { name: 'KulturPulse', email: env.BREVO_SENDER_EMAIL },
+      sender:      { name: 'Citizen.Berlin', email: env.BREVO_SENDER_EMAIL },
       to:          [{ email }],
-      subject:     'Your KulturPulse sign-in link',
+      subject:     'Your Citizen.Berlin sign-in link',
       htmlContent: `
-        <p>Click the link below to sign in to KulturPulse. It expires in 15 minutes.</p>
+        <p>Click the link below to sign in to Citizen.Berlin. It expires in 15 minutes.</p>
         <p><a href="${link}" style="font-weight:bold">${link}</a></p>
         <p style="color:#9ca3af;font-size:12px">If you didn't request this, you can ignore this email.</p>
       `,

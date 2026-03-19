@@ -16,7 +16,7 @@ export interface ListRow {
 export interface ListItemRow {
   id:        string
   list_id:   string
-  item_type: 'event' | 'location'
+  item_type: 'event' | 'location' | 'listing'
   item_id:   string
   notes:     string | null
   added_at:  string

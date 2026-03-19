@@ -65,7 +65,7 @@ export async function enrichPOIImages(db: D1Database): Promise<number> {
 
     const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qids}&props=claims&format=json`
     const resp = await fetch(url, {
-      headers: { 'User-Agent': 'KulturPulse/1.0 (https://kulturpulse.berlin)' },
+      headers: { 'User-Agent': 'Citizen.Berlin/1.0 (https://citizen.berlin)' },
     })
 
     if (!resp.ok) {

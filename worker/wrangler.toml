@@ -1,4 +1,4 @@
-name            = "kulturpulse-worker"
+name            = "citizen-berlin-worker"
 main            = "src/index.ts"
 compatibility_date  = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -14,11 +14,11 @@ crons = [
 
 [[r2_buckets]]
 binding     = "GEODATA"
-bucket_name = "kulturpulse-geodata"
+bucket_name = "citizen-berlin-geodata"
 
 [[d1_databases]]
 binding       = "DB"
-database_name = "kulturpulse-db"
+database_name = "citizen-berlin-db"
 database_id   = "bf2f311c-ce80-43e2-8411-14aa544968f4"
 
 [ai]
@@ -32,4 +32,4 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 # ALLOWED_ORIGIN   — your Vercel deployment URL
 # RESEND_API_KEY   — Resend API key for magic-link emails
 # JWT_SECRET       — random 32+ char string for signing session JWTs
-# FRONTEND_URL     — full URL of the Next.js app (e.g. https://kulturpulse.vercel.app)
+# FRONTEND_URL     — full URL of the Next.js app (e.g. https://citizen-berlin.vercel.app)

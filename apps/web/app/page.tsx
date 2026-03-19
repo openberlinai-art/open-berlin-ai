@@ -1,6 +1,6 @@
 import { fetchEvents }     from '@/lib/api'
 import { todayISO }        from '@/lib/utils'
-import KulturPulseApp      from '@/components/KulturPulseApp'
+import CitizenBerlinApp    from '@/components/CitizenBerlinApp'
 
 export const revalidate = 300  // ISR: revalidate every 5 minutes
 
@@ -14,7 +14,7 @@ export default async function Page() {
   }))
 
   return (
-    <KulturPulseApp
+    <CitizenBerlinApp
       initialEvents={initial.data}
       initialTotal={initial.pagination.total}
       initialDate={today}

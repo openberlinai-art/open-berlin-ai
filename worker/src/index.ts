@@ -52,7 +52,7 @@ app.use('*', cors({
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
-app.get('/', c => c.json({ ok: true, service: 'kulturpulse-worker' }))
+app.get('/', c => c.json({ ok: true, service: 'citizen-berlin-worker' }))
 
 // ─── Rate limiter (D1-backed, best-effort) ────────────────────────────────────
 
@@ -814,7 +814,7 @@ app.post('/api/chat', async c => {
   const totalLocations = locationCountRes?.n ?? 0
   const weekEvents = parkCountRes?.n ?? 0
 
-  const systemPrompt = `You are KulturPulse, a Berlin culture events assistant with access to a live database.
+  const systemPrompt = `You are Citizen.Berlin, a Berlin culture events assistant with access to a live database.
 Today is ${date}.
 
 ## EVENTS ON ${date} (${total} total)
@@ -1450,7 +1450,7 @@ app.post('/api/seed-listings', async c => {
   const systemUserId = 'system-seed'
   await c.env.DB.prepare(
     `INSERT OR IGNORE INTO users (id, email, display_name, created_at) VALUES (?, ?, ?, datetime('now'))`
-  ).bind(systemUserId, 'seed@kulturpulse.berlin', 'KulturPulse').run()
+  ).bind(systemUserId, 'seed@citizen.berlin', 'Citizen.Berlin').run()
 
   const listings = [
     {

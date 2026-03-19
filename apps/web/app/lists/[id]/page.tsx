@@ -6,7 +6,7 @@ import { ExternalLink, MapPin, Calendar, BookCopy, Check } from 'lucide-react'
 import { UserProvider, useUser } from '@/providers/UserProvider'
 import AddToListButton from '@/components/AddToListButton'
 
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
 
 interface ListRow {
   id:          string

@@ -4,7 +4,7 @@ import {
   type ReactNode,
 } from 'react'
 
-const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
 const TOKEN_KEY = 'kp_token'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -76,15 +76,15 @@ interface UserContextValue {
   refreshNotifications: () => Promise<void>
   createList:        (name: string, description: string, isPublic: boolean) => Promise<KPList>
   deleteList:        (listId: string) => Promise<void>
-  addToList:         (listId: string, itemType: 'event' | 'location', itemId: string, notes?: string) => Promise<void>
+  addToList:         (listId: string, itemType: 'event' | 'location' | 'listing', itemId: string, notes?: string) => Promise<void>
   removeFromList:    (listId: string, itemId: string) => Promise<void>
   getListItems:      (listId: string) => Promise<KPListItem[]>
   markNotificationRead: (id: string | 'all') => Promise<void>
   updateDisplayName: (name: string) => Promise<void>
   shareList:         (listId: string, email: string) => Promise<{ ok: boolean; error?: string }>
-  isAttending:       (itemType: 'event' | 'location', itemId: string) => boolean
-  attend:            (itemType: 'event' | 'location', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => Promise<void>
-  unattend:          (itemType: 'event' | 'location', itemId: string) => Promise<void>
+  isAttending:       (itemType: 'event' | 'location' | 'listing', itemId: string) => boolean
+  attend:            (itemType: 'event' | 'location' | 'listing', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => Promise<void>
+  unattend:          (itemType: 'event' | 'location' | 'listing', itemId: string) => Promise<void>
   updatePreferences: (prefs: KPPreferences) => Promise<void>
   updateDigestOptIn: (value: boolean) => Promise<void>
 }
@@ -253,7 +253,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await refreshLists()
   }, [token, refreshLists])
 
-  const addToList = useCallback(async (listId: string, itemType: 'event' | 'location', itemId: string, notes?: string) => {
+  const addToList = useCallback(async (listId: string, itemType: 'event' | 'location' | 'listing', itemId: string, notes?: string) => {
     await apiFetch(`/api/lists/${listId}/items`, token!, {
       method: 'POST',
       body:   JSON.stringify({ item_type: itemType, item_id: itemId, notes: notes ?? null }),
@@ -294,11 +294,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return res.json() as Promise<{ ok: boolean; error?: string }>
   }, [token])
 
-  const isAttending = useCallback((itemType: 'event' | 'location', itemId: string) => {
+  const isAttending = useCallback((itemType: 'event' | 'location' | 'listing', itemId: string) => {
     return attendance.some(a => a.item_type === itemType && a.item_id === itemId)
   }, [attendance])
 
-  const attend = useCallback(async (itemType: 'event' | 'location', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => {
+  const attend = useCallback(async (itemType: 'event' | 'location' | 'listing', itemId: string, opts?: { scheduledFor?: string; scheduledTime?: string }) => {
     await apiFetch('/api/attendance', token!, {
       method: 'POST',
       body:   JSON.stringify({ item_type: itemType, item_id: itemId, scheduled_for: opts?.scheduledFor ?? null, scheduled_time: opts?.scheduledTime ?? null }),
@@ -311,7 +311,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await refreshAttendance()
   }, [token, refreshAttendance])
 
-  const unattend = useCallback(async (itemType: 'event' | 'location', itemId: string) => {
+  const unattend = useCallback(async (itemType: 'event' | 'location' | 'listing', itemId: string) => {
     const params = new URLSearchParams({ item_type: itemType, item_id: itemId })
     await apiFetch(`/api/attendance?${params}`, token!, { method: 'DELETE' })
     setAttendance(prev => prev.filter(a => !(a.item_type === itemType && a.item_id === itemId)))

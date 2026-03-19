@@ -16,11 +16,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const ev = await fetchEvent(id)
     return {
-      title:       `${ev.title ?? 'Event'} — KulturPulse`,
+      title:       `${ev.title ?? 'Event'} — Citizen.Berlin`,
       description: [ev.category, ev.location_name, ev.borough].filter(Boolean).join(' · '),
     }
   } catch {
-    return { title: 'Event — KulturPulse' }
+    return { title: 'Event — Citizen.Berlin' }
   }
 }
 

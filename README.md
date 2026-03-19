@@ -1,4 +1,4 @@
-# KulturPulse Berlin
+# Citizen.Berlin
 
 Berlin cultural events radar — a full-stack, edge-first web app.
 
@@ -16,7 +16,7 @@ Berlin cultural events radar — a full-stack, edge-first web app.
 ## Project Structure
 
 ```
-kulturpulse-berlin/
+citizen-berlin/
 ├── apps/
 │   └── web/                  # Next.js 15 frontend
 │       ├── app/
@@ -25,7 +25,7 @@ kulturpulse-berlin/
 │       │   ├── globals.css
 │       │   └── api/chat/     # Proxies to Worker
 │       ├── components/
-│       │   ├── KulturPulseApp.tsx  # Main client shell
+│       │   ├── CitizenBerlinApp.tsx  # Main client shell
 │       │   ├── BerlinMap.tsx       # Leaflet map (client-only)
 │       │   ├── EventCard.tsx       # Individual event row
 │       │   └── ChatPanel.tsx       # AI chat FAB
@@ -53,8 +53,8 @@ cd worker
 npm install
 
 # Create local D1 database
-npx wrangler d1 create kulturpulse-db          # copy the id into wrangler.toml
-npx wrangler d1 execute kulturpulse-db --local --file ./schema.sql
+npx wrangler d1 create citizen-berlin-db          # copy the id into wrangler.toml
+npx wrangler d1 execute citizen-berlin-db --local --file ./schema.sql
 
 # Copy secrets to local dev vars
 cp .dev.vars.example .dev.vars
@@ -91,8 +91,8 @@ curl -X POST http://localhost:8787/api/ingest \
 cd worker
 
 # One-time setup
-npx wrangler d1 create kulturpulse-db
-npx wrangler d1 execute kulturpulse-db --remote --file ./schema.sql
+npx wrangler d1 create citizen-berlin-db
+npx wrangler d1 execute citizen-berlin-db --remote --file ./schema.sql
 npx wrangler secret put INGEST_SECRET
 npx wrangler secret put ALLOWED_ORIGIN
 

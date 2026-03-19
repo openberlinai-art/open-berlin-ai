@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const WORKER    = process.env.NEXT_PUBLIC_API_URL ?? 'https://kulturpulse-worker.openberlinai.workers.dev'
+const WORKER    = process.env.NEXT_PUBLIC_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
 const TOKEN_KEY = 'kp_token'
 
 function VerifyInner() {
@@ -37,7 +37,7 @@ function VerifyInner() {
   return (
     <main className="min-h-screen bg-white flex items-center justify-center font-sans">
       <div className="border-2 border-black p-8 max-w-sm w-full mx-4">
-        <h1 className="text-lg font-extrabold mb-4">KulturPulse</h1>
+        <h1 className="text-lg font-extrabold mb-4">Citizen.Berlin</h1>
         {status === 'loading' && (
           <p className="text-sm text-gray-500">Verifying your sign-in link…</p>
         )}
