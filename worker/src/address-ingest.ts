@@ -46,19 +46,59 @@ async function fetchOverpassWithRetry(query: string, retries = 3): Promise<Overp
   return []
 }
 
+// Berlin postcode prefixes — each handled in a separate Worker call
+export const BERLIN_POSTCODE_PREFIXES = [
+  '101', '102', '103', '104', '105',
+  '106', '107', '108', '109',
+  '120', '121', '122', '123', '124', '125', '126', '127', '128', '129',
+  '130', '131', '132', '133', '134', '135', '136', '137', '138', '139',
+  '141',
+  'none', // addresses without postcodes
+]
+
 /**
- * Ingest all Berlin address points (house numbers) from Overpass API.
- * ~400-500k rows — node-level data with addr:housenumber + addr:street.
+ * Ingest Berlin address points for a single postcode prefix.
+ * Call once per prefix to stay within Worker CPU limits.
+ * Use prefix='none' for addresses without postcodes.
  */
-export async function ingestAddresses(env: Env): Promise<{ total: number }> {
-  const query = `[out:json][timeout:300];
+export async function ingestAddresses(
+  env: Env,
+  options?: { prefix?: string }
+): Promise<{ total: number }> {
+  const prefix = options?.prefix
+
+  // If no prefix specified, do all sequentially (for cron — may hit limits)
+  if (!prefix) {
+    await env.DB.prepare('DELETE FROM addresses').run()
+    let grandTotal = 0
+    for (const p of BERLIN_POSTCODE_PREFIXES) {
+      const r = await ingestAddressesForPrefix(env, p)
+      grandTotal += r.total
+    }
+    return { total: grandTotal }
+  }
+
+  return ingestAddressesForPrefix(env, prefix)
+}
+
+async function ingestAddressesForPrefix(
+  env: Env,
+  prefix: string
+): Promise<{ total: number }> {
+  const isNone = prefix === 'none'
+
+  const postcodeFilter = isNone
+    ? '[!"addr:postcode"]'
+    : `["addr:postcode"~"^${prefix}"]`
+
+  const query = `[out:json][timeout:120];
 area["name"="Berlin"]["boundary"="administrative"]["admin_level"="4"]->.berlin;
-node["addr:housenumber"]["addr:street"](area.berlin);
+node["addr:housenumber"]["addr:street"]${postcodeFilter}(area.berlin);
 out;`
 
-  console.log(`[address-ingest] Fetching Berlin addresses from Overpass...`)
+  console.log(`[address-ingest] Fetching prefix=${prefix}...`)
   const elements = await fetchOverpassWithRetry(query)
-  console.log(`[address-ingest] Got ${elements.length} raw address nodes`)
+  console.log(`[address-ingest] Prefix ${prefix}: ${elements.length} nodes`)
 
   const rows: Array<{
     street: string; street_norm: string; housenumber: string
@@ -86,10 +126,13 @@ out;`
     })
   }
 
-  console.log(`[address-ingest] Parsed ${rows.length} valid addresses`)
-
-  // Delete all existing addresses before re-inserting
-  await env.DB.prepare('DELETE FROM addresses').run()
+  // Delete existing rows for this prefix before inserting
+  if (isNone) {
+    await env.DB.prepare('DELETE FROM addresses WHERE postcode IS NULL').run()
+  } else {
+    await env.DB.prepare('DELETE FROM addresses WHERE postcode LIKE ?')
+      .bind(`${prefix}%`).run()
+  }
 
   // Batch insert in chunks of 100
   const stmt = env.DB.prepare(
@@ -107,6 +150,6 @@ out;`
     )
   }
 
-  console.log(`[address-ingest] Done — ${rows.length} addresses stored`)
+  console.log(`[address-ingest] Prefix ${prefix} done — ${rows.length} addresses`)
   return { total: rows.length }
 }

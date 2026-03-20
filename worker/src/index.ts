@@ -538,13 +538,20 @@ app.post('/api/ingest-addresses', async c => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
+  const prefix = c.req.query('prefix') || undefined
+  const clear = c.req.query('clear') === 'true'
+
+  if (clear) {
+    await c.env.DB.prepare('DELETE FROM addresses').run()
+  }
+
   c.executionCtx.waitUntil(
-    ingestAddresses(c.env)
+    ingestAddresses(c.env, { prefix: prefix ?? undefined })
       .then(r => console.log(`[address-ingest:manual] ${r.total} addresses`))
       .catch(err => console.error('[address-ingest:manual] failed:', err))
   )
 
-  return c.json({ ok: true, message: 'Address ingest started' })
+  return c.json({ ok: true, message: `Address ingest started${prefix ? ` (prefix=${prefix})` : ''}${clear ? ' (table cleared)' : ''}` })
 })
 
 // ─── POST /api/vectorize-sync (protected) ────────────────────────────────────
