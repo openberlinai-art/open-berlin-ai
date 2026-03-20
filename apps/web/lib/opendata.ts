@@ -8,7 +8,7 @@ import type { Location, Event } from './types'
 // Client-side: use relative path (Next.js rewrites /api/* → worker), avoids CORS
 // Server-side: call worker directly
 const WORKER = typeof window === 'undefined'
-  ? (process.env.WORKER_API_URL ?? 'http://localhost:8787')
+  ? (process.env.WORKER_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev')
   : ''
 const VBB_BASE  = 'https://v6.bvg.transport.rest'
 const VBB_PROXY = '/api/proxy/vbb'
