@@ -24,6 +24,10 @@ database_id   = "bf2f311c-ce80-43e2-8411-14aa544968f4"
 [ai]
 binding = "AI"
 
+[[vectorize]]
+binding    = "VECTORIZE"
+index_name = "citizen-berlin-pois"
+
 [vars]
 KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 

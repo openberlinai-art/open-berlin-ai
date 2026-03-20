@@ -285,6 +285,22 @@ CREATE INDEX IF NOT EXISTS idx_listings_geo     ON listings(lat, lng);
 CREATE INDEX IF NOT EXISTS idx_listings_borough ON listings(borough);
 CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at);
 
+-- ─── Addresses (OSM house-number-level, refreshed monthly) ──────────────────
+
+CREATE TABLE IF NOT EXISTS addresses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  street        TEXT NOT NULL,
+  street_norm   TEXT NOT NULL,
+  housenumber   TEXT NOT NULL,
+  lat           REAL NOT NULL,
+  lng           REAL NOT NULL,
+  postcode      TEXT,
+  osm_id        INTEGER,
+  refreshed_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_addresses_street_norm ON addresses(street_norm);
+CREATE INDEX IF NOT EXISTS idx_addresses_street_num  ON addresses(street_norm, housenumber);
+
 -- ─── Migration log (columns / indexes added after initial deploy) ─────────────
 -- events:     registration_type, languages, image_urls (already in live DB)
 -- locations:  description, phone, accessibility, opening_hours, opening_status,
@@ -296,3 +312,5 @@ CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at);
 --   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_events_schedule_status ON events(schedule_status)"
 --   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_digest ON users(digest_opt_in)"
 --   wrangler d1 execute citizen-berlin-db --remote --command "CREATE INDEX IF NOT EXISTS idx_users_display_name ON users(LOWER(display_name))"
+-- pois: embedded_at (vectorize sync tracking)
+--   wrangler d1 execute citizen-berlin-db --remote --command "ALTER TABLE pois ADD COLUMN embedded_at TEXT"

@@ -140,6 +140,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     places:    Array<{ id: string; name: string; type: string; lat: number; lng: number }>
     pois?:     Array<{ id: string; name: string | null; category_group: string; category: string; region: string; address: string | null; lat: number; lng: number }>
     streets?:  Array<{ name: string; lat: number; lng: number; postcode: string | null; borough: string | null }>
+    addresses?: Array<{ street: string; housenumber: string; display: string; lat: number; lng: number; postcode: string | null }>
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -971,6 +972,29 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     ))}
                   </div>
                 )}
+                {/* Address results */}
+                {(searchResults?.addresses?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                      Addresses ({searchResults!.addresses!.length})
+                    </p>
+                    {searchResults!.addresses!.map((addr, i) => (
+                      <div
+                        key={`addr-${addr.street}-${addr.housenumber}-${i}`}
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([addr.lng, addr.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 leading-snug">{addr.display}</p>
+                        {addr.postcode && (
+                          <p className="text-[10px] text-gray-500 mt-0.5">{addr.postcode}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* Street results */}
                 {(searchResults?.streets?.length ?? 0) > 0 && (
                   <div>
@@ -994,7 +1018,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     ))}
                   </div>
                 )}
-                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 && (
+                {searchResults && searchResults.events.length === 0 && searchResults.locations.length === 0 && searchResults.places.length === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 && (searchResults.addresses?.length ?? 0) === 0 && (
                   <div className="flex items-center justify-center h-32 text-sm text-gray-400">No results</div>
                 )}
               </>

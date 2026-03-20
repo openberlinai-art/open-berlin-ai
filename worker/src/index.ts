@@ -7,6 +7,9 @@ import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
 import { ingestPOIs } from './poi-ingest'
 import { ingestStreets } from './street-ingest'
+import { ingestAddresses } from './address-ingest'
+import { syncPOIsToVectorize } from './vectorize-sync'
+import { semanticSearchPOIs } from './vector-search'
 import { bboxToGeohashPrefixes } from './geohash'
 import { POI_CATEGORIES } from './poi-queries'
 import type { POICategoryGroup } from './poi-queries'
@@ -466,12 +469,13 @@ app.get('/api/streets', async c => {
   if (q.length < 2) return c.json([])
 
   const limit = Math.min(20, Math.max(1, Number(c.req.query('limit') ?? '10')))
-  const norm = normalizeQ(q)
+  const { street, number } = parseAddressQuery(q)
+  const norm = normalizeQ(street)
   const prefix = `${norm}%`
   const contains = `%${norm}%`
 
   // Prefix match first (uses index), then contains match, deduplicated
-  const { results } = await c.env.DB.prepare(`
+  const { results: streets } = await c.env.DB.prepare(`
     SELECT name, lat, lng, postcode, borough FROM streets
     WHERE name_norm LIKE ? OR name_norm LIKE ?
     ORDER BY CASE WHEN name_norm LIKE ? THEN 0 ELSE 1 END, name
@@ -480,8 +484,33 @@ app.get('/api/streets', async c => {
     name: string; lat: number; lng: number; postcode: string | null; borough: string | null
   }>()
 
+  // If a house number was detected, also query the addresses table
+  if (number) {
+    const { results: addresses } = await c.env.DB.prepare(`
+      SELECT street, housenumber, lat, lng, postcode FROM addresses
+      WHERE street_norm LIKE ? AND housenumber = ?
+      LIMIT ?
+    `).bind(prefix, number, limit).all<{
+      street: string; housenumber: string; lat: number; lng: number; postcode: string | null
+    }>()
+
+    c.header('Cache-Control', 'public, max-age=3600')
+    return c.json({
+      streets,
+      addresses: addresses.map(a => ({
+        street: a.street,
+        housenumber: a.housenumber,
+        display: `${a.street} ${a.housenumber}${a.postcode ? `, ${a.postcode}` : ''}`,
+        lat: a.lat,
+        lng: a.lng,
+        postcode: a.postcode,
+        type: 'address' as const,
+      })),
+    })
+  }
+
   c.header('Cache-Control', 'public, max-age=3600')
-  return c.json(results)
+  return c.json(streets)
 })
 
 // ─── POST /api/ingest-streets (protected) ────────────────────────────────────
@@ -499,6 +528,42 @@ app.post('/api/ingest-streets', async c => {
   )
 
   return c.json({ ok: true, message: 'Street ingest started' })
+})
+
+// ─── POST /api/ingest-addresses (protected) ──────────────────────────────────
+
+app.post('/api/ingest-addresses', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  c.executionCtx.waitUntil(
+    ingestAddresses(c.env)
+      .then(r => console.log(`[address-ingest:manual] ${r.total} addresses`))
+      .catch(err => console.error('[address-ingest:manual] failed:', err))
+  )
+
+  return c.json({ ok: true, message: 'Address ingest started' })
+})
+
+// ─── POST /api/vectorize-sync (protected) ────────────────────────────────────
+
+app.post('/api/vectorize-sync', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const forceAll = c.req.query('force') === 'true'
+
+  c.executionCtx.waitUntil(
+    syncPOIsToVectorize(c.env, { forceAll })
+      .then(r => console.log(`[vectorize-sync:manual] synced=${r.synced} skipped=${r.skipped}`))
+      .catch(err => console.error('[vectorize-sync:manual] failed:', err))
+  )
+
+  return c.json({ ok: true, message: 'Vectorize sync started' })
 })
 
 // ─── POST /api/vibe-check ─────────────────────────────────────────────────────
@@ -774,7 +839,10 @@ app.post('/api/chat', async c => {
 
   const date = body.date ?? new Date().toISOString().split('T')[0]
 
-  // Fetch rich context in parallel
+  // Extract the latest user message for vector retrieval
+  const latestUserMsg = [...body.messages].reverse().find(m => m.role === 'user')?.content ?? ''
+
+  // Fetch rich context in parallel (vector-retrieve venues instead of random)
   const [eventsRes, catRes, venuesRes, locationCountRes, parkCountRes] = await Promise.all([
     // Up to 50 events for the date
     getEvents(c.env.DB, { date_from: date, date_to: date, limit: 50 }),
@@ -783,11 +851,24 @@ app.post('/api/chat', async c => {
       .prepare(`SELECT category, COUNT(*) as n FROM events WHERE date_start = ? GROUP BY category ORDER BY n DESC`)
       .bind(date)
       .all<{ category: string | null; n: number }>(),
-    // Sample of venues/locations with useful info
-    c.env.DB
-      .prepare(`SELECT name, category, borough, address FROM locations
-                WHERE lat IS NOT NULL ORDER BY RANDOM() LIMIT 25`)
-      .all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>(),
+    // Vector-retrieve relevant POIs based on user's message, fall back to random locations
+    (c.env.VECTORIZE && latestUserMsg.length >= 3
+      ? semanticSearchPOIs(c.env, latestUserMsg, { topK: 25 }).then(async matches => {
+          if (matches.length === 0) throw new Error('no matches')
+          const ids = matches.map(m => m.id)
+          const placeholders = ids.map(() => '?').join(',')
+          return c.env.DB.prepare(`
+            SELECT name, category AS category, region AS borough, address
+            FROM pois WHERE id IN (${placeholders})
+          `).bind(...ids).all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+        }).catch(() => null)
+      : Promise.resolve(null)
+    ).then(vectorRes =>
+      vectorRes ?? c.env.DB
+        .prepare(`SELECT name, category, borough, address FROM locations
+                  WHERE lat IS NOT NULL ORDER BY RANDOM() LIMIT 25`)
+        .all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+    ),
     // Total locations count
     c.env.DB.prepare(`SELECT COUNT(*) as n FROM locations`).first<{ n: number }>(),
     // Total upcoming events count (next 7 days)
@@ -1181,6 +1262,12 @@ function normalizeQ(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
+function parseAddressQuery(q: string): { street: string; number: string | null } {
+  const match = q.match(/^(.+?)\s+(\d+\s*[a-zA-Z]?)$/)
+  if (match) return { street: match[1].trim(), number: match[2].trim() }
+  return { street: q, number: null }
+}
+
 // Build a SQLite REPLACE chain that strips common diacritics from a column
 function normSql(col: string): string {
   const pairs: [string, string][] = [
@@ -1238,7 +1325,11 @@ app.get('/api/search', async c => {
 
   const prefix = `${norm}%`
 
-  const [evRes, locRes, poiRes, streetRes] = await Promise.all([
+  const { street: addrStreet, number: addrNumber } = parseAddressQuery(searchTerm)
+  const addrNorm = normalizeQ(addrStreet)
+  const addrPrefix = `${addrNorm}%`
+
+  const queries: Promise<unknown>[] = [
     c.env.DB.prepare(`
       SELECT id, title, date_start, time_start, category, price_type,
              location_name, borough, lat, lng
@@ -1270,9 +1361,92 @@ app.get('/api/search', async c => {
       ORDER BY CASE WHEN name_norm LIKE ? THEN 0 ELSE 1 END, name
       LIMIT 8
     `).bind(prefix, pattern, prefix).all<Record<string, unknown>>(),
-  ])
+    // Address query (only when house number detected)
+    addrNumber
+      ? c.env.DB.prepare(`
+          SELECT street, housenumber, lat, lng, postcode FROM addresses
+          WHERE street_norm LIKE ? AND housenumber = ?
+          LIMIT 10
+        `).bind(addrPrefix, addrNumber).all<Record<string, unknown>>()
+      : Promise.resolve({ results: [] }),
+    // Semantic search (for queries 3+ chars, gracefully skip if Vectorize not bound)
+    norm.length >= 3 && c.env.VECTORIZE
+      ? semanticSearchPOIs(c.env, raw, { topK: 10 }).then(async matches => {
+          if (matches.length === 0) return { results: [] }
+          const ids = matches.map(m => m.id)
+          const placeholders = ids.map(() => '?').join(',')
+          const { results } = await c.env.DB.prepare(`
+            SELECT id, name, category_group, category, region, address, lat, lng
+            FROM pois WHERE id IN (${placeholders})
+          `).bind(...ids).all<Record<string, unknown>>()
+          // Preserve score ordering
+          const byId = new Map(results.map(r => [r.id as string, r]))
+          return { results: matches.map(m => byId.get(m.id)).filter(Boolean) }
+        }).catch(() => ({ results: [] as Record<string, unknown>[] }))
+      : Promise.resolve({ results: [] as Record<string, unknown>[] }),
+  ]
 
-  return c.json({ events: evRes.results, locations: locRes.results, pois: poiRes.results, streets: streetRes.results })
+  const [evRes, locRes, poiRes, streetRes, addrRes, semanticRes] = await Promise.all(queries) as [
+    D1Result<Record<string, unknown>>,
+    D1Result<Record<string, unknown>>,
+    D1Result<Record<string, unknown>>,
+    D1Result<Record<string, unknown>>,
+    D1Result<Record<string, unknown>>,
+    { results: Record<string, unknown>[] },
+  ]
+
+  return c.json({
+    events: evRes.results,
+    locations: locRes.results,
+    pois: poiRes.results,
+    streets: streetRes.results,
+    addresses: (addrRes.results as Array<{ street: string; housenumber: string; lat: number; lng: number; postcode: string | null }>).map(a => ({
+      street: a.street,
+      housenumber: a.housenumber,
+      display: `${a.street} ${a.housenumber}${a.postcode ? `, ${a.postcode}` : ''}`,
+      lat: a.lat,
+      lng: a.lng,
+      postcode: a.postcode,
+    })),
+    semantic_pois: semanticRes.results,
+  })
+})
+
+// ─── GET /api/search/semantic ──────────────────────────────────────────────────
+
+app.get('/api/search/semantic', async c => {
+  const q = (c.req.query('q') ?? '').trim()
+  if (q.length < 3) return c.json({ results: [] })
+  if (!c.env.VECTORIZE) return c.json({ results: [], error: 'Vectorize not configured' })
+
+  const limit = Math.min(50, Math.max(1, Number(c.req.query('limit') ?? '10')))
+  const categoryGroup = c.req.query('category_group') || undefined
+
+  const matches = await semanticSearchPOIs(c.env, q, {
+    topK: limit,
+    filter: categoryGroup ? { category_group: categoryGroup } : undefined,
+  })
+
+  if (matches.length === 0) return c.json({ results: [] })
+
+  const ids = matches.map(m => m.id)
+  const placeholders = ids.map(() => '?').join(',')
+  const { results } = await c.env.DB.prepare(`
+    SELECT id, name, category_group, category, region, address, lat, lng,
+           website, phone, opening_hours, description, image_url
+    FROM pois WHERE id IN (${placeholders})
+  `).bind(...ids).all<Record<string, unknown>>()
+
+  // Preserve score ordering and attach scores
+  const byId = new Map(results.map(r => [r.id as string, r]))
+  const enriched = matches
+    .map(m => {
+      const poi = byId.get(m.id)
+      return poi ? { ...poi, score: m.score } : null
+    })
+    .filter(Boolean)
+
+  return c.json({ results: enriched })
 })
 
 // ─── POST /api/ingest (protected) ─────────────────────────────────────────────
@@ -1570,11 +1744,13 @@ export default {
             env.DB.prepare(`DELETE FROM rate_limits WHERE 1=1`),
           ]).then(([a, r]) => console.log(`[cleanup] auth_tokens=${a.meta.changes} rate_limits=${r.meta.changes}`))
             .catch(e => console.error('[cleanup]', e)),
-          // POI ingest — Berlin (daily) + Wikidata image enrichment
+          // POI ingest — Berlin (daily) + Wikidata image enrichment + Vectorize sync
           ingestPOIs(env, 'berlin')
             .then(r => console.log(`[poi-ingest:berlin] ${r.total} rows, ${r.categories} categories`))
             .then(() => enrichPOIImages(env.DB))
             .then(n => console.log(`[enrich-poi-images] ${n} POIs enriched`))
+            .then(() => env.VECTORIZE ? syncPOIsToVectorize(env) : null)
+            .then(r => r && console.log(`[vectorize-sync:cron] synced=${r.synced} skipped=${r.skipped}`))
             .catch(err => console.error('[poi-ingest:berlin]', err)),
         ])
       )
@@ -1584,6 +1760,14 @@ export default {
           ingestStreets(env)
             .then(r => console.log(`[street-ingest:cron] ${r.total} streets`))
             .catch(err => console.error('[street-ingest:cron]', err))
+        )
+      }
+      // Address ingest — monthly on the 1st
+      if (new Date().getUTCDate() === 1) {
+        ctx.waitUntil(
+          ingestAddresses(env)
+            .then(r => console.log(`[address-ingest:cron] ${r.total} addresses`))
+            .catch(err => console.error('[address-ingest:cron]', err))
         )
       }
     } else if (event.cron === '0 8 * * 1') {

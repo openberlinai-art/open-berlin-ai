@@ -4,6 +4,7 @@ export interface Env {
   DB:                  D1Database
   AI:                  Ai
   GEODATA:             R2Bucket
+  VECTORIZE:           VectorizeIndex
   KULTURDATEN_API_URL: string
   ALLOWED_ORIGIN:      string
   INGEST_SECRET:       string
