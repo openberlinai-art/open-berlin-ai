@@ -1,11 +1,10 @@
-// Zoom-level POI visibility — show POIs progressively as user zooms in
-// Low (11+): major landmarks, Medium (13+): most categories, High (15+): fine-grained/high-density
+// Zoom-level POI visibility tiers (currently all set to 0 — all categories visible at every zoom)
 
 export const ZOOM_THRESHOLDS = { low: 0, medium: 0, high: 0 } as const
 
 export type ZoomTier = keyof typeof ZOOM_THRESHOLDS
 
-// Categories mapped to LOW tier (always visible at zoom 11+)
+// Categories mapped to LOW tier
 const LOW_TIER: Set<string> = new Set([
   'heritage:castle', 'heritage:palace',
   'tourism:sight', 'tourism:zoo', 'tourism:observation_tower',
@@ -15,7 +14,7 @@ const LOW_TIER: Set<string> = new Set([
   'culture:museum', 'culture:theatre', 'culture:concert_hall',
 ])
 
-// Categories mapped to HIGH tier (only visible at zoom 15+)
+// Categories mapped to HIGH tier
 const HIGH_TIER: Set<string> = new Set([
   'transport:parking', 'transport:tram_stop', 'transport:ev_charging',
   'transport:car_sharing', 'transport:taxi', 'transport:scooter_rental',
