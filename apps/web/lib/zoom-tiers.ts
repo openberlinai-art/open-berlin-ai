@@ -1,7 +1,7 @@
 // Zoom-level POI visibility — show POIs progressively as user zooms in
 // Low (11+): major landmarks, Medium (13+): most categories, High (15+): fine-grained/high-density
 
-export const ZOOM_THRESHOLDS = { low: 11, medium: 13, high: 15 } as const
+export const ZOOM_THRESHOLDS = { low: 0, medium: 0, high: 0 } as const
 
 export type ZoomTier = keyof typeof ZOOM_THRESHOLDS
 
