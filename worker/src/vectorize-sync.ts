@@ -44,7 +44,7 @@ export async function syncPOIsToVectorize(
   options?: { forceAll?: boolean; batchSize?: number }
 ): Promise<{ synced: number; skipped: number }> {
   const forceAll = options?.forceAll ?? false
-  const batchSize = options?.batchSize ?? 100
+  const batchSize = options?.batchSize ?? 50
 
   // Fetch POIs that need syncing
   const whereClause = forceAll
@@ -56,7 +56,7 @@ export async function syncPOIsToVectorize(
     FROM pois
     WHERE ${whereClause}
     ORDER BY id
-    LIMIT 5000
+    LIMIT 200
   `).all<POIRow>()
 
   if (pois.length === 0) {
@@ -69,45 +69,50 @@ export async function syncPOIsToVectorize(
   let synced = 0
   let skipped = 0
 
-  // Process in batches of 100 (AI embedding limit)
+  // Process in batches
   for (let i = 0; i < pois.length; i += batchSize) {
     const batch = pois.slice(i, i + batchSize)
     const texts = batch.map(buildEmbeddingText)
 
-    // Generate embeddings via Workers AI
-    const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5' as Parameters<typeof env.AI.run>[0], {
-      text: texts,
-    } as Parameters<typeof env.AI.run>[1]) as { data?: number[][] }
+    try {
+      // Generate embeddings via Workers AI
+      const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5' as Parameters<typeof env.AI.run>[0], {
+        text: texts,
+      } as Parameters<typeof env.AI.run>[1]) as { data?: number[][] }
 
-    if (!embeddingResult.data || embeddingResult.data.length !== batch.length) {
-      console.error(`[vectorize-sync] Embedding mismatch: expected ${batch.length}, got ${embeddingResult.data?.length ?? 0}`)
+      if (!embeddingResult.data || embeddingResult.data.length !== batch.length) {
+        console.error(`[vectorize-sync] Embedding mismatch: expected ${batch.length}, got ${embeddingResult.data?.length ?? 0}`)
+        skipped += batch.length
+        continue
+      }
+
+      // Build vectors for upsert
+      const vectors: VectorizeVector[] = batch.map((poi, j) => ({
+        id: poi.id,
+        values: embeddingResult.data![j] as number[],
+        metadata: {
+          category_group: poi.category_group,
+          category: poi.category,
+          region: poi.region,
+          name: poi.name ?? '',
+        },
+      }))
+
+      // Upsert to Vectorize (max 1000 per call)
+      await env.VECTORIZE.upsert(vectors)
+
+      // Mark as embedded in D1
+      const updateStmt = env.DB.prepare(
+        `UPDATE pois SET embedded_at = datetime('now') WHERE id = ?`
+      )
+      await env.DB.batch(batch.map(p => updateStmt.bind(p.id)))
+
+      synced += batch.length
+      console.log(`[vectorize-sync] Batch ${Math.floor(i / batchSize) + 1}: ${batch.length} vectors upserted`)
+    } catch (err) {
+      console.error(`[vectorize-sync] Batch ${Math.floor(i / batchSize) + 1} failed:`, err)
       skipped += batch.length
-      continue
     }
-
-    // Build vectors for upsert
-    const vectors: VectorizeVector[] = batch.map((poi, j) => ({
-      id: poi.id,
-      values: embeddingResult.data![j] as number[],
-      metadata: {
-        category_group: poi.category_group,
-        category: poi.category,
-        region: poi.region,
-        name: poi.name ?? '',
-      },
-    }))
-
-    // Upsert to Vectorize (max 1000 per call)
-    await env.VECTORIZE.upsert(vectors)
-
-    // Mark as embedded in D1
-    const updateStmt = env.DB.prepare(
-      `UPDATE pois SET embedded_at = datetime('now') WHERE id = ?`
-    )
-    await env.DB.batch(batch.map(p => updateStmt.bind(p.id)))
-
-    synced += batch.length
-    console.log(`[vectorize-sync] Batch ${Math.floor(i / batchSize) + 1}: ${batch.length} vectors upserted`)
   }
 
   console.log(`[vectorize-sync] Done — synced=${synced}, skipped=${skipped}`)
