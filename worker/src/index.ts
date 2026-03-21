@@ -1266,7 +1266,7 @@ app.patch('/api/notifications/:id', async c => {
 
 // Strip diacritics from a query string in JS (NFD decomposition)
 function normalizeQ(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss')
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss').replace(/[-]/g, ' ')
 }
 
 function parseAddressQuery(q: string): { street: string; number: string | null } {
@@ -1294,6 +1294,8 @@ function normSql(col: string): string {
   for (const [from, to] of pairs) {
     expr = `REPLACE(${expr},'${from}','${to}')`
   }
+  // Also normalize hyphens to spaces so "martin opitz" matches "martin-opitz"
+  expr = `REPLACE(${expr},'-',' ')`
   return expr
 }
 
