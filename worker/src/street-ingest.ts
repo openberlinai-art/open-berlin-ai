@@ -13,7 +13,10 @@ type OverpassResult = {
 
 /** NFD decompose + strip combining marks + lowercase */
 function normalize(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss').replace(/[-]/g, ' ')
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/ß/g, 'ss')
+    .replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+    .replace(/[-]/g, ' ')
 }
 
 async function fetchOverpassWithRetry(query: string, retries = 3): Promise<OverpassElement[]> {
