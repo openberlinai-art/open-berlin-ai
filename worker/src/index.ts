@@ -1266,7 +1266,7 @@ app.patch('/api/notifications/:id', async c => {
 
 // Strip diacritics from a query string in JS (NFD decomposition)
 function normalizeQ(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss')
 }
 
 function parseAddressQuery(q: string): { street: string; number: string | null } {
@@ -1278,7 +1278,7 @@ function parseAddressQuery(q: string): { street: string; number: string | null }
 // Build a SQLite REPLACE chain that strips common diacritics from a column
 function normSql(col: string): string {
   const pairs: [string, string][] = [
-    ['ä','a'],['ö','o'],['ü','u'],
+    ['ß','ss'],['ä','a'],['ö','o'],['ü','u'],
     ['ș','s'],['ş','s'],['ț','t'],['ţ','t'],['ă','a'],['â','a'],['î','i'],
     ['é','e'],['è','e'],['ê','e'],['ë','e'],
     ['à','a'],['á','a'],['ã','a'],
