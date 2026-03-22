@@ -81,6 +81,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // ─── Unified filter state ──────────────────────────────────────────────────
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ALL_DEFAULTS))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [expandedFilterGroup, setExpandedFilterGroup] = useState<string | null>(null)
 
   // Expand filters on desktop after hydration to avoid SSR mismatch
   useEffect(() => {
@@ -808,7 +810,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Category filter grid (collapsible multi-select) ────────── */}
+        {/* ── Category filter panel (collapsible, searchable) ────────── */}
         <div className="border-b-2 border-[var(--border-primary)]">
           <button
             onClick={() => setFiltersExpanded(v => !v)}
@@ -825,7 +827,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </button>
           {filtersExpanded && (
             <div className="px-4 pb-2">
-              {/* Select all / clear */}
+              {/* Search + select all / clear */}
+              <div className="flex items-center gap-2 mb-1.5">
+                <input
+                  type="text"
+                  placeholder="Search filters (e.g. Späti, tattoo, yoga...)"
+                  value={filterSearch}
+                  onChange={e => setFilterSearch(e.target.value)}
+                  className="flex-1 text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
+                  autoComplete="off"
+                />
+                {filterSearch && (
+                  <button onClick={() => setFilterSearch('')} className="text-gray-400 hover:text-[var(--text-primary)]">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2 mb-1.5">
                 <button
                   onClick={() => { setActiveFilters(new Set(ALL_DEFAULTS)); pushFilterURL(new Set(ALL_DEFAULTS)) }}
@@ -840,24 +857,97 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   Clear all
                 </button>
               </div>
-              {/* Category grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                {[...CHIP_CONFIG, ...MORE_CHIPS].map(chip => {
-                  const Icon = chip.icon
-                  const active = isChipActive(chip, activeFilters)
-                  return (
-                    <button
-                      key={chip.key}
-                      onClick={() => toggleChip(chip)}
-                      className={`flex items-center gap-1.5 text-xs px-2 py-1.5 border-2 text-left ${active ? 'text-white font-bold' : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'}`}
-                      style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
-                    >
-                      <Icon size={12} className="shrink-0" />
-                      <span className="truncate">{chip.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
+              {/* Filtered subcategory results */}
+              {filterSearch.trim() ? (
+                <div className="max-h-48 overflow-y-auto space-y-0.5">
+                  {FILTER_GROUPS.flatMap(g =>
+                    g.categories
+                      .filter(c => c.label.toLowerCase().includes(filterSearch.trim().toLowerCase()) || c.key.toLowerCase().includes(filterSearch.trim().toLowerCase()))
+                      .map(c => {
+                        const fk = `${g.key}:${c.key}`
+                        const active = activeFilters.has(fk)
+                        return (
+                          <button
+                            key={fk}
+                            onClick={() => {
+                              setActiveFilters(prev => {
+                                const next = new Set(prev)
+                                if (active) next.delete(fk); else next.add(fk)
+                                pushFilterURL(next)
+                                return next
+                              })
+                              setMode('venues')
+                            }}
+                            className={`flex items-center gap-1.5 w-full text-left text-xs px-2 py-1 ${active ? 'font-bold' : 'hover:bg-[var(--bg-secondary)]'}`}
+                          >
+                            <span className="w-2.5 h-2.5 shrink-0 rounded-sm" style={{ background: active ? c.color : 'transparent', border: `2px solid ${c.color}` }} />
+                            <span className="truncate">{c.label}</span>
+                            <span className="text-[9px] text-gray-400 ml-auto shrink-0">{g.label}</span>
+                          </button>
+                        )
+                      })
+                  )}
+                </div>
+              ) : (
+                /* Group-level grid with expandable subcategories */
+                <div className="max-h-64 overflow-y-auto space-y-0.5">
+                  {[...CHIP_CONFIG, ...MORE_CHIPS].map(chip => {
+                    const Icon = chip.icon
+                    const active = isChipActive(chip, activeFilters)
+                    const expanded = expandedFilterGroup === chip.key
+                    const group = FILTER_GROUPS.find(g => chip.groups.includes(g.key))
+                    return (
+                      <div key={chip.key}>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => toggleChip(chip)}
+                            className={`flex-1 flex items-center gap-1.5 text-xs px-2 py-1.5 border-2 text-left ${active ? 'text-white font-bold' : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'}`}
+                            style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                          >
+                            <Icon size={12} className="shrink-0" />
+                            <span className="truncate">{chip.label}</span>
+                          </button>
+                          {group && (
+                            <button
+                              onClick={() => setExpandedFilterGroup(expanded ? null : chip.key)}
+                              className="text-[10px] text-gray-400 hover:text-[var(--text-primary)] px-1.5 py-1.5 border-2 border-[var(--border-primary)] bg-[var(--bg-primary)]"
+                              title="Show subcategories"
+                            >
+                              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                            </button>
+                          )}
+                        </div>
+                        {expanded && group && (
+                          <div className="ml-3 border-l-2 border-[var(--border-primary)] pl-2 py-0.5 space-y-0">
+                            {group.categories.map(c => {
+                              const fk = `${group.key}:${c.key}`
+                              const catActive = activeFilters.has(fk)
+                              return (
+                                <button
+                                  key={fk}
+                                  onClick={() => {
+                                    setActiveFilters(prev => {
+                                      const next = new Set(prev)
+                                      if (catActive) next.delete(fk); else next.add(fk)
+                                      pushFilterURL(next)
+                                      return next
+                                    })
+                                    setMode('venues')
+                                  }}
+                                  className={`flex items-center gap-1.5 w-full text-left text-[11px] px-1.5 py-0.5 ${catActive ? 'font-bold' : 'hover:bg-[var(--bg-secondary)]'}`}
+                                >
+                                  <span className="w-2 h-2 shrink-0 rounded-sm" style={{ background: catActive ? c.color : 'transparent', border: `2px solid ${c.color}` }} />
+                                  <span className="truncate">{c.label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
