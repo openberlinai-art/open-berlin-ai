@@ -197,25 +197,33 @@ export default function MapView({
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  const isMobileRef = useRef(false)
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
+    const check = () => {
+      const mobile = window.innerWidth < 768
+      isMobileRef.current = mobile
+      setIsMobile(mobile)
+    }
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  const onMobilePopupRef = useRef(onMobilePopup)
+  onMobilePopupRef.current = onMobilePopup
 
   const [transitPopup,     setTransitPopup]     = useState<TransitPopupState | null>(null)
   const [venuePopupRaw,    setVenuePopupRaw]    = useState<VenuePopupState | null>(null)
 
   // On mobile, route venue popup to bottom sheet instead of map popup
   const setVenuePopup = useCallback((popup: VenuePopupState | null) => {
-    if (isMobile && onMobilePopup) {
-      onMobilePopup(popup)
+    if (isMobileRef.current && onMobilePopupRef.current) {
+      onMobilePopupRef.current(popup)
     } else {
       setVenuePopupRaw(popup)
     }
-  }, [isMobile, onMobilePopup])
+  }, [])
 
   const venuePopup = isMobile ? null : venuePopupRaw
   const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
@@ -486,17 +494,31 @@ export default function MapView({
       const props  = feature.properties
       if (!props) return
       const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
-      setGreenspacePopup({
-        lat:     coords[1],
-        lng:     coords[0],
-        name:    (props.namenr as string) || (props.name as string) || 'Unnamed',
-        type:    layerId === 'parks-point' ? 'park' : 'playground',
-        kind:    (props.objartname as string) ?? null,
-        borough: (props.bezirkname as string) ?? null,
-        hood:    (props.ortstlname as string) ?? null,
-        built:   (props.baujahr as string) ?? null,
-        gid:     ((props.gml_id as string) ?? (props.fid as string)) || undefined,
-      })
+      if (isMobileRef.current && onMobilePopupRef.current) {
+        // On mobile, route to bottom sheet as a venue-like popup
+        onMobilePopupRef.current({
+          lat:      coords[1],
+          lng:      coords[0],
+          name:     (props.namenr as string) || (props.name as string) || 'Unnamed',
+          category: layerId === 'parks-point' ? 'Park' : 'Playground',
+          borough:  (props.bezirkname as string) ?? undefined,
+          id:       layerId === 'parks-point'
+            ? `park:${(props.gml_id as string) ?? (props.fid as string) ?? ''}`
+            : `playground:${(props.gml_id as string) ?? (props.fid as string) ?? ''}`,
+        })
+      } else {
+        setGreenspacePopup({
+          lat:     coords[1],
+          lng:     coords[0],
+          name:    (props.namenr as string) || (props.name as string) || 'Unnamed',
+          type:    layerId === 'parks-point' ? 'park' : 'playground',
+          kind:    (props.objartname as string) ?? null,
+          borough: (props.bezirkname as string) ?? null,
+          hood:    (props.ortstlname as string) ?? null,
+          built:   (props.baujahr as string) ?? null,
+          gid:     ((props.gml_id as string) ?? (props.fid as string)) || undefined,
+        })
+      }
       setTransitPopup(null)
       setVenuePopup(null)
       return

@@ -22,6 +22,7 @@ import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import TrendingSection          from './TrendingSection'
 import BottomSheet              from './BottomSheet'
+import JourneyWidget            from './JourneyWidget'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
@@ -1457,69 +1458,118 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               ) : (
                 <>
                   {searchResults.events?.slice(0, 5).map(ev => (
-                    <button
-                      key={ev.id}
-                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => {
-                        setSearch('')
-                        if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
-                      }}
-                    >
-                      <p className="text-xs font-bold text-gray-900 truncate">{ev.title}</p>
-                      <p className="text-[10px] text-gray-500">{ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}</p>
-                    </button>
+                    <div key={ev.id} className="flex items-center border-b border-gray-100">
+                      <button
+                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        onClick={() => {
+                          setSearch('')
+                          if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 truncate">{ev.title}</p>
+                        <p className="text-[10px] text-gray-500">{ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}</p>
+                      </button>
+                      {ev.lat && ev.lng && (
+                        <button
+                          className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
+                          onClick={() => {
+                            setSearch('')
+                            setFlyTo([ev.lng!, ev.lat!])
+                            setMobileSheetPopup({ lat: ev.lat!, lng: ev.lng!, name: ev.title, category: ev.category ?? 'Event' })
+                          }}
+                        >↗</button>
+                      )}
+                    </div>
                   ))}
                   {searchResults.locations?.slice(0, 5).map(loc => (
-                    <button
-                      key={loc.id}
-                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => {
-                        setSearch('')
-                        if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
-                      }}
-                    >
-                      <p className="text-xs font-bold text-gray-900 truncate">{loc.name}</p>
-                      <p className="text-[10px] text-gray-500">{loc.category}{loc.borough ? ` · ${loc.borough}` : ''}</p>
-                    </button>
+                    <div key={loc.id} className="flex items-center border-b border-gray-100">
+                      <button
+                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        onClick={() => {
+                          setSearch('')
+                          if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 truncate">{loc.name}</p>
+                        <p className="text-[10px] text-gray-500">{loc.category}{loc.borough ? ` · ${loc.borough}` : ''}</p>
+                      </button>
+                      {loc.lat && loc.lng && (
+                        <button
+                          className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
+                          onClick={() => {
+                            setSearch('')
+                            setFlyTo([loc.lng!, loc.lat!])
+                            setMobileSheetPopup({ lat: loc.lat!, lng: loc.lng!, name: loc.name, category: loc.category ?? 'Venue', address: loc.address ?? undefined, id: loc.id, borough: loc.borough ?? undefined })
+                          }}
+                        >↗</button>
+                      )}
+                    </div>
                   ))}
                   {searchResults.pois?.slice(0, 5).map(poi => (
-                    <button
-                      key={poi.id}
-                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => {
-                        setSearch('')
-                        setFlyTo([poi.lng, poi.lat])
-                      }}
-                    >
-                      <p className="text-xs font-bold text-gray-900 truncate">{poi.name ?? poi.category}</p>
-                      <p className="text-[10px] text-gray-500">{poi.category_group} · {poi.region}</p>
-                    </button>
+                    <div key={poi.id} className="flex items-center border-b border-gray-100">
+                      <button
+                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([poi.lng, poi.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 truncate">{poi.name ?? poi.category}</p>
+                        <p className="text-[10px] text-gray-500">{poi.category_group} · {poi.region}</p>
+                      </button>
+                      <button
+                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([poi.lng, poi.lat])
+                          setMobileSheetPopup({ lat: poi.lat, lng: poi.lng, name: poi.name ?? poi.category, category: poi.category_group, address: poi.address ?? undefined, id: `poi:${poi.id}` })
+                        }}
+                      >↗</button>
+                    </div>
                   ))}
                   {searchResults.streets?.slice(0, 3).map((st, i) => (
-                    <button
-                      key={`st-${i}`}
-                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => {
-                        setSearch('')
-                        setFlyTo([st.lng, st.lat])
-                      }}
-                    >
-                      <p className="text-xs font-bold text-gray-900 truncate">{st.name}</p>
-                      <p className="text-[10px] text-gray-500">{st.borough}{st.postcode ? ` · ${st.postcode}` : ''}</p>
-                    </button>
+                    <div key={`st-${i}`} className="flex items-center border-b border-gray-100">
+                      <button
+                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([st.lng, st.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 truncate">{st.name}</p>
+                        <p className="text-[10px] text-gray-500">{st.borough}{st.postcode ? ` · ${st.postcode}` : ''}</p>
+                      </button>
+                      <button
+                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([st.lng, st.lat])
+                          setMobileSheetPopup({ lat: st.lat, lng: st.lng, name: st.name, category: 'Street' })
+                        }}
+                      >↗</button>
+                    </div>
                   ))}
                   {searchResults.places?.slice(0, 3).map(pl => (
-                    <button
-                      key={pl.id}
-                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                      onClick={() => {
-                        setSearch('')
-                        setFlyTo([pl.lng, pl.lat])
-                      }}
-                    >
-                      <p className="text-xs font-bold text-gray-900 truncate">{pl.name}</p>
-                      <p className="text-[10px] text-gray-500">{pl.type}</p>
-                    </button>
+                    <div key={pl.id} className="flex items-center border-b border-gray-100">
+                      <button
+                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([pl.lng, pl.lat])
+                        }}
+                      >
+                        <p className="text-xs font-bold text-gray-900 truncate">{pl.name}</p>
+                        <p className="text-[10px] text-gray-500">{pl.type}</p>
+                      </button>
+                      <button
+                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
+                        onClick={() => {
+                          setSearch('')
+                          setFlyTo([pl.lng, pl.lat])
+                          setMobileSheetPopup({ lat: pl.lat, lng: pl.lng, name: pl.name, category: pl.type })
+                        }}
+                      >↗</button>
+                    </div>
                   ))}
                 </>
               )}
@@ -1611,7 +1661,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   View details
                 </a>
               )}
-              {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && (
+              {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && !mobileSheetPopup.id.startsWith('park:') && !mobileSheetPopup.id.startsWith('playground:') && (
                 <a
                   href={`/locations/${mobileSheetPopup.id}`}
                   className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
@@ -1619,6 +1669,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   View venue
                 </a>
               )}
+            </div>
+            {/* Route planner */}
+            <div className="pt-1 border-t border-gray-100">
+              <JourneyWidget toLat={mobileSheetPopup.lat} toLng={mobileSheetPopup.lng} />
             </div>
           </div>
         )}
