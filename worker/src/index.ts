@@ -2366,14 +2366,7 @@ export default {
     env:   Env,
     ctx:   ExecutionContext
   ): Promise<void> {
-    if (event.cron === '0 9 * * *') {
-      // Daily 9am UTC: Smart notifications
-      ctx.waitUntil(
-        generateSmartNotifications(env)
-          .then(r => console.log(`[smart-notifs] sent=${r.sent}`))
-          .catch(err => console.error('[smart-notifs]', err))
-      )
-    } else if (event.cron === '*/30 * * * *') {
+    if (event.cron === '*/30 * * * *') {
       // Geocode-only pass — runs frequently to catch up after ingest (events + locations)
       ctx.waitUntil(
         Promise.all([
@@ -2392,7 +2385,12 @@ export default {
           .catch(err => console.error('[push-reminders]', err))
       )
     } else if (event.cron === '0 2 * * *') {
-      // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin
+      // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin + smart notifications
+      ctx.waitUntil(
+        generateSmartNotifications(env)
+          .then(r => console.log(`[smart-notifs] sent=${r.sent}`))
+          .catch(err => console.error('[smart-notifs]', err))
+      )
       ctx.waitUntil(
         Promise.all([
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
