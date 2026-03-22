@@ -302,7 +302,7 @@ app.get('/api/locations', async c => {
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`
-  const cap   = Math.min(500, Math.max(1, parseInt(limit, 10)))
+  const cap   = Math.min(2000, Math.max(1, parseInt(limit, 10)))
   const { results } = await c.env.DB
     .prepare(`SELECT * FROM locations ${where} LIMIT ?`)
     .bind(...params, cap)
@@ -516,7 +516,7 @@ app.get('/api/pois', async c => {
     return c.json({ error: 'Invalid bbox format' }, 400)
   }
   const [minLng, minLat, maxLng, maxLat] = parts
-  const cap = Math.min(500, Math.max(1, parseInt(limit, 10)))
+  const cap = Math.min(2000, Math.max(1, parseInt(limit, 10)))
 
   // Try geohash-based query first
   const prefixes = bboxToGeohashPrefixes(minLat, minLng, maxLat, maxLng)
@@ -597,7 +597,7 @@ app.get('/api/pois/batch', async c => {
     return c.json({ error: 'Invalid bbox format' }, 400)
   }
   const [minLng, minLat, maxLng, maxLat] = parts
-  const cap = Math.min(500, Math.max(1, parseInt(limit, 10)))
+  const cap = Math.min(2000, Math.max(1, parseInt(limit, 10)))
 
   const prefixes = bboxToGeohashPrefixes(minLat, minLng, maxLat, maxLng)
 
@@ -2196,7 +2196,7 @@ app.get('/api/listings', async c => {
     format:  format  || undefined,
     street:  street  || undefined,
     page:    Math.max(1, parseInt(page, 10)),
-    limit:   Math.min(500, Math.max(1, parseInt(limit, 10))),
+    limit:   Math.min(2000, Math.max(1, parseInt(limit, 10))),
   }, c.env.DB)
   return c.json(result)
 })

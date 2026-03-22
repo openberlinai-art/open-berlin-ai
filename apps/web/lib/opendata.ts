@@ -16,7 +16,7 @@ const VBB_PROXY = '/api/proxy/vbb'
 // ─── Venue locations (D1 bbox query) ─────────────────────────────────────────
 
 export async function fetchVenuesByBbox(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ bbox, limit: '500' })
+  const params = new URLSearchParams({ bbox, limit: '2000' })
   if (category) params.set('category', category)
   const res = await fetch(`${WORKER}/api/locations?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -38,7 +38,7 @@ export async function fetchPlaygrounds(): Promise<GeoJSON.FeatureCollection> {
 }
 
 export async function fetchVenuesList(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ bbox, limit: '500' })
+  const params = new URLSearchParams({ bbox, limit: '2000' })
   if (category) params.set('category', category)
   const res = await fetch(`${WORKER}/api/locations?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -151,7 +151,7 @@ export async function fetchPOIs(
   category?: string,
   region?: string,
 ): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ group, bbox, limit: '500' })
+  const params = new URLSearchParams({ group, bbox, limit: '2000' })
   if (category) params.set('category', category)
   if (region) params.set('region', region)
   const res = await fetch(`${WORKER}/api/pois?${params}`)
@@ -192,7 +192,7 @@ export async function fetchPOIsBatch(
   groups: string[],
   bbox: string,
 ): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ groups: groups.join(','), bbox, limit: '500' })
+  const params = new URLSearchParams({ groups: groups.join(','), bbox, limit: '2000' })
   const res = await fetch(`${WORKER}/api/pois/batch?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GeoJSON.FeatureCollection>
@@ -226,7 +226,7 @@ export async function fetchListingsByBbox(
   type?: string,
   street?: string,
 ): Promise<GeoJSON.FeatureCollection> {
-  const params = new URLSearchParams({ bbox, format: 'geojson', limit: '500' })
+  const params = new URLSearchParams({ bbox, format: 'geojson', limit: '2000' })
   if (type) params.set('type', type)
   if (street) params.set('street', street)
   const res = await fetch(`${WORKER}/api/listings?${params}`)
