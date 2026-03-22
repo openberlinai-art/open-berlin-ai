@@ -17,6 +17,7 @@ import type { ResolvedFilters } from '@/lib/unified-filters'
 import { getMinZoomForFilter } from '@/lib/zoom-tiers'
 import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
+import FavoriteButton from './FavoriteButton'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
@@ -1174,11 +1175,20 @@ export default function MapView({
                     <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{venuePopup.category}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => setVenuePopup(null)}
-                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
-                  aria-label="Close"
-                >✕</button>
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  {venuePopup.id && (
+                    <FavoriteButton
+                      type={venuePopup.id.startsWith('poi:') ? 'poi' : venuePopup.id.startsWith('node/') || venuePopup.id.startsWith('way/') ? 'osm' : 'location'}
+                      id={venuePopup.id.replace('poi:', '')}
+                      size={14}
+                    />
+                  )}
+                  <button
+                    onClick={() => setVenuePopup(null)}
+                    className="w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none"
+                    aria-label="Close"
+                  >✕</button>
+                </div>
               </div>
               <div className="px-3 pb-2.5 space-y-1">
                 {venuePopup.address && (
@@ -1284,11 +1294,20 @@ export default function MapView({
                     {greenspacePopup.kind ?? (greenspacePopup.type === 'park' ? 'Park' : 'Playground')}
                   </p>
                 </div>
-                <button
-                  onClick={() => setGreenspacePopup(null)}
-                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
-                  aria-label="Close"
-                >✕</button>
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  {greenspacePopup.gid && (
+                    <FavoriteButton
+                      type={greenspacePopup.type}
+                      id={greenspacePopup.gid}
+                      size={14}
+                    />
+                  )}
+                  <button
+                    onClick={() => setGreenspacePopup(null)}
+                    className="w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none"
+                    aria-label="Close"
+                  >✕</button>
+                </div>
               </div>
               <div className="px-3 pb-2.5 space-y-0.5">
                 {greenspacePopup.hood && (

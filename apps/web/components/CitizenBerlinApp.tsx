@@ -145,11 +145,25 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const resolved = useMemo(() => resolveActiveFiltersForZoom(activeFilters, mapZoom), [activeFilters, mapZoom])
   const suppressedCount = useMemo(() => countZoomSuppressedFilters(activeFilters, mapZoom), [activeFilters, mapZoom])
 
+  // Push a URL history entry after filter changes so back/forward works
+  const pushFilterURL = useCallback((nextFilters: Set<string>) => {
+    const filterStr = filtersToString(nextFilters)
+    const defaultStr = filtersToString(new Set(CULTURE_DEFAULTS))
+    syncToURL({
+      lat: mapCenter?.lat, lng: mapCenter?.lng, zoom: mapZoom,
+      mode: mode !== 'events' ? mode : undefined,
+      filters: filterStr !== defaultStr ? filterStr : undefined,
+      query: search.trim() || undefined,
+    }, true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapCenter, mapZoom, mode, search])
+
   function toggleFilter(key: string) {
     setActiveFilters(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
+      pushFilterURL(next)
       return next
     })
   }
@@ -164,6 +178,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     setActiveFilters(prev => {
       const next = new Set(prev)
       group.categories.forEach(c => next.add(`${groupKey}:${c.key}`))
+      pushFilterURL(next)
       return next
     })
   }
@@ -174,12 +189,15 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     setActiveFilters(prev => {
       const next = new Set(prev)
       group.categories.forEach(c => next.delete(`${groupKey}:${c.key}`))
+      pushFilterURL(next)
       return next
     })
   }
 
   function clearAllFilters() {
-    setActiveFilters(new Set(CULTURE_DEFAULTS))
+    const defaults = new Set(CULTURE_DEFAULTS)
+    setActiveFilters(defaults)
+    pushFilterURL(defaults)
   }
 
   // ─── Other state ──────────────────────────────────────────────────────────
@@ -1249,17 +1267,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
             ) : events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">No events found</div>
-            ) : (
-              events.map(ev => (
-                <EventCard
-                  key={ev.id}
-                  event={ev}
-                  active={ev.id === activeId}
-                  onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
-                  onNeedAuth={() => setShowAuth(true)}
-                />
-              ))
-            )
+            ) : (() => {
+              const filtered = showFavoritesOnly ? events.filter(ev => isFav('event', ev.id)) : events
+              return filtered.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-sm text-gray-400">No favorited events</div>
+              ) : (
+                filtered.map(ev => (
+                  <EventCard
+                    key={ev.id}
+                    event={ev}
+                    active={ev.id === activeId}
+                    onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
+                    onNeedAuth={() => setShowAuth(true)}
+                  />
+                ))
+              )
+            })()
           ) : (
             /* ── Venue list (unified: D1 + OSM + POI + parks/playgrounds) ── */
             <>
@@ -1269,8 +1292,21 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 <div className="flex items-center justify-center h-32 text-sm text-gray-400">
                   {mapBbox ? 'No places in view' : 'Pan the map to load places'}
                 </div>
-              ) : (
-                allVenueFeatures.map((f, i) => {
+              ) : (() => {
+                const venuesToShow = showFavoritesOnly
+                  ? allVenueFeatures.filter(f => {
+                      const p = f.properties as { id?: string; gml_id?: string; fid?: string; category_group?: string; _source?: string }
+                      const isPark = p._source === 'park'
+                      const isPlayground = p._source === 'playground'
+                      const isPOI = typeof p.category_group === 'string' && p.category_group !== ''
+                      const itemType = isPOI ? 'poi' : isPark ? 'park' : isPlayground ? 'playground' : 'location'
+                      const itemId = p.id ?? p.gml_id ?? p.fid ?? ''
+                      return isFav(itemType, itemId)
+                    })
+                  : allVenueFeatures
+                return venuesToShow.length === 0 ? (
+                  <div className="flex items-center justify-center h-32 text-sm text-gray-400">No favorited places</div>
+                ) : venuesToShow.map((f, i) => {
                   const p = f.properties as {
                     id?: string; name?: string; category?: string; category_group?: string
                     address?: string; borough?: string; bezirkname?: string; objartname?: string
@@ -1363,7 +1399,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     </div>
                   )
                 })
-              )}
+              })()}
             </>
           )}
         </div>
