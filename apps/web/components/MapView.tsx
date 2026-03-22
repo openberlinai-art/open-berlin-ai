@@ -1114,7 +1114,7 @@ export default function MapView({
             latitude={activeEvent.lat}
             closeButton={false}
             onClose={() => onEventSelect(null)}
-            maxWidth="260px"
+            maxWidth="340px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
@@ -1214,7 +1214,7 @@ export default function MapView({
             latitude={venuePopup.lat}
             closeButton={false}
             onClose={() => setVenuePopup(null)}
-            maxWidth="260px"
+            maxWidth="340px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[180px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
@@ -1292,7 +1292,7 @@ export default function MapView({
             latitude={greenspacePopup.lat}
             closeButton={false}
             onClose={() => setGreenspacePopup(null)}
-            maxWidth="260px"
+            maxWidth="340px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
@@ -1383,7 +1383,7 @@ export default function MapView({
             latitude={listingPopup.lat}
             closeButton={false}
             onClose={() => setListingPopup(null)}
-            maxWidth="260px"
+            maxWidth="340px"
           >
             <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">

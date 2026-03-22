@@ -263,18 +263,18 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
         ))}
       </div>
       {showTime && (
-        <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
           <input
             type="time"
             value={timeValue}
             onChange={e => setTimeValue(e.target.value)}
-            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono"
+            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono min-w-0"
           />
           <input
             type="date"
             value={dateValue}
             onChange={e => setDateValue(e.target.value)}
-            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono"
+            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono min-w-0 flex-1"
           />
           {lastFromRef.current && (
             <button
