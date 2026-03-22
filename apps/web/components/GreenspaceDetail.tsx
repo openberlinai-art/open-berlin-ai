@@ -70,14 +70,15 @@ export default function GreenspaceDetail({ feature, type }: Props) {
           <p className="text-xs text-gray-400 mb-4">Built {p.baujahr}</p>
         )}
 
-        {/* Route planner */}
-        <div className="mb-5">
-          <JourneyWidget toLat={lat} toLng={lng} />
+        {/* Mini-map */}
+        <div className="border-2 border-black mb-4 overflow-hidden" style={{ height: 220 }}>
+          <VenueMap lat={lat} lng={lng} name={name} />
         </div>
 
-        {/* Mini-map */}
-        <div className="mb-4">
-          <VenueMap lat={lat} lng={lng} name={name} />
+        {/* Route planner */}
+        <div className="border-2 border-black p-3 mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Plan Route</p>
+          <JourneyWidget toLat={lat} toLng={lng} />
         </div>
 
         {/* Get Directions + Street View */}

@@ -276,17 +276,40 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
 
   return (
     <>
-      {/* Route planner — top of page */}
+      {/* Mini map */}
       {lat && lng && (
-        <div className="mb-5">
+        <div className="border-2 border-black mb-4 overflow-hidden" style={{ height: 220 }}>
+          <VenueMap lat={lat} lng={lng} name={name} />
+        </div>
+      )}
+
+      {/* Route planner */}
+      {lat && lng && (
+        <div className="border-2 border-black p-3 mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Plan Route</p>
           <JourneyWidget toLat={lat} toLng={lng} />
         </div>
       )}
 
-      {/* Mini map */}
+      {/* Get Directions + Street View + Share */}
       {lat && lng && (
-        <div className="mb-4">
-          <VenueMap lat={lat} lng={lng} name={name} />
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+          >
+            ↗ Get Directions
+          </a>
+          <a
+            href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+          >
+            Street View
+          </a>
         </div>
       )}
 

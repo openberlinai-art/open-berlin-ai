@@ -7,6 +7,7 @@ import AttendButton from './AttendButton'
 import JourneyWidget from './JourneyWidget'
 import { generateICS } from '@/lib/ics'
 
+const VenueMap = dynamic(() => import('./VenueMap'), { ssr: false })
 const EventMapSection = dynamic(() => import('./EventMapSection'), { ssr: false })
 
 function ShareButton() {
@@ -102,12 +103,47 @@ function CalendarButton({ title, dateStart, dateEnd, timeStart, timeEnd, locatio
 export function EventPageClient({ id, lat, lng, title, dateStart, dateEnd, timeStart, timeEnd, locationName, address, description }: EventPageClientProps) {
   return (
     <>
+      {/* Mini map */}
       {lat && lng && (
-        <div className="mb-5">
+        <div className="border-2 border-black mb-4 overflow-hidden" style={{ height: 220 }}>
+          <VenueMap lat={lat} lng={lng} name={locationName ?? title ?? 'Event'} />
+        </div>
+      )}
+
+      {/* Route planner */}
+      {lat && lng && (
+        <div className="border-2 border-black p-3 mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Plan Route</p>
           <JourneyWidget toLat={lat} toLng={lng} />
         </div>
       )}
+
+      {/* Get Directions + Street View */}
+      {lat && lng && (
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+          >
+            ↗ Get Directions
+          </a>
+          <a
+            href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+          >
+            Street View
+          </a>
+        </div>
+      )}
+
+      {/* Nearby transit */}
       {lat && lng && <EventMapSection lat={lat} lng={lng} />}
+
+      {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         <EventActions id={id} />
         <CalendarButton

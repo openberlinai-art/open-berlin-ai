@@ -253,27 +253,15 @@ export default async function LocationPage({ params }: Props) {
           </div>
         )}
 
-        {/* ── Get Directions + Street View ── */}
-        {(loc.lat && loc.lng) && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}&travelmode=transit`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
-            >
-              ↗ Get Directions
-            </a>
-            <a
-              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${loc.lat},${loc.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
-            >
-              Street View
-            </a>
-          </div>
-        )}
+        {/* ── Map + Route planner + Transit (client) ── */}
+        <VenuePageClient
+          id={loc.id}
+          lat={loc.lat}
+          lng={loc.lng}
+          name={loc.name ?? ''}
+          events={loc.events}
+          pastEvents={loc.pastEvents ?? []}
+        />
 
         {/* ── Vibe Check ── */}
         {loc.id && (
@@ -312,16 +300,6 @@ export default async function LocationPage({ params }: Props) {
         <SimilarPlaces
           query={`${loc.name ?? ''} ${loc.category ?? ''}`}
           excludeId={loc.id}
-        />
-
-        {/* ── Client section: mini map + share + add-to-list + grouped events ── */}
-        <VenuePageClient
-          id={loc.id}
-          lat={loc.lat}
-          lng={loc.lng}
-          name={loc.name ?? ''}
-          events={loc.events}
-          pastEvents={loc.pastEvents ?? []}
         />
       </div>
     </main>
