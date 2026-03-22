@@ -55,6 +55,38 @@ function buildISO(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString()
 }
 
+function haversineDist(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (d: number) => d * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function walkingJourney(fromLat: number, fromLng: number, toLat: number, toLng: number): Journey {
+  const dist = Math.round(haversineDist(fromLat, fromLng, toLat, toLng))
+  // ~80m/min walking speed (~4.8 km/h)
+  const mins = Math.max(1, Math.round(dist / 80))
+  const now = new Date()
+  const arrival = new Date(now.getTime() + mins * 60000)
+  return {
+    duration: mins,
+    transfers: 0,
+    legs: [{
+      origin: 'Your location',
+      destination: 'Destination',
+      departure: now.toISOString(),
+      arrival: arrival.toISOString(),
+      line: null,
+      product: null,
+      direction: null,
+      walking: true,
+      distance: dist,
+    }],
+  }
+}
+
 export default function JourneyWidget({ toLat, toLng }: Props) {
   const [open,     setOpen]     = useState(false)
   const [loading,  setLoading]  = useState(false)
@@ -92,12 +124,33 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
     setError(null)
     setJourneys([])
     setIdx(0)
+
+    const dist = haversineDist(fromLat, fromLng, toLat, toLng)
+
+    // For very short distances (<300m), just show walking
+    if (dist < 300) {
+      setJourneys([walkingJourney(fromLat, fromLng, toLat, toLng)])
+      setLoading(false)
+      return
+    }
+
     try {
       const results = await fetchJourney(fromLat, fromLng, toLat, toLng, getTimeOptions())
-      setJourneys(results)
-      if (!results.length) setError('No routes found')
+      if (results.length) {
+        setJourneys(results)
+      } else if (dist < 2000) {
+        // No transit results but walkable — show walking fallback
+        setJourneys([walkingJourney(fromLat, fromLng, toLat, toLng)])
+      } else {
+        setError('No routes found')
+      }
     } catch {
-      setError('Could not fetch journey')
+      // API failed — if walkable distance, show walking; otherwise error
+      if (dist < 2000) {
+        setJourneys([walkingJourney(fromLat, fromLng, toLat, toLng)])
+      } else {
+        setError('Could not fetch journey')
+      }
     } finally {
       setLoading(false)
     }
