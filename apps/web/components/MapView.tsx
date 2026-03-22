@@ -1112,7 +1112,6 @@ export default function MapView({
           <Popup
             longitude={activeEvent.lng}
             latitude={activeEvent.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => onEventSelect(null)}
             maxWidth="260px"
@@ -1184,7 +1183,6 @@ export default function MapView({
           <Popup
             longitude={transitPopup.lng}
             latitude={transitPopup.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => { setTransitPopup(null); setActiveTransitId(null) }}
             maxWidth="300px"
@@ -1214,7 +1212,6 @@ export default function MapView({
           <Popup
             longitude={venuePopup.lng}
             latitude={venuePopup.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => setVenuePopup(null)}
             maxWidth="260px"
@@ -1281,6 +1278,9 @@ export default function MapView({
                   )
                 })()}
               </div>
+              <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
+                <JourneyWidget toLat={venuePopup.lat} toLng={venuePopup.lng} />
+              </div>
             </div>
           </Popup>
         )}
@@ -1290,7 +1290,6 @@ export default function MapView({
           <Popup
             longitude={greenspacePopup.lng}
             latitude={greenspacePopup.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => setGreenspacePopup(null)}
             maxWidth="260px"
@@ -1328,14 +1327,27 @@ export default function MapView({
                 {greenspacePopup.built && (
                   <p className="text-gray-400 text-[10px]">Built {greenspacePopup.built}</p>
                 )}
-                {greenspacePopup.gid && (
-                  <Link
-                    href={`/${greenspacePopup.type === 'park' ? 'parks' : 'playgrounds'}/${encodeURIComponent(greenspacePopup.gid)}`}
-                    className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors mt-1"
+                <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${greenspacePopup.lat},${greenspacePopup.lng}&travelmode=transit`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white"
                   >
-                    View →
-                  </Link>
-                )}
+                    ↗ Directions
+                  </a>
+                  {greenspacePopup.gid && (
+                    <Link
+                      href={`/${greenspacePopup.type === 'park' ? 'parks' : 'playgrounds'}/${encodeURIComponent(greenspacePopup.gid)}`}
+                      className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                    >
+                      Details →
+                    </Link>
+                  )}
+                </div>
+              </div>
+              <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
+                <JourneyWidget toLat={greenspacePopup.lat} toLng={greenspacePopup.lng} />
               </div>
             </div>
           </Popup>
@@ -1345,7 +1357,6 @@ export default function MapView({
           <Popup
             longitude={radarPopup.lng}
             latitude={radarPopup.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => setRadarPopup(null)}
             maxWidth="200px"
@@ -1370,7 +1381,6 @@ export default function MapView({
           <Popup
             longitude={listingPopup.lng}
             latitude={listingPopup.lat}
-            anchor="bottom"
             closeButton={false}
             onClose={() => setListingPopup(null)}
             maxWidth="260px"
@@ -1401,12 +1411,25 @@ export default function MapView({
                 {listingPopup.price_label && (
                   <p className="text-sm font-semibold text-gray-800">{listingPopup.price_label}</p>
                 )}
-                <Link
-                  href={`/listings/${listingPopup.id}`}
-                  className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
-                >
-                  Details →
-                </Link>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${listingPopup.lat},${listingPopup.lng}&travelmode=transit`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white"
+                  >
+                    ↗ Directions
+                  </a>
+                  <Link
+                    href={`/listings/${listingPopup.id}`}
+                    className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
+                  >
+                    Details →
+                  </Link>
+                </div>
+              </div>
+              <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
+                <JourneyWidget toLat={listingPopup.lat} toLng={listingPopup.lng} />
               </div>
             </div>
           </Popup>
