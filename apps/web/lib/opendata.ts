@@ -300,6 +300,9 @@ export interface JourneyLeg {
   direction:   string | null
   walking:     boolean
   distance:    number | null  // metres (walking legs only)
+  originCoords:      [number, number] | null  // [lng, lat]
+  destinationCoords: [number, number] | null  // [lng, lat]
+  polyline:          GeoJSON.FeatureCollection | null
 }
 
 export interface Journey {
@@ -326,6 +329,7 @@ export async function fetchJourney(
     'to.address':     'Destination',
     results:          '3',
     stopovers:        'false',
+    polylines:        'true',
     remarks:          'false',
     language:         'en',
   })
@@ -348,30 +352,38 @@ export async function fetchJourney(
   const data = await res.json() as {
     journeys?: Array<{
       legs: Array<{
-        origin?:      { name?: string }
-        destination?: { name?: string }
+        origin?:      { name?: string; location?: { longitude?: number; latitude?: number } }
+        destination?: { name?: string; location?: { longitude?: number; latitude?: number } }
         departure?:   string
         arrival?:     string
         line?:        { name?: string; product?: string }
         direction?:   string
         walking?:     boolean
         distance?:    number | null
+        polyline?:    GeoJSON.FeatureCollection
       }>
     }>
   }
 
   return (data.journeys ?? []).map(j => {
-    const legs: JourneyLeg[] = j.legs.map(leg => ({
-      origin:      leg.origin?.name ?? '',
-      destination: leg.destination?.name ?? '',
-      departure:   leg.departure ?? '',
-      arrival:     leg.arrival ?? '',
-      line:        leg.line?.name    ?? null,
-      product:     leg.line?.product ?? null,
-      direction:   leg.direction     ?? null,
-      walking:     leg.walking       ?? false,
-      distance:    leg.distance      ?? null,
-    }))
+    const legs: JourneyLeg[] = j.legs.map(leg => {
+      const oLoc = leg.origin?.location
+      const dLoc = leg.destination?.location
+      return {
+        origin:      leg.origin?.name ?? '',
+        destination: leg.destination?.name ?? '',
+        departure:   leg.departure ?? '',
+        arrival:     leg.arrival ?? '',
+        line:        leg.line?.name    ?? null,
+        product:     leg.line?.product ?? null,
+        direction:   leg.direction     ?? null,
+        walking:     leg.walking       ?? false,
+        distance:    leg.distance      ?? null,
+        originCoords:      oLoc?.longitude != null && oLoc?.latitude != null ? [oLoc.longitude, oLoc.latitude] : null,
+        destinationCoords: dLoc?.longitude != null && dLoc?.latitude != null ? [dLoc.longitude, dLoc.latitude] : null,
+        polyline:          leg.polyline ?? null,
+      }
+    })
 
     const firstLeg = j.legs[0]
     const lastLeg  = j.legs[j.legs.length - 1]
@@ -382,4 +394,75 @@ export async function fetchJourney(
 
     return { duration, transfers, legs }
   })
+}
+
+// ─── Route display data for map polylines ──────────────────────────────────
+
+export interface RouteDisplayData {
+  legs: Array<{
+    geometry: GeoJSON.Feature<GeoJSON.LineString>
+    product:  string | null
+    walking:  boolean
+  }>
+  origin:      [number, number]  // [lng, lat]
+  destination: [number, number]  // [lng, lat]
+}
+
+export function buildRouteDisplay(journey: Journey): RouteDisplayData | null {
+  const displayLegs: RouteDisplayData['legs'] = []
+
+  for (const leg of journey.legs) {
+    // Skip zero-duration transfers (same-station platform changes)
+    if (leg.walking && leg.origin === leg.destination) {
+      const mins = leg.departure && leg.arrival
+        ? Math.round((new Date(leg.arrival).getTime() - new Date(leg.departure).getTime()) / 60000)
+        : 0
+      if (mins === 0) continue
+    }
+
+    let geometry: GeoJSON.Feature<GeoJSON.LineString> | null = null
+
+    if (!leg.walking && leg.polyline) {
+      // Transit leg: extract first LineString from the polyline FeatureCollection
+      const lineFeature = leg.polyline.features?.find(
+        (f): f is GeoJSON.Feature<GeoJSON.LineString> =>
+          f.geometry?.type === 'LineString',
+      )
+      if (lineFeature) {
+        geometry = lineFeature
+      }
+    }
+
+    if (!geometry && leg.originCoords && leg.destinationCoords) {
+      // Walking leg or transit leg without polyline: straight line
+      geometry = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [leg.originCoords, leg.destinationCoords],
+        },
+      }
+    }
+
+    if (geometry) {
+      displayLegs.push({
+        geometry,
+        product: leg.product,
+        walking: leg.walking,
+      })
+    }
+  }
+
+  if (displayLegs.length === 0) return null
+
+  // Derive origin from first leg, destination from last leg
+  const firstLeg = journey.legs[0]
+  const lastLeg  = journey.legs[journey.legs.length - 1]
+  const origin      = firstLeg?.originCoords
+  const destination = lastLeg?.destinationCoords
+
+  if (!origin || !destination) return null
+
+  return { legs: displayLegs, origin, destination }
 }

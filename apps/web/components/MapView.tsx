@@ -12,7 +12,7 @@ import type { Event }     from '@/lib/types'
 import {
   useTransitStops, useDepartures,
 } from '@/hooks/useCulturalData'
-import type { VBBStop, Departure } from '@/lib/opendata'
+import type { VBBStop, Departure, RouteDisplayData } from '@/lib/opendata'
 import type { ResolvedFilters } from '@/lib/unified-filters'
 import { getMinZoomForFilter } from '@/lib/zoom-tiers'
 import JourneyWidget from './JourneyWidget'
@@ -234,6 +234,8 @@ export default function MapView({
   const [cursor,           setCursor]           = useState('grab')
   const [radarData,        setRadarData]        = useState<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] })
   const [radarPopup,       setRadarPopup]       = useState<RadarPopupState | null>(null)
+  const [routeData,        setRouteData]        = useState<RouteDisplayData | null>(null)
+  const handleRouteChange = useCallback((route: RouteDisplayData | null) => setRouteData(route), [])
 
   // ── Queries (only transit still fetched here) ──────────────────────────────
 
@@ -655,6 +657,57 @@ export default function MapView({
     ])
   }, [poiData])
 
+  // ── Route display GeoJSON (memoized) ──────────────────────────────────────
+  const routeGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!routeData) return { type: 'FeatureCollection', features: [] }
+    return {
+      type: 'FeatureCollection',
+      features: routeData.legs.map(leg => ({
+        ...leg.geometry,
+        properties: {
+          ...leg.geometry.properties,
+          product: leg.product ?? 'other',
+          walking: leg.walking,
+        },
+      })),
+    }
+  }, [routeData])
+
+  const routeMarkersGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!routeData) return { type: 'FeatureCollection', features: [] }
+    return {
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', properties: { role: 'origin' }, geometry: { type: 'Point', coordinates: routeData.origin } },
+        { type: 'Feature', properties: { role: 'destination' }, geometry: { type: 'Point', coordinates: routeData.destination } },
+      ],
+    }
+  }, [routeData])
+
+  // Auto-fit map bounds to route
+  useEffect(() => {
+    if (!routeData || !mapRef.current) return
+    const coords: [number, number][] = []
+    for (const leg of routeData.legs) {
+      for (const c of leg.geometry.geometry.coordinates) {
+        coords.push(c as [number, number])
+      }
+    }
+    coords.push(routeData.origin, routeData.destination)
+    if (coords.length < 2) return
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity
+    for (const [lng, lat] of coords) {
+      if (lng < minLng) minLng = lng
+      if (lng > maxLng) maxLng = lng
+      if (lat < minLat) minLat = lat
+      if (lat > maxLat) maxLat = lat
+    }
+    mapRef.current.fitBounds(
+      [[minLng, minLat], [maxLng, maxLat]],
+      { padding: 60, duration: 600 },
+    )
+  }, [routeData])
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -683,6 +736,69 @@ export default function MapView({
       >
         <NavigationControl position="top-right" showCompass={false} />
         <GeolocateControl position="top-right" trackUserLocation />
+
+        {/* ── Route polylines ───────────────────── */}
+        {routeData && (
+          <>
+            <Source id="route-lines" type="geojson" data={routeGeoJSON}>
+              <Layer
+                id="route-transit"
+                type="line"
+                filter={['==', ['get', 'walking'], false]}
+                paint={{
+                  'line-color': ['match', ['get', 'product'],
+                    'subway',   '#1d4ed8',
+                    'suburban',  '#15803d',
+                    'tram',      '#b91c1c',
+                    'bus',       '#6b7280',
+                    'regional',  '#7c3aed',
+                    'express',   '#92400e',
+                    '#6b7280',
+                  ],
+                  'line-width': 5,
+                  'line-opacity': 0.85,
+                }}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              />
+              <Layer
+                id="route-walking"
+                type="line"
+                filter={['==', ['get', 'walking'], true]}
+                paint={{
+                  'line-color': '#9ca3af',
+                  'line-width': 4,
+                  'line-dasharray': [2, 2],
+                  'line-opacity': 0.8,
+                }}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              />
+            </Source>
+            <Source id="route-markers" type="geojson" data={routeMarkersGeoJSON}>
+              <Layer
+                id="route-origin-marker"
+                type="circle"
+                filter={['==', ['get', 'role'], 'origin']}
+                paint={{
+                  'circle-radius': 7,
+                  'circle-color': '#16a34a',
+                  'circle-stroke-color': '#ffffff',
+                  'circle-stroke-width': 2.5,
+                }}
+              />
+              <Layer
+                id="route-destination-marker"
+                type="circle"
+                filter={['==', ['get', 'role'], 'destination']}
+                paint={{
+                  'circle-radius': 7,
+                  'circle-color': '#dc2626',
+                  'circle-stroke-color': '#ffffff',
+                  'circle-stroke-width': 2.5,
+                }}
+              />
+            </Source>
+          </>
+        )}
 
         {/* ── Parks (centroid points) ───────────── */}
         {showParks && parksData && (
@@ -1171,7 +1287,7 @@ export default function MapView({
               )}
               {activeEvent.lat && activeEvent.lng && (
                 <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
-                  <JourneyWidget toLat={activeEvent.lat} toLng={activeEvent.lng} />
+                  <JourneyWidget toLat={activeEvent.lat} toLng={activeEvent.lng} onRouteChange={handleRouteChange} />
                 </div>
               )}
             </div>
@@ -1279,7 +1395,7 @@ export default function MapView({
                 })()}
               </div>
               <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
-                <JourneyWidget toLat={venuePopup.lat} toLng={venuePopup.lng} />
+                <JourneyWidget toLat={venuePopup.lat} toLng={venuePopup.lng} onRouteChange={handleRouteChange} />
               </div>
             </div>
           </Popup>
@@ -1347,7 +1463,7 @@ export default function MapView({
                 </div>
               </div>
               <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
-                <JourneyWidget toLat={greenspacePopup.lat} toLng={greenspacePopup.lng} />
+                <JourneyWidget toLat={greenspacePopup.lat} toLng={greenspacePopup.lng} onRouteChange={handleRouteChange} />
               </div>
             </div>
           </Popup>
@@ -1429,7 +1545,7 @@ export default function MapView({
                 </div>
               </div>
               <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
-                <JourneyWidget toLat={listingPopup.lat} toLng={listingPopup.lng} />
+                <JourneyWidget toLat={listingPopup.lat} toLng={listingPopup.lng} onRouteChange={handleRouteChange} />
               </div>
             </div>
           </Popup>

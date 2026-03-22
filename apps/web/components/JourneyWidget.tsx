@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { fetchJourney } from '@/lib/opendata'
-import type { Journey, JourneyLeg } from '@/lib/opendata'
+import { fetchJourney, buildRouteDisplay } from '@/lib/opendata'
+import type { Journey, JourneyLeg, RouteDisplayData } from '@/lib/opendata'
 
 const PRODUCT: Record<string, { s: string; c: string }> = {
   subway:   { s: 'U', c: '#1d4ed8' },
@@ -30,6 +30,7 @@ function isTransfer(leg: JourneyLeg): boolean {
 interface Props {
   toLat: number
   toLng: number
+  onRouteChange?: (route: RouteDisplayData | null) => void
 }
 
 interface AddressSuggestion {
@@ -83,11 +84,14 @@ function walkingJourney(fromLat: number, fromLng: number, toLat: number, toLng: 
       direction: null,
       walking: true,
       distance: dist,
+      originCoords: [fromLng, fromLat],
+      destinationCoords: [toLng, toLat],
+      polyline: null,
     }],
   }
 }
 
-export default function JourneyWidget({ toLat, toLng }: Props) {
+export default function JourneyWidget({ toLat, toLng, onRouteChange }: Props) {
   const [open,     setOpen]     = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [journeys, setJourneys] = useState<Journey[]>([])
@@ -108,6 +112,14 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
   const [dateValue, setDateValue] = useState(getDefaultDate)
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
+
+  // Emit route geometry whenever the selected journey changes
+  useEffect(() => {
+    if (!onRouteChange) return
+    const j = journeys[idx]
+    onRouteChange(j ? buildRouteDisplay(j) : null)
+    return () => onRouteChange(null)
+  }, [journeys, idx, onRouteChange])
 
   const journey = journeys[idx] ?? null
 
