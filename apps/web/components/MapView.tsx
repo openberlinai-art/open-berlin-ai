@@ -93,6 +93,7 @@ interface Props {
   parksData?:      GeoJSON.FeatureCollection
   playgroundsData?: GeoJSON.FeatureCollection
   listingsData?:   GeoJSON.FeatureCollection
+  onMobilePopup?:  (popup: VenuePopupState | null) => void
 }
 
 interface TransitPopupState {
@@ -191,12 +192,32 @@ export default function MapView({
   poiData = {}, osmData = {},
   parksData, playgroundsData,
   listingsData,
+  onMobilePopup,
 }: Props) {
   const mapRef     = useRef<MapRef>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const [transitPopup,     setTransitPopup]     = useState<TransitPopupState | null>(null)
-  const [venuePopup,       setVenuePopup]       = useState<VenuePopupState | null>(null)
+  const [venuePopupRaw,    setVenuePopupRaw]    = useState<VenuePopupState | null>(null)
+
+  // On mobile, route venue popup to bottom sheet instead of map popup
+  const setVenuePopup = useCallback((popup: VenuePopupState | null) => {
+    if (isMobile && onMobilePopup) {
+      onMobilePopup(popup)
+    } else {
+      setVenuePopupRaw(popup)
+    }
+  }, [isMobile, onMobilePopup])
+
+  const venuePopup = isMobile ? null : venuePopupRaw
   const [greenspacePopup,  setGreenspacePopup]  = useState<GreenspacePopupState | null>(null)
   const [activeTransitId,  setActiveTransitId]  = useState<string | null>(null)
   const [listingPopup,     setListingPopup]     = useState<{

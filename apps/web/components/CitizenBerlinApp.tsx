@@ -12,7 +12,7 @@ import { fetchEvents }          from '@/lib/api'
 import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, useListings } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
   FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom, countZoomSuppressedFilters, getActiveCountForGroup,
@@ -20,6 +20,8 @@ import {
 import { isCategoryVisibleAtZoom } from '@/lib/zoom-tiers'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
+import TrendingSection          from './TrendingSection'
+import BottomSheet              from './BottomSheet'
 import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
@@ -227,6 +229,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [flyTo,     setFlyToRaw]  = useState<[number, number] | null>(null)
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list')
   const [surpriseVenuePopup, setSurpriseVenuePopup] = useState<({ _key: number } & VenuePopupState) | null>(null)
+  const [mobileSheetPopup, setMobileSheetPopup] = useState<VenuePopupState | null>(null)
 
   function setFlyTo(coords: [number, number] | null) {
     setFlyToRaw(coords)
@@ -292,32 +295,25 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     return map
   }, [resolved.osmCategories, osmLiveMusic.data, osmJazz.data, osmCinema.data, osmClubs.data, osmGalleries.data, osmStreetArt.data, osmMuseum.data])
 
-  // POI hooks — one per API group, called unconditionally
-  const poiHeritage      = usePOIs('heritage',      mapBbox, resolved.poiGroups.has('heritage'))
-  const poiMonuments     = usePOIs('monuments',      mapBbox, resolved.poiGroups.has('monuments'))
-  const poiWorship       = usePOIs('worship',        mapBbox, resolved.poiGroups.has('worship'))
-  const poiTourism       = usePOIs('tourism',        mapBbox, resolved.poiGroups.has('tourism'))
-  const poiNature        = usePOIs('nature',         mapBbox, resolved.poiGroups.has('nature'))
-  const poiTransport     = usePOIs('transport',      mapBbox, resolved.poiGroups.has('transport'))
-  const poiFoodDrink     = usePOIs('food_drink',     mapBbox, resolved.poiGroups.has('food_drink'))
-  const poiSports        = usePOIs('sports',         mapBbox, resolved.poiGroups.has('sports'))
-  const poiServices      = usePOIs('services',       mapBbox, resolved.poiGroups.has('services'))
-  const poiNightlife     = usePOIs('nightlife',      mapBbox, resolved.poiGroups.has('nightlife'))
-  const poiShopping      = usePOIs('shopping',       mapBbox, resolved.poiGroups.has('shopping'))
-  const poiAccommodation = usePOIs('accommodation',  mapBbox, resolved.poiGroups.has('accommodation'))
-  const poiCulture       = usePOIs('culture',         mapBbox, resolved.poiGroups.has('culture'))
-  const poiWellness      = usePOIs('wellness',        mapBbox, resolved.poiGroups.has('wellness'))
-  const poiEducation     = usePOIs('education',       mapBbox, resolved.poiGroups.has('education'))
-  const poiQuirky        = usePOIs('quirky',          mapBbox, resolved.poiGroups.has('quirky'))
+  // POI hooks — single batch request instead of 16 individual ones
+  const enabledPOIGroups = useMemo(() => Array.from(resolved.poiGroups.keys()), [resolved.poiGroups])
+  const poiBatch = usePOIsBatch(enabledPOIGroups, mapBbox, enabledPOIGroups.length > 0)
 
-  const poiGroupDataMap: Record<string, GeoJSON.FeatureCollection | undefined> = {
-    heritage: poiHeritage.data, monuments: poiMonuments.data, worship: poiWorship.data,
-    tourism: poiTourism.data, nature: poiNature.data, transport: poiTransport.data,
-    food_drink: poiFoodDrink.data, sports: poiSports.data, services: poiServices.data,
-    nightlife: poiNightlife.data, shopping: poiShopping.data, accommodation: poiAccommodation.data,
-    culture: poiCulture.data, wellness: poiWellness.data,
-    education: poiEducation.data, quirky: poiQuirky.data,
-  }
+  // Split batch result by category_group
+  const poiGroupDataMap: Record<string, GeoJSON.FeatureCollection | undefined> = useMemo(() => {
+    if (!poiBatch.data?.features) return {}
+    const map: Record<string, GeoJSON.Feature[]> = {}
+    for (const f of poiBatch.data.features) {
+      const group = (f.properties as Record<string, unknown>)?.category_group as string
+      if (!group) continue
+      ;(map[group] ??= []).push(f)
+    }
+    const result: Record<string, GeoJSON.FeatureCollection> = {}
+    for (const [group, features] of Object.entries(map)) {
+      result[group] = { type: 'FeatureCollection', features }
+    }
+    return result
+  }, [poiBatch.data])
 
   // Build poiData map: filter each group's features to only enabled categories
   const poiData = useMemo(() => {
@@ -335,8 +331,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       }
     }
     return result
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved.poiGroups, poiHeritage.data, poiMonuments.data, poiWorship.data, poiTourism.data, poiNature.data, poiTransport.data, poiFoodDrink.data, poiSports.data, poiServices.data, poiNightlife.data, poiShopping.data, poiAccommodation.data, poiCulture.data, poiWellness.data, poiEducation.data, poiQuirky.data])
+  }, [resolved.poiGroups, poiGroupDataMap])
 
   // Listings data
   const { data: listingsGeo, isFetching: listingsFetching } = useListings(
@@ -1263,7 +1258,9 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               onFlyTo={setFlyTo}
             />
           ) : mode === 'events' ? (
-            loading && events.length === 0 ? (
+            <>
+            <TrendingSection />
+            {loading && events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
             ) : events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">No events found</div>
@@ -1282,7 +1279,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   />
                 ))
               )
-            })()
+            })()}
+            </>
           ) : (
             /* ── Venue list (unified: D1 + OSM + POI + parks/playgrounds) ── */
             <>
@@ -1453,6 +1451,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             parksData={parksData}
             playgroundsData={playgroundsData}
             listingsData={listingsGeo}
+            onMobilePopup={setMobileSheetPopup}
           />
         </ErrorBoundary>
       </div>
@@ -1472,6 +1471,58 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <Map size={14} /> Map
         </button>
       </div>
+
+      {/* ── Mobile bottom sheet for venue details ────────── */}
+      <BottomSheet isOpen={!!mobileSheetPopup} onClose={() => setMobileSheetPopup(null)}>
+        {mobileSheetPopup && (
+          <div className="space-y-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-bold text-gray-900">{mobileSheetPopup.name}</p>
+                {mobileSheetPopup.category && (
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{mobileSheetPopup.category}</p>
+                )}
+              </div>
+              {mobileSheetPopup.id && (
+                <FavoriteButton
+                  type={mobileSheetPopup.id.startsWith('poi:') ? 'poi' : mobileSheetPopup.id.startsWith('node/') || mobileSheetPopup.id.startsWith('way/') ? 'osm' : 'location'}
+                  id={mobileSheetPopup.id.replace('poi:', '')}
+                  size={16}
+                />
+              )}
+            </div>
+            {mobileSheetPopup.address && (
+              <p className="text-xs text-gray-500 font-mono">{mobileSheetPopup.address}</p>
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${mobileSheetPopup.lat},${mobileSheetPopup.lng}&travelmode=transit`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+              >
+                Directions
+              </a>
+              {mobileSheetPopup.id?.startsWith('poi:') && (
+                <a
+                  href={`/pois/${mobileSheetPopup.id.replace('poi:', '')}`}
+                  className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+                >
+                  View details
+                </a>
+              )}
+              {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && (
+                <a
+                  href={`/locations/${mobileSheetPopup.id}`}
+                  className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+                >
+                  View venue
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </BottomSheet>
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}
       <ChatPanel date={dateFrom} viewport={mapCenter ? { ...mapCenter, zoom: mapZoom } : undefined} />

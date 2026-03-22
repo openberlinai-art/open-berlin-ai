@@ -10,6 +10,7 @@ import {
   fetchOSMVenues,
   fetchWeather,
   fetchPOIs,
+  fetchPOIsBatch,
   fetchListingsByBbox,
   fetchStreetSuggestions,
 } from '@/lib/opendata'
@@ -101,6 +102,21 @@ export function usePOIs(
     queryKey:        ['pois', group, category ?? 'all', bbox ?? '', region ?? 'all'],
     queryFn:         () => fetchPOIs(group, bbox!, category, region),
     enabled:         enabled && bbox !== null,
+    staleTime:       5 * 60_000,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function usePOIsBatch(
+  groups: string[],
+  bbox: string | null,
+  enabled: boolean,
+) {
+  const sortedKey = groups.slice().sort().join(',')
+  return useQuery({
+    queryKey:        ['pois-batch', sortedKey, bbox ?? ''],
+    queryFn:         () => fetchPOIsBatch(groups, bbox!),
+    enabled:         enabled && bbox !== null && groups.length > 0,
     staleTime:       5 * 60_000,
     placeholderData: keepPreviousData,
   })

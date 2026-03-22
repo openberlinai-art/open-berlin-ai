@@ -45,28 +45,72 @@ export default function ChatPanel({ date, viewport }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function send() {
-    const text = input.trim()
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
     if (!text || loading) return
     setInput('')
     const next: Message[] = [...messages, { role: 'user', content: text }]
     setMessages(next)
     setLoading(true)
     try {
-      const res  = await fetch('/api/chat', {
+      const res = await fetch('/api/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ messages: next, date, viewport }),
       })
-      const data = await res.json()
-      const reply = data.response ?? data.error ?? 'No response'
-      setMessages(m => [...m, { role: 'assistant', content: reply }])
+
+      const contentType = res.headers.get('Content-Type') ?? ''
+
+      if (contentType.includes('text/event-stream') && res.body) {
+        // Stream SSE tokens
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let assistantContent = ''
+        setMessages(m => [...m, { role: 'assistant', content: '' }])
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = line.slice(6).trim()
+              if (payload === '[DONE]') break
+              try {
+                const parsed = JSON.parse(payload)
+                if (parsed.response) {
+                  assistantContent += parsed.response
+                  const content = assistantContent
+                  setMessages(m => {
+                    const updated = [...m]
+                    updated[updated.length - 1] = { role: 'assistant', content }
+                    return updated
+                  })
+                }
+              } catch { /* skip malformed SSE lines */ }
+            }
+          }
+        }
+      } else {
+        const data = await res.json()
+        const reply = data.response ?? data.error ?? 'No response'
+        setMessages(m => [...m, { role: 'assistant', content: reply }])
+      }
     } catch {
       setMessages(m => [...m, { role: 'assistant', content: 'Something went wrong.' }])
     } finally {
       setLoading(false)
     }
   }
+
+  const suggestedPrompts = [
+    'Free events today',
+    'Live music tonight',
+    'Cafes in Kreuzberg',
+    'Family-friendly this weekend',
+    'Exhibitions near me',
+  ]
 
   return (
     <>
@@ -95,9 +139,20 @@ export default function ChatPanel({ date, viewport }: Props) {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm min-h-0">
             {messages.length === 0 && (
-              <p className="text-gray-400 text-xs text-center mt-4">
-                Ask anything — "free music tonight", "exhibitions in Mitte"…
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="text-gray-400 text-[10px] text-center">Ask anything or try:</p>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {suggestedPrompts.map(prompt => (
+                    <button
+                      key={prompt}
+                      onClick={() => send(prompt)}
+                      className="text-[10px] border border-gray-300 px-2 py-1 hover:border-black hover:bg-gray-50 transition-colors"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>

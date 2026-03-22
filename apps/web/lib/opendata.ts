@@ -186,6 +186,18 @@ export async function fetchPOIDetail(id: string): Promise<POIDetail> {
   return json.data
 }
 
+// ─── POIs batch (multiple groups in one request) ───────────────────────────
+
+export async function fetchPOIsBatch(
+  groups: string[],
+  bbox: string,
+): Promise<GeoJSON.FeatureCollection> {
+  const params = new URLSearchParams({ groups: groups.join(','), bbox, limit: '500' })
+  const res = await fetch(`${WORKER}/api/pois/batch?${params}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
 // ─── Streets (D1 autocomplete) ──────────────────────────────────────────────
 
 export interface StreetSuggestion {

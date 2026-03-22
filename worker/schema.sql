@@ -244,6 +244,28 @@ CREATE TABLE IF NOT EXISTS streets (
 CREATE INDEX IF NOT EXISTS idx_streets_name_norm ON streets(name_norm);
 CREATE INDEX IF NOT EXISTS idx_streets_region    ON streets(region);
 
+-- ─── Item view tracking (trending) ───────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS item_views (
+  item_type TEXT NOT NULL,
+  item_id   TEXT NOT NULL,
+  view_date TEXT NOT NULL,
+  count     INTEGER DEFAULT 1,
+  PRIMARY KEY (item_type, item_id, view_date)
+);
+
+-- ─── POI duplicate detection ─────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS poi_duplicates (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  poi_id          TEXT NOT NULL,
+  osm_venue_id    TEXT NOT NULL,
+  distance_m      REAL,
+  name_similarity REAL,
+  status          TEXT DEFAULT 'pending',
+  created_at      TEXT DEFAULT (datetime('now'))
+);
+
 -- ─── Rate limiting (best-effort, per-IP per window) ───────────────────────────
 
 CREATE TABLE IF NOT EXISTS rate_limits (

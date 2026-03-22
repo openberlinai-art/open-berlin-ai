@@ -433,6 +433,67 @@ app.get('/api/pois', async c => {
   )
 })
 
+// ─── GET /api/pois/batch ──────────────────────────────────────────────────────
+
+app.get('/api/pois/batch', async c => {
+  const { groups, bbox, limit = '300' } = c.req.query()
+  if (!groups || !bbox) return c.json({ error: 'groups and bbox are required' }, 400)
+
+  const groupList = groups.split(',').filter(g => POI_GROUPS_SET.has(g))
+  if (groupList.length === 0) return c.json({ error: 'No valid groups' }, 400)
+
+  const parts = bbox.split(',').map(Number)
+  if (parts.length !== 4 || parts.some(n => isNaN(n))) {
+    return c.json({ error: 'Invalid bbox format' }, 400)
+  }
+  const [minLng, minLat, maxLng, maxLat] = parts
+  const cap = Math.min(500, Math.max(1, parseInt(limit, 10)))
+
+  const prefixes = bboxToGeohashPrefixes(minLat, minLng, maxLat, maxLng)
+
+  const groupPlaceholders = groupList.map(() => '?').join(',')
+  let query: string
+  const params: (string | number)[] = []
+
+  if (prefixes.length <= 20 && prefixes.length > 0) {
+    const prefixLen = prefixes[0].length
+    const prefixPlaceholders = prefixes.map(() => '?').join(',')
+    query = `SELECT * FROM pois WHERE category_group IN (${groupPlaceholders}) AND substr(geohash, 1, ${prefixLen}) IN (${prefixPlaceholders}) AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? LIMIT ?`
+    params.push(...groupList, ...prefixes, minLat, maxLat, minLng, maxLng, cap)
+  } else {
+    query = `SELECT * FROM pois WHERE category_group IN (${groupPlaceholders}) AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? LIMIT ?`
+    params.push(...groupList, minLat, maxLat, minLng, maxLng, cap)
+  }
+
+  const { results } = await c.env.DB.prepare(query).bind(...params).all<Record<string, unknown>>()
+
+  const features = results.map(row => ({
+    type:     'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [row.lng, row.lat] },
+    properties: {
+      id:             row.id,
+      name:           row.name,
+      category_group: row.category_group,
+      category:       row.category,
+      region:         row.region,
+      address:        row.address,
+      website:        row.website,
+      phone:          row.phone,
+      opening_hours:  row.opening_hours,
+      description:    row.description,
+      operator:       row.operator,
+      tags_json:      row.tags_json,
+      image_url:      row.image_url,
+    },
+  }))
+
+  return c.json(
+    { type: 'FeatureCollection', features, truncated: results.length >= cap },
+    200,
+    { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' },
+  )
+})
+
 // ─── GET /api/pois/categories ─────────────────────────────────────────────────
 
 app.get('/api/pois/categories', async c => {
@@ -1093,11 +1154,102 @@ ${venuesList}${viewportSection}
   const aiResponse = await c.env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
     messages,
     max_tokens: 800,
-  }) as { response?: string }
-
-  return c.json({
-    response: aiResponse.response ?? 'Sorry, I could not generate a response.',
+    stream: true,
   })
+
+  // CF AI streaming returns a ReadableStream of SSE
+  if (aiResponse instanceof ReadableStream) {
+    return new Response(aiResponse as ReadableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      },
+    })
+  }
+
+  // Fallback: non-stream response
+  const resp = aiResponse as { response?: string }
+  return c.json({
+    response: resp.response ?? 'Sorry, I could not generate a response.',
+  })
+})
+
+// ─── POST /api/views (view tracking) ─────────────────────────────────────────
+
+app.post('/api/views', async c => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown'
+  const allowed = await checkRateLimit(c.env.DB, `views:${ip}`, 60, 60)
+  if (!allowed) return c.json({ error: 'Too many requests' }, 429)
+
+  const body = await c.req.json<{ item_type?: string; item_id?: string }>().catch(() => null)
+  if (!body?.item_type || !body?.item_id) return c.json({ error: 'item_type and item_id required' }, 400)
+  if (!['event', 'location', 'poi'].includes(body.item_type)) return c.json({ error: 'Invalid item_type' }, 400)
+
+  const viewDate = new Date().toISOString().split('T')[0]
+  await c.env.DB.prepare(
+    `INSERT INTO item_views (item_type, item_id, view_date, count) VALUES (?, ?, ?, 1)
+     ON CONFLICT(item_type, item_id, view_date) DO UPDATE SET count = count + 1`
+  ).bind(body.item_type, body.item_id, viewDate).run()
+
+  return c.json({ ok: true })
+})
+
+// ─── GET /api/trending ───────────────────────────────────────────────────────
+
+app.get('/api/trending', async c => {
+  const limit = Math.min(20, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10)))
+
+  const { results } = await c.env.DB.prepare(`
+    SELECT iv.item_type, iv.item_id, SUM(
+      CASE WHEN iv.view_date >= date('now','-1 day') THEN iv.count*4
+           WHEN iv.view_date >= date('now','-3 days') THEN iv.count*2
+           ELSE iv.count END
+    ) as score
+    FROM item_views iv
+    WHERE iv.view_date >= date('now','-7 days')
+    GROUP BY iv.item_type, iv.item_id
+    ORDER BY score DESC
+    LIMIT ?
+  `).bind(limit).all<{ item_type: string; item_id: string; score: number }>()
+
+  // Enrich with titles
+  const enriched = await Promise.all(results.map(async (row) => {
+    let title: string | null = null
+    let category: string | null = null
+    let date_start: string | null = null
+    try {
+      if (row.item_type === 'event') {
+        const ev = await c.env.DB.prepare(`SELECT title, category, date_start FROM events WHERE id = ?`).bind(row.item_id).first<{ title: string; category: string | null; date_start: string }>()
+        if (ev) { title = ev.title; category = ev.category; date_start = ev.date_start }
+      } else if (row.item_type === 'location') {
+        const loc = await c.env.DB.prepare(`SELECT name, category FROM locations WHERE id = ?`).bind(row.item_id).first<{ name: string; category: string | null }>()
+        if (loc) { title = loc.name; category = loc.category }
+      } else if (row.item_type === 'poi') {
+        const poi = await c.env.DB.prepare(`SELECT name, category FROM pois WHERE id = ?`).bind(row.item_id).first<{ name: string; category: string | null }>()
+        if (poi) { title = poi.name; category = poi.category }
+      }
+    } catch { /* skip enrichment on error */ }
+    return { ...row, title, category, date_start }
+  }))
+
+  return c.json({ data: enriched.filter(r => r.title) }, 200, {
+    'Cache-Control': 'public, max-age=300',
+  })
+})
+
+// ─── POST /api/dedupe-pois (protected) ───────────────────────────────────────
+
+app.post('/api/dedupe-pois', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const { deduplicatePOIs } = await import('./dedupe')
+  const result = await deduplicatePOIs(c.env.DB as unknown as Parameters<typeof deduplicatePOIs>[0])
+  return c.json({ ok: true, matched: result.matched })
 })
 
 // ─── POST /api/auth/magic-link ────────────────────────────────────────────────
@@ -1914,7 +2066,13 @@ export default {
           env.DB.batch([
             env.DB.prepare(`DELETE FROM auth_tokens WHERE expires_at < datetime('now')`),
             env.DB.prepare(`DELETE FROM rate_limits WHERE 1=1`),
-          ]).then(([a, r]) => console.log(`[cleanup] auth_tokens=${a.meta.changes} rate_limits=${r.meta.changes}`))
+            env.DB.prepare(`DELETE FROM events WHERE date_end < date('now', '-30 days') OR (date_end IS NULL AND date_start < date('now', '-30 days'))`),
+            env.DB.prepare(`DELETE FROM user_attendance WHERE item_type = 'event' AND item_id NOT IN (SELECT id FROM events)`),
+            env.DB.prepare(`DELETE FROM item_views WHERE view_date < date('now', '-14 days')`),
+          ]).then(([a, r, ev, att, iv]) => {
+            const meta = (s: unknown) => (s as { meta: { changes: number } }).meta.changes
+            console.log(`[cleanup] auth_tokens=${meta(a)} rate_limits=${meta(r)} stale_events=${meta(ev)} orphan_attendance=${meta(att)} old_views=${meta(iv)}`)
+          })
             .catch(e => console.error('[cleanup]', e)),
           // POI ingest — Berlin (daily) + Wikidata image enrichment + Vectorize sync
           ingestPOIs(env, 'berlin')

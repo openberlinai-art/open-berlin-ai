@@ -5,6 +5,7 @@ import { fetchPOIDetail } from '@/lib/opendata'
 import { getPOILabel } from '@/lib/poi-config'
 import { POIPageClient } from './POIPageClient'
 import FavoriteButton from '@/components/FavoriteButton'
+import ViewTracker from '@/components/ViewTracker'
 
 export const revalidate = 3600
 
@@ -20,6 +21,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title:       `${poi.name ?? label} — Citizen.Berlin`,
       description: [poi.description, label, poi.address, poi.region].filter(Boolean).join(' · '),
+      openGraph: {
+        title: `${poi.name ?? label} — Citizen.Berlin`,
+        description: [poi.description, label, poi.address, poi.region].filter(Boolean).join(' · '),
+        images: [{ url: `/api/og?type=poi&id=${id}`, width: 1200, height: 630 }],
+        type: 'article',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${poi.name ?? label} — Citizen.Berlin`,
+        images: [`/api/og?type=poi&id=${id}`],
+      },
     }
   } catch {
     return { title: 'POI — Citizen.Berlin' }
@@ -38,8 +50,24 @@ export default async function POIPage({ params }: Props) {
   const label = getPOILabel(poi.category_group, poi.category)
   const extraTags: Record<string, string> = poi.tags_json ? JSON.parse(poi.tags_json) : {}
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Place',
+    name: poi.name ?? label,
+    ...(poi.address && { address: poi.address }),
+    ...(poi.description && { description: poi.description }),
+    geo: { '@type': 'GeoCoordinates', latitude: poi.lat, longitude: poi.lng },
+    url: `https://citizen.berlin/pois/${id}`,
+    image: `/api/og?type=poi&id=${id}`,
+  }
+
   return (
     <main className="min-h-screen bg-white font-sans">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ViewTracker itemType="poi" itemId={id} />
       {/* Nav bar */}
       <div className="border-b-2 border-black px-4 py-3 flex items-center gap-3">
         <Link

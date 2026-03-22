@@ -5,6 +5,7 @@ import { fetchEvent } from '@/lib/opendata'
 import { EventPageClient } from '@/components/EventPageClient'
 import FavoriteButton from '@/components/FavoriteButton'
 import TranslatedText from '@/components/TranslatedText'
+import ViewTracker from '@/components/ViewTracker'
 
 export const revalidate = 300
 
@@ -19,6 +20,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title:       `${ev.title ?? 'Event'} — Citizen.Berlin`,
       description: [ev.category, ev.location_name, ev.borough].filter(Boolean).join(' · '),
+      openGraph: {
+        title: `${ev.title ?? 'Event'} — Citizen.Berlin`,
+        description: [ev.category, ev.location_name, ev.borough].filter(Boolean).join(' · '),
+        images: [{ url: `/api/og?type=event&id=${id}`, width: 1200, height: 630 }],
+        type: 'article',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${ev.title ?? 'Event'} — Citizen.Berlin`,
+        images: [`/api/og?type=event&id=${id}`],
+      },
     }
   } catch {
     return { title: 'Event — Citizen.Berlin' }
@@ -71,8 +83,30 @@ export default async function EventPage({ params }: Props) {
   const nonDeLangs = langs.filter(l => l !== 'de')
   const imageUrls: string[] = (() => { try { return ev.image_urls ? JSON.parse(ev.image_urls) : [] } catch { return [] } })()
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: ev.title,
+    startDate: ev.time_start ? `${ev.date_start}T${ev.time_start}` : ev.date_start,
+    ...(ev.date_end && { endDate: ev.time_end ? `${ev.date_end}T${ev.time_end}` : ev.date_end }),
+    location: ev.location_name ? {
+      '@type': 'Place',
+      name: ev.location_name,
+      ...(ev.address && { address: ev.address }),
+    } : undefined,
+    ...(ev.description && { description: ev.description }),
+    ...(ev.price_type === 'free' && { isAccessibleForFree: true }),
+    url: `https://citizen.berlin/events/${id}`,
+    image: `/api/og?type=event&id=${id}`,
+  }
+
   return (
     <main className="min-h-screen bg-white font-sans">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ViewTracker itemType="event" itemId={id} />
       {/* Nav bar */}
       <div className="border-b-2 border-black px-4 py-3 flex items-center gap-3">
         <Link
@@ -289,7 +323,19 @@ export default async function EventPage({ params }: Props) {
         )}
 
         {/* Client actions + map/transit */}
-        <EventPageClient id={id} lat={ev.lat ?? undefined} lng={ev.lng ?? undefined} />
+        <EventPageClient
+          id={id}
+          lat={ev.lat ?? undefined}
+          lng={ev.lng ?? undefined}
+          title={ev.title ?? undefined}
+          dateStart={ev.date_start}
+          dateEnd={ev.date_end}
+          timeStart={ev.time_start}
+          timeEnd={ev.time_end}
+          locationName={ev.location_name}
+          address={ev.address}
+          description={ev.description}
+        />
       </div>
     </main>
   )

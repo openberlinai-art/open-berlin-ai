@@ -7,6 +7,7 @@ import VibeCheck from '@/components/VibeCheck'
 import SimilarPlaces from '@/components/SimilarPlaces'
 import FavoriteButton from '@/components/FavoriteButton'
 import TranslatedText from '@/components/TranslatedText'
+import ViewTracker from '@/components/ViewTracker'
 import type { OpeningHour } from '@/lib/types'
 
 export const revalidate = 86400
@@ -22,6 +23,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title:       `${loc.name ?? 'Venue'} — Citizen.Berlin`,
       description: [loc.description, loc.category, loc.address, loc.borough].filter(Boolean).join(' · '),
+      openGraph: {
+        title: `${loc.name ?? 'Venue'} — Citizen.Berlin`,
+        description: [loc.description, loc.category, loc.address, loc.borough].filter(Boolean).join(' · '),
+        images: [{ url: `/api/og?type=location&id=${id}`, width: 1200, height: 630 }],
+        type: 'article',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${loc.name ?? 'Venue'} — Citizen.Berlin`,
+        images: [`/api/og?type=location&id=${id}`],
+      },
     }
   } catch {
     return { title: 'Venue — Citizen.Berlin' }
@@ -99,8 +111,24 @@ export default async function LocationPage({ params }: Props) {
       ? 'bg-black text-white border-black'
       : 'bg-white text-black border-black'
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Place',
+    name: loc.name,
+    ...(loc.address && { address: loc.address }),
+    ...(loc.description && { description: loc.description }),
+    ...(loc.lat && loc.lng && { geo: { '@type': 'GeoCoordinates', latitude: loc.lat, longitude: loc.lng } }),
+    url: `https://citizen.berlin/locations/${id}`,
+    image: `/api/og?type=location&id=${id}`,
+  }
+
   return (
     <main className="min-h-screen bg-white font-sans">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ViewTracker itemType="location" itemId={id} />
       {/* ── Nav bar ── */}
       <div className="border-b-2 border-black px-4 py-3 flex items-center gap-3">
         <Link

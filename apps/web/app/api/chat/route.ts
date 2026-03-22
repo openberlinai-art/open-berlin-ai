@@ -12,6 +12,18 @@ export async function POST(req: NextRequest) {
       signal:  AbortSignal.timeout(30_000),
     })
 
+    // Stream-through SSE responses
+    const contentType = res.headers.get('Content-Type') ?? ''
+    if (contentType.includes('text/event-stream') && res.body) {
+      return new Response(res.body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      })
+    }
+
     const data = await res.json()
     return NextResponse.json(data, { status: res.status })
   } catch (err) {
