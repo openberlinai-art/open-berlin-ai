@@ -93,6 +93,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'spring',          label: 'Springs',           color: '#0891b2', stroke: '#0e7490' },
       { key: 'water_tower',     label: 'Water Towers',      color: '#0369a1', stroke: '#075985' },
       { key: 'pier',            label: 'Piers',             color: '#475569', stroke: '#334155' },
+      { key: 'wetland',         label: 'Wetlands',          color: '#059669', stroke: '#047857' },
     ],
   },
   {
@@ -113,6 +114,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'car_rental',     label: 'Car Rental',     color: '#7c3aed', stroke: '#6d28d9' },
       { key: 'airport',         label: 'Airports',       color: '#475569', stroke: '#334155' },
       { key: 'marina',          label: 'Marinas',        color: '#0369a1', stroke: '#075985' },
+      { key: 'bicycle_repair',  label: 'Bike Repair',    color: '#15803d', stroke: '#14532d' },
     ],
   },
   {
@@ -163,6 +165,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'tennis',           label: 'Tennis',         color: '#16a34a', stroke: '#15803d' },
       { key: 'martial_arts',     label: 'Martial Arts',   color: '#dc2626', stroke: '#b91c1c' },
       { key: 'swimming_outdoor', label: 'Outdoor Swimming',color: '#0284c7', stroke: '#0369a1' },
+      { key: 'trampoline_park', label: 'Trampoline Parks',color: '#f59e0b', stroke: '#d97706' },
     ],
   },
   {
@@ -204,6 +207,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'animal_shelter',  label: 'Animal Shelters',  color: '#65a30d', stroke: '#4d7c0f' },
       { key: 'childcare',       label: 'Childcare',        color: '#f59e0b', stroke: '#d97706' },
       { key: 'internet_cafe',   label: 'Internet Cafés',   color: '#2563eb', stroke: '#1d4ed8' },
+      { key: 'social_centre',   label: 'Social Centres',   color: '#7c3aed', stroke: '#6d28d9' },
+      { key: 'conference_centre',label: 'Conference Centres',color: '#475569', stroke: '#334155' },
     ],
   },
   {
@@ -258,6 +263,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'greengrocer',     label: 'Greengrocers',    color: '#16a34a', stroke: '#15803d' },
       { key: 'confectionery',   label: 'Confectionery',   color: '#ec4899', stroke: '#db2777' },
       { key: 'art_shop',        label: 'Art Supplies',    color: '#e879f9', stroke: '#d946ef' },
+      { key: 'musical_instrument',label: 'Music Shops',   color: '#9333ea', stroke: '#7e22ce' },
+      { key: 'baby_goods',     label: 'Baby Shops',      color: '#f59e0b', stroke: '#d97706' },
     ],
   },
   {
@@ -278,6 +285,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'music_venue',        label: 'Music Venues',      color: '#b45309', stroke: '#78350f' },
       { key: 'community_centre',   label: 'Community Centres', color: '#15803d', stroke: '#14532d' },
       { key: 'outdoor_cinema',     label: 'Outdoor Cinemas',   color: '#0891b2', stroke: '#0e7490' },
+      { key: 'events_venue',       label: 'Event Venues',      color: '#e11d48', stroke: '#be123c' },
+      { key: 'studio',             label: 'Studios',           color: '#6366f1', stroke: '#4f46e5' },
     ],
   },
   {

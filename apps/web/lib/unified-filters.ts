@@ -66,6 +66,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('poi_community_centre','Community (POI)','#15803d','#14532d','poi', 'community_centre'),
       vc('culture_other',    'Other',         '#6b7280', '#4b5563', 'venue', 'other'),
       vc('outdoor_cinema',   'Outdoor Cinemas','#0891b2', '#0e7490', 'poi',  'outdoor_cinema'),
+      vc('events_venue',     'Event Venues',   '#e11d48', '#be123c', 'poi',  'events_venue'),
+      vc('studio',           'Studios',        '#6366f1', '#4f46e5', 'poi',  'studio'),
     ],
   },
 
@@ -142,6 +144,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('spring',          'Springs',          '#0891b2', '#0e7490', 'poi', 'spring'),
       vc('water_tower',     'Water Towers',     '#0369a1', '#075985', 'poi', 'water_tower'),
       vc('pier',            'Piers',            '#475569', '#334155', 'poi', 'pier'),
+      vc('wetland',         'Wetlands',         '#059669', '#047857', 'poi', 'wetland'),
     ],
   },
 
@@ -215,6 +218,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('car_rental',     'Car Rental',     '#7c3aed', '#6d28d9', 'poi', 'car_rental'),
       vc('airport',        'Airports',       '#475569', '#334155', 'poi', 'airport'),
       vc('marina',         'Marinas',        '#0369a1', '#075985', 'poi', 'marina'),
+      vc('bicycle_repair', 'Bike Repair',    '#15803d', '#14532d', 'poi', 'bicycle_repair'),
     ],
   },
 
@@ -257,6 +261,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('greengrocer',     'Greengrocers',    '#16a34a', '#15803d', 'poi', 'greengrocer'),
       vc('confectionery',   'Confectionery',   '#ec4899', '#db2777', 'poi', 'confectionery'),
       vc('art_shop',        'Art Supplies',    '#e879f9', '#d946ef', 'poi', 'art_shop'),
+      vc('musical_instrument','Music Shops',  '#9333ea', '#7e22ce', 'poi', 'musical_instrument'),
+      vc('baby_goods',      'Baby Shops',      '#f59e0b', '#d97706', 'poi', 'baby_goods'),
     ],
   },
 
@@ -279,6 +285,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('tennis',        'Tennis',         '#16a34a', '#15803d', 'poi', 'tennis'),
       vc('martial_arts',  'Martial Arts',   '#dc2626', '#b91c1c', 'poi', 'martial_arts'),
       vc('swimming_outdoor','Outdoor Swimming','#0284c7', '#0369a1', 'poi', 'swimming_outdoor'),
+      vc('trampoline_park','Trampoline Parks','#f59e0b', '#d97706', 'poi', 'trampoline_park'),
     ],
   },
 
@@ -336,6 +343,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('animal_shelter', 'Animal Shelters', '#65a30d', '#4d7c0f', 'poi', 'animal_shelter'),
       vc('childcare',      'Childcare',       '#f59e0b', '#d97706', 'poi', 'childcare'),
       vc('internet_cafe',  'Internet Cafés',  '#2563eb', '#1d4ed8', 'poi', 'internet_cafe'),
+      vc('social_centre',  'Social Centres',  '#7c3aed', '#6d28d9', 'poi', 'social_centre'),
+      vc('conference_centre','Conference Centres','#475569','#334155','poi', 'conference_centre'),
     ],
   },
 
@@ -492,7 +501,7 @@ export function resolveActiveFilters(activeFilters: Set<string>): ResolvedFilter
 // Map POI categories that live in cross-source groups (outdoors) to their API group
 function _poiGroupForCategory(sourceKey: string): string | null {
   // Categories from nature group
-  const natureKeys = ['lake', 'beach', 'forest', 'nature_reserve', 'garden', 'cemetery_park', 'allotment_garden', 'pond', 'community_garden', 'bathing_spot', 'picnic_site', 'waterfall', 'spring', 'water_tower', 'pier']
+  const natureKeys = ['lake', 'beach', 'forest', 'nature_reserve', 'garden', 'cemetery_park', 'allotment_garden', 'pond', 'community_garden', 'bathing_spot', 'picnic_site', 'waterfall', 'spring', 'water_tower', 'pier', 'wetland']
   if (natureKeys.includes(sourceKey)) return 'nature'
 
   // Categories from sports group moved to outdoors
@@ -500,7 +509,7 @@ function _poiGroupForCategory(sourceKey: string): string | null {
   if (sportsKeys.includes(sourceKey)) return 'sports'
 
   // Culture POI categories shown in the Culture filter group
-  const cultureKeys = ['theatre', 'arts_centre', 'music_venue', 'community_centre', 'outdoor_cinema']
+  const cultureKeys = ['theatre', 'arts_centre', 'music_venue', 'community_centre', 'outdoor_cinema', 'events_venue', 'studio']
   if (cultureKeys.includes(sourceKey)) return 'culture'
 
   // Quirky POI categories shown in outdoors too

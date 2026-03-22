@@ -319,6 +319,17 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   // Quirky batch 3
   { key: 'observatory',        group: 'quirky',        label: 'Observatories' },
   { key: 'clock_tower',        group: 'quirky',        label: 'Clocks' },
+
+  // POI coverage expansion — high-value missing categories
+  { key: 'bicycle_repair',     group: 'transport',     label: 'Bike Repair' },
+  { key: 'events_venue',       group: 'culture',       label: 'Event Venues' },
+  { key: 'studio',             group: 'culture',       label: 'Studios' },
+  { key: 'social_centre',      group: 'services',      label: 'Social Centres' },
+  { key: 'musical_instrument', group: 'shopping',      label: 'Music Shops' },
+  { key: 'baby_goods',         group: 'shopping',      label: 'Baby Shops' },
+  { key: 'trampoline_park',    group: 'sports',        label: 'Trampoline Parks' },
+  { key: 'conference_centre',  group: 'services',      label: 'Conference Centres' },
+  { key: 'wetland',            group: 'nature',        label: 'Wetlands' },
 ]
 
 // Map category key → Overpass QL body (use {BBOX} placeholder)
@@ -654,6 +665,17 @@ const OVERPASS_QUERIES: Record<string, string> = {
   // Quirky additions (batch 3)
   observatory: `[out:json][timeout:30];(node[man_made=observatory]({BBOX});way[man_made=observatory]({BBOX});node[amenity=observatory]({BBOX});way[amenity=observatory]({BBOX}););out center;`,
   clock_tower: `[out:json][timeout:30];(node[man_made=clock]({BBOX});way[man_made=clock]({BBOX});node[amenity=clock][support=tower]({BBOX}););out center;`,
+
+  // POI coverage expansion — high-value missing categories
+  bicycle_repair: `[out:json][timeout:30];(node[amenity=bicycle_repair_station]({BBOX});way[amenity=bicycle_repair_station]({BBOX}););out center;`,
+  events_venue: `[out:json][timeout:30];(node[amenity=events_venue]({BBOX});way[amenity=events_venue]({BBOX});node[amenity=event_venue]({BBOX});way[amenity=event_venue]({BBOX}););out center;`,
+  studio: `[out:json][timeout:30];(node[amenity=studio][studio~"audio|music|recording|art",i]({BBOX});way[amenity=studio][studio~"audio|music|recording|art",i]({BBOX}););out center;`,
+  social_centre: `[out:json][timeout:30];(node[amenity=social_centre]({BBOX});way[amenity=social_centre]({BBOX}););out center;`,
+  musical_instrument: `[out:json][timeout:30];(node[shop=musical_instrument]({BBOX});way[shop=musical_instrument]({BBOX}););out center;`,
+  baby_goods: `[out:json][timeout:30];(node[shop=baby_goods]({BBOX});way[shop=baby_goods]({BBOX}););out center;`,
+  trampoline_park: `[out:json][timeout:30];(node[leisure=trampoline_park]({BBOX});way[leisure=trampoline_park]({BBOX}););out center;`,
+  conference_centre: `[out:json][timeout:30];(node[amenity=conference_centre]({BBOX});way[amenity=conference_centre]({BBOX}););out center;`,
+  wetland: `[out:json][timeout:30];(node[natural=wetland][name]({BBOX});way[natural=wetland][name]({BBOX}););out center;`,
 }
 
 // Group metadata
