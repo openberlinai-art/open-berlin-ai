@@ -107,6 +107,141 @@ app.get('/api/events', async c => {
   }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' })
 })
 
+// ─── GET /api/events/for-you (auth required) ─────────────────────────────────
+
+app.get('/api/events/for-you', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const user = await c.env.DB
+    .prepare(`SELECT preferences FROM users WHERE id = ?`)
+    .bind(auth.sub).first<{ preferences: string | null }>()
+
+  let prefs: { categories?: string[]; boroughs?: string[] } = {}
+  try { prefs = user?.preferences ? JSON.parse(user.preferences) : {} } catch { /* ignore */ }
+
+  const cats = prefs.categories ?? []
+  const boroughs = prefs.boroughs ?? []
+
+  let results: Record<string, unknown>[] = []
+
+  if (cats.length > 0 || boroughs.length > 0) {
+    const conditions: string[] = [`date_start >= date('now')`]
+    const params: (string | number)[] = []
+    const orParts: string[] = []
+
+    if (cats.length > 0) {
+      orParts.push(`category IN (${cats.map(() => '?').join(',')})`)
+      params.push(...cats)
+    }
+    if (boroughs.length > 0) {
+      orParts.push(`borough IN (${boroughs.map(() => '?').join(',')})`)
+      params.push(...boroughs)
+    }
+
+    conditions.push(`(${orParts.join(' OR ')})`)
+
+    const { results: rows } = await c.env.DB
+      .prepare(`SELECT * FROM events WHERE ${conditions.join(' AND ')} ORDER BY date_start ASC LIMIT 20`)
+      .bind(...params).all<Record<string, unknown>>()
+    results = rows
+  }
+
+  // Fall back to trending if no preferences or no results
+  if (results.length === 0) {
+    const { results: trending } = await c.env.DB.prepare(`
+      SELECT e.* FROM events e
+      INNER JOIN item_views iv ON iv.item_type = 'event' AND iv.item_id = e.id
+      WHERE e.date_start >= date('now') AND iv.view_date >= date('now', '-7 days')
+      GROUP BY e.id
+      ORDER BY SUM(iv.count) DESC
+      LIMIT 20
+    `).all<Record<string, unknown>>()
+    results = trending
+  }
+
+  return c.json({ data: results }, 200, {
+    'Cache-Control': 'private, max-age=60',
+  })
+})
+
+// ─── GET /api/events/weather-picks ───────────────────────────────────────────
+
+app.get('/api/events/weather-picks', async c => {
+  const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10)
+
+  // Fetch weather for the date
+  const weatherRes = await fetch(
+    'https://api.open-meteo.com/v1/forecast' +
+    '?latitude=52.52&longitude=13.41' +
+    '&daily=weather_code,temperature_2m_max,precipitation_probability_max' +
+    '&forecast_days=3' +
+    '&timezone=Europe%2FBerlin'
+  )
+  const weatherData = await weatherRes.json() as {
+    daily?: {
+      time?: string[]
+      weather_code?: number[]
+      temperature_2m_max?: number[]
+      precipitation_probability_max?: number[]
+    }
+  }
+
+  const daily = weatherData.daily
+  const dayIndex = daily?.time?.indexOf(date) ?? 0
+  const weatherCode = daily?.weather_code?.[dayIndex] ?? 0
+  const tempMax = daily?.temperature_2m_max?.[dayIndex] ?? 20
+  const precipProb = daily?.precipitation_probability_max?.[dayIndex] ?? 0
+
+  // Classify weather
+  const RAINY_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99])
+  const isRainy = RAINY_CODES.has(weatherCode) || precipProb > 60
+  const recommendation = isRainy ? 'indoor' : 'outdoor'
+
+  const WMO_LABELS: Record<number, string> = {
+    0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',
+    45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
+    56:'Freezing drizzle',57:'Heavy freezing drizzle',
+    61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',
+    71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',
+    80:'Light showers',81:'Showers',82:'Heavy showers',
+    85:'Light snow showers',86:'Heavy snow showers',
+    95:'Thunderstorm',96:'Thunderstorm with hail',99:'Heavy thunderstorm with hail',
+  }
+  const label = WMO_LABELS[weatherCode] ?? 'Unknown'
+
+  // Pick events matching recommendation
+  const indoorCats = ['Exhibition','Film','Theater','Music','Talks','Literature']
+  const outdoorCats = ['Recreation','Tours','Sports','Kids']
+  const targetCats = isRainy ? indoorCats : outdoorCats
+  const placeholders = targetCats.map(() => '?').join(',')
+
+  const { results: picks } = await c.env.DB
+    .prepare(`
+      SELECT * FROM events
+      WHERE date_start = ? AND category IN (${placeholders})
+      ORDER BY time_start ASC
+      LIMIT 8
+    `)
+    .bind(date, ...targetCats)
+    .all<Record<string, unknown>>()
+
+  // Fall back to any events if no category match
+  let finalPicks = picks
+  if (picks.length === 0) {
+    const { results: fallback } = await c.env.DB
+      .prepare(`SELECT * FROM events WHERE date_start = ? ORDER BY time_start ASC LIMIT 8`)
+      .bind(date).all<Record<string, unknown>>()
+    finalPicks = fallback
+  }
+
+  return c.json({
+    weather: { code: weatherCode, label, isRainy, tempMax, precipProb },
+    picks: finalPicks,
+    recommendation,
+  }, 200, { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=600' })
+})
+
 // ─── GET /api/events/:id ──────────────────────────────────────────────────────
 
 app.get('/api/events/:id', async c => {
@@ -1013,141 +1148,6 @@ app.get('/api/nearby', async c => {
   return c.json({ results: all }, 200, {
     'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
   })
-})
-
-// ─── GET /api/events/for-you (auth required) ─────────────────────────────────
-
-app.get('/api/events/for-you', async c => {
-  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
-
-  const user = await c.env.DB
-    .prepare(`SELECT preferences FROM users WHERE id = ?`)
-    .bind(auth.sub).first<{ preferences: string | null }>()
-
-  let prefs: { categories?: string[]; boroughs?: string[] } = {}
-  try { prefs = user?.preferences ? JSON.parse(user.preferences) : {} } catch { /* ignore */ }
-
-  const cats = prefs.categories ?? []
-  const boroughs = prefs.boroughs ?? []
-
-  let results: Record<string, unknown>[] = []
-
-  if (cats.length > 0 || boroughs.length > 0) {
-    const conditions: string[] = [`date_start >= date('now')`]
-    const params: (string | number)[] = []
-    const orParts: string[] = []
-
-    if (cats.length > 0) {
-      orParts.push(`category IN (${cats.map(() => '?').join(',')})`)
-      params.push(...cats)
-    }
-    if (boroughs.length > 0) {
-      orParts.push(`borough IN (${boroughs.map(() => '?').join(',')})`)
-      params.push(...boroughs)
-    }
-
-    conditions.push(`(${orParts.join(' OR ')})`)
-
-    const { results: rows } = await c.env.DB
-      .prepare(`SELECT * FROM events WHERE ${conditions.join(' AND ')} ORDER BY date_start ASC LIMIT 20`)
-      .bind(...params).all<Record<string, unknown>>()
-    results = rows
-  }
-
-  // Fall back to trending if no preferences or no results
-  if (results.length === 0) {
-    const { results: trending } = await c.env.DB.prepare(`
-      SELECT e.* FROM events e
-      INNER JOIN item_views iv ON iv.item_type = 'event' AND iv.item_id = e.id
-      WHERE e.date_start >= date('now') AND iv.view_date >= date('now', '-7 days')
-      GROUP BY e.id
-      ORDER BY SUM(iv.count) DESC
-      LIMIT 20
-    `).all<Record<string, unknown>>()
-    results = trending
-  }
-
-  return c.json({ data: results }, 200, {
-    'Cache-Control': 'private, max-age=60',
-  })
-})
-
-// ─── GET /api/events/weather-picks ───────────────────────────────────────────
-
-app.get('/api/events/weather-picks', async c => {
-  const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10)
-
-  // Fetch weather for the date
-  const weatherRes = await fetch(
-    'https://api.open-meteo.com/v1/forecast' +
-    '?latitude=52.52&longitude=13.41' +
-    '&daily=weather_code,temperature_2m_max,precipitation_probability_max' +
-    '&forecast_days=3' +
-    '&timezone=Europe%2FBerlin'
-  )
-  const weatherData = await weatherRes.json() as {
-    daily?: {
-      time?: string[]
-      weather_code?: number[]
-      temperature_2m_max?: number[]
-      precipitation_probability_max?: number[]
-    }
-  }
-
-  const daily = weatherData.daily
-  const dayIndex = daily?.time?.indexOf(date) ?? 0
-  const weatherCode = daily?.weather_code?.[dayIndex] ?? 0
-  const tempMax = daily?.temperature_2m_max?.[dayIndex] ?? 20
-  const precipProb = daily?.precipitation_probability_max?.[dayIndex] ?? 0
-
-  // Classify weather
-  const RAINY_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99])
-  const isRainy = RAINY_CODES.has(weatherCode) || precipProb > 60
-  const recommendation = isRainy ? 'indoor' : 'outdoor'
-
-  const WMO_LABELS: Record<number, string> = {
-    0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',
-    45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
-    56:'Freezing drizzle',57:'Heavy freezing drizzle',
-    61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',
-    71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',
-    80:'Light showers',81:'Showers',82:'Heavy showers',
-    85:'Light snow showers',86:'Heavy snow showers',
-    95:'Thunderstorm',96:'Thunderstorm with hail',99:'Heavy thunderstorm with hail',
-  }
-  const label = WMO_LABELS[weatherCode] ?? 'Unknown'
-
-  // Pick events matching recommendation
-  const indoorCats = ['Exhibition','Film','Theater','Music','Talks','Literature']
-  const outdoorCats = ['Recreation','Tours','Sports','Kids']
-  const targetCats = isRainy ? indoorCats : outdoorCats
-  const placeholders = targetCats.map(() => '?').join(',')
-
-  const { results: picks } = await c.env.DB
-    .prepare(`
-      SELECT * FROM events
-      WHERE date_start = ? AND category IN (${placeholders})
-      ORDER BY time_start ASC
-      LIMIT 8
-    `)
-    .bind(date, ...targetCats)
-    .all<Record<string, unknown>>()
-
-  // Fall back to any events if no category match
-  let finalPicks = picks
-  if (picks.length === 0) {
-    const { results: fallback } = await c.env.DB
-      .prepare(`SELECT * FROM events WHERE date_start = ? ORDER BY time_start ASC LIMIT 8`)
-      .bind(date).all<Record<string, unknown>>()
-    finalPicks = fallback
-  }
-
-  return c.json({
-    weather: { code: weatherCode, label, isRainy, tempMax, precipProb },
-    picks: finalPicks,
-    recommendation,
-  }, 200, { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=600' })
 })
 
 // ─── Reviews & Ratings ──────────────────────────────────────────────────────
