@@ -323,6 +323,23 @@ CREATE TABLE IF NOT EXISTS addresses (
 CREATE INDEX IF NOT EXISTS idx_addresses_street_norm ON addresses(street_norm);
 CREATE INDEX IF NOT EXISTS idx_addresses_street_num  ON addresses(street_norm, housenumber);
 
+-- ─── OSM edit suggestions (community contributions) ─────────────────────────
+
+CREATE TABLE IF NOT EXISTS osm_suggestions (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT,
+  suggestion_type TEXT NOT NULL,  -- add_place, edit_name, edit_address, edit_hours, report_closed, other
+  osm_id          TEXT,
+  poi_id          TEXT,
+  category_group  TEXT,
+  category        TEXT,
+  data            TEXT NOT NULL,  -- JSON { name, address, opening_hours, website, phone, lat, lng, comment }
+  status          TEXT NOT NULL DEFAULT 'pending',  -- pending, approved, rejected, pushed
+  created_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_osm_suggestions_status ON osm_suggestions(status);
+CREATE INDEX IF NOT EXISTS idx_osm_suggestions_user   ON osm_suggestions(user_id);
+
 -- ─── Migration log (columns / indexes added after initial deploy) ─────────────
 -- events:     registration_type, languages, image_urls (already in live DB)
 -- locations:  description, phone, accessibility, opening_hours, opening_status,

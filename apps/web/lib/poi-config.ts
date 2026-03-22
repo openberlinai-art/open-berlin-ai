@@ -29,6 +29,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'berlin_wall',         label: 'Berlin Wall',          color: '#475569', stroke: '#334155' },
       { key: 'windmill',            label: 'Windmills',            color: '#65a30d', stroke: '#4d7c0f' },
       { key: 'stolperstein',        label: 'Stolpersteine',        color: '#d4a017', stroke: '#b8860b' },
+      { key: 'historic_cemetery',   label: 'Historic Cemeteries',  color: '#78716c', stroke: '#57534e' },
+      { key: 'industrial_heritage', label: 'Industrial Heritage',  color: '#92400e', stroke: '#78350f' },
     ],
   },
   {
@@ -95,6 +97,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'car_sharing',     label: 'Car Sharing',    color: '#059669', stroke: '#047857' },
       { key: 'scooter_rental',  label: 'Scooter Rental', color: '#f59e0b', stroke: '#d97706' },
       { key: 'taxi',            label: 'Taxi Stands',    color: '#eab308', stroke: '#ca8a04' },
+      { key: 'bus_stop',        label: 'Bus Stops',      color: '#dc2626', stroke: '#b91c1c' },
+      { key: 'bicycle_parking', label: 'Bike Parking',   color: '#6b7280', stroke: '#4b5563' },
     ],
   },
   {
@@ -111,6 +115,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'brewery',     label: 'Breweries',    color: '#92400e', stroke: '#78350f' },
       { key: 'kebab',       label: 'Kebab',        color: '#ea580c', stroke: '#c2410c' },
       { key: 'vietnamese',  label: 'Vietnamese',   color: '#059669', stroke: '#047857' },
+      { key: 'vegan',       label: 'Vegan',        color: '#16a34a', stroke: '#15803d' },
+      { key: 'wochenmarkt', label: 'Weekly Markets',color: '#ca8a04', stroke: '#a16207' },
     ],
   },
   {
@@ -149,6 +155,8 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'laundry',      label: 'Laundry',       color: '#6b7280', stroke: '#4b5563' },
       { key: 'veterinary',   label: 'Veterinary',    color: '#16a34a', stroke: '#15803d' },
       { key: 'recycling',    label: 'Recycling',     color: '#4d7c0f', stroke: '#365314' },
+      { key: 'social_facility', label: 'Social Services', color: '#7c3aed', stroke: '#6d28d9' },
+      { key: 'nette_toilette',  label: 'Nette Toilette',  color: '#059669', stroke: '#047857' },
     ],
   },
   {
@@ -162,6 +170,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'cocktail_bar',  label: 'Cocktail Bars',  color: '#be123c', stroke: '#881337' },
       { key: 'live_music_poi',label: 'Live Music',     color: '#1d4ed8', stroke: '#1e3a8a' },
       { key: 'karaoke',       label: 'Karaoke',        color: '#d946ef', stroke: '#a21caf' },
+      { key: 'rooftop_bar',  label: 'Rooftop Bars',   color: '#ea580c', stroke: '#c2410c' },
     ],
   },
   {
@@ -179,6 +188,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'organic_shop',  label: 'Organic Shops', color: '#65a30d', stroke: '#4d7c0f' },
       { key: 'wine_shop',     label: 'Wine Shops',    color: '#9f1239', stroke: '#881337' },
       { key: 'charity_shop',  label: 'Charity Shops', color: '#0891b2', stroke: '#0e7490' },
+      { key: 'pet_shop',     label: 'Pet Shops',     color: '#ea580c', stroke: '#c2410c' },
     ],
   },
   {
@@ -198,6 +208,7 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'arts_centre',        label: 'Arts Centres',      color: '#7c3aed', stroke: '#6d28d9' },
       { key: 'music_venue',        label: 'Music Venues',      color: '#b45309', stroke: '#78350f' },
       { key: 'community_centre',   label: 'Community Centres', color: '#15803d', stroke: '#14532d' },
+      { key: 'outdoor_cinema',     label: 'Outdoor Cinemas',   color: '#0891b2', stroke: '#0e7490' },
     ],
   },
   {
@@ -225,6 +236,10 @@ export const POI_GROUPS: POIGroupConfig[] = [
       { key: 'bbq_area',        label: 'BBQ Areas',       color: '#ea580c', stroke: '#c2410c' },
       { key: 'nudist_area',     label: 'FKK Areas',       color: '#d97706', stroke: '#b45309' },
       { key: 'defibrillator',   label: 'Defibrillators',  color: '#dc2626', stroke: '#b91c1c' },
+      { key: 'spaeti',          label: 'Spätis',          color: '#f59e0b', stroke: '#d97706' },
+      { key: 'tattoo',          label: 'Tattoo Shops',    color: '#6366f1', stroke: '#4f46e5' },
+      { key: 'repair_cafe',     label: 'Repair Cafés',    color: '#15803d', stroke: '#14532d' },
+      { key: 'mural',           label: 'Murals',          color: '#e879f9', stroke: '#d946ef' },
     ],
   },
 ]

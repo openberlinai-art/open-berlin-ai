@@ -2356,6 +2356,56 @@ app.post('/api/seed-listings', async c => {
   return c.json({ ok: true, inserted, total: listings.length })
 })
 
+// ─── OSM Suggestions ──────────────────────────────────────────────────────────
+
+app.post('/api/suggestions', async c => {
+  const user = await getUserFromHeader(c.env.DB, c.env.JWT_SECRET, c.req.header('Authorization'))
+  if (!user) return c.json({ error: 'Authentication required' }, 401)
+
+  const body = await c.req.json<{
+    suggestion_type: string
+    osm_id?: string
+    poi_id?: string
+    category_group?: string
+    category?: string
+    data: Record<string, unknown>
+  }>()
+
+  if (!body.suggestion_type || !body.data) {
+    return c.json({ error: 'suggestion_type and data are required' }, 400)
+  }
+
+  const validTypes = ['add_place', 'edit_name', 'edit_address', 'edit_hours', 'report_closed', 'other']
+  if (!validTypes.includes(body.suggestion_type)) {
+    return c.json({ error: `Invalid suggestion_type. Must be one of: ${validTypes.join(', ')}` }, 400)
+  }
+
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(
+    `INSERT INTO osm_suggestions (id, user_id, suggestion_type, osm_id, poi_id, category_group, category, data, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`
+  ).bind(
+    id, user.id, body.suggestion_type,
+    body.osm_id ?? null, body.poi_id ?? null,
+    body.category_group ?? null, body.category ?? null,
+    JSON.stringify(body.data),
+  ).run()
+
+  return c.json({ ok: true, id })
+})
+
+app.get('/api/suggestions', async c => {
+  const user = await getUserFromHeader(c.env.DB, c.env.JWT_SECRET, c.req.header('Authorization'))
+  if (!user) return c.json({ error: 'Authentication required' }, 401)
+
+  const { status = 'pending', limit = '50' } = c.req.query()
+  const rows = await c.env.DB.prepare(
+    `SELECT * FROM osm_suggestions WHERE status = ? ORDER BY created_at DESC LIMIT ?`
+  ).bind(status, Math.min(200, parseInt(limit, 10))).all()
+
+  return c.json({ data: rows.results })
+})
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 export default {

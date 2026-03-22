@@ -18,6 +18,7 @@ import { getMinZoomForFilter } from '@/lib/zoom-tiers'
 import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
 import FavoriteButton from './FavoriteButton'
+import SuggestEditButton from './SuggestEditButton'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
@@ -1280,6 +1281,15 @@ export default function MapView({
                     </Link>
                   )}
                 </div>
+                <SuggestEditButton
+                  venueId={venuePopup.id}
+                  osmId={venuePopup.id?.startsWith('node/') || venuePopup.id?.startsWith('way/') ? venuePopup.id : undefined}
+                  poiId={venuePopup.id?.startsWith('poi:') ? venuePopup.id.replace('poi:', '') : undefined}
+                  category={venuePopup.category}
+                  name={venuePopup.name}
+                  lat={venuePopup.lat}
+                  lng={venuePopup.lng}
+                />
                 {/* Vibe Check */}
                 {venuePopup.id && (
                   <VibeCheck
