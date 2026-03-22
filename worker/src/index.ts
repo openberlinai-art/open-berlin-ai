@@ -13,6 +13,7 @@ import { semanticSearchPOIs } from './vector-search'
 import { bboxToGeohashPrefixes } from './geohash'
 import { POI_CATEGORIES } from './poi-queries'
 import type { POICategoryGroup } from './poi-queries'
+import { deduplicatePOIs } from './dedupe'
 
 const OSM_CATEGORIES = new Set([
   'live_music', 'jazz', 'cinema', 'clubs', 'galleries', 'street_art', 'museum',
@@ -1247,9 +1248,13 @@ app.post('/api/dedupe-pois', async c => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const { deduplicatePOIs } = await import('./dedupe')
-  const result = await deduplicatePOIs(c.env.DB as unknown as Parameters<typeof deduplicatePOIs>[0])
-  return c.json({ ok: true, matched: result.matched })
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await deduplicatePOIs(c.env.DB as any)
+    return c.json({ ok: true, matched: result.matched, venuesChecked: result.venuesChecked })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500)
+  }
 })
 
 // ─── POST /api/auth/magic-link ────────────────────────────────────────────────

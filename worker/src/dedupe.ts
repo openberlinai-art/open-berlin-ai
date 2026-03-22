@@ -66,18 +66,15 @@ export async function deduplicatePOIs(db: D1Database): Promise<{ matched: number
   const DELTA = 0.00045
   const MIN_SIMILARITY = 0.5
 
-  // Get all OSM venues with names
+  // Get OSM venues with names — limit to 200 per run to stay within CF subrequest limits
   const { results: osmVenues } = await db.prepare(
-    `SELECT id, name, lat, lng FROM osm_venues WHERE name IS NOT NULL`
+    `SELECT id, name, lat, lng FROM osm_venues WHERE name IS NOT NULL LIMIT 200`
   ).all<OsmVenue>()
 
   let matched = 0
 
-  // Process in batches of 50
-  for (let i = 0; i < osmVenues.length; i += 50) {
-    const batch = osmVenues.slice(i, i + 50)
-
-    for (const venue of batch) {
+  for (const venue of osmVenues) {
+    {
       if (!venue.name) continue
 
       const { results: nearby } = await db.prepare(
@@ -99,8 +96,7 @@ export async function deduplicatePOIs(db: D1Database): Promise<{ matched: number
 
         await db.prepare(
           `INSERT INTO poi_duplicates (poi_id, osm_venue_id, distance_m, name_similarity, status)
-           VALUES (?, ?, ?, ?, 'pending')
-           ON CONFLICT DO NOTHING`
+           VALUES (?, ?, ?, ?, 'pending')`
         ).bind(poi.id, venue.id, Math.round(dist * 10) / 10, Math.round(sim * 1000) / 1000).run()
 
         matched++
@@ -108,5 +104,5 @@ export async function deduplicatePOIs(db: D1Database): Promise<{ matched: number
     }
   }
 
-  return { matched }
+  return { matched, venuesChecked: osmVenues.length }
 }
