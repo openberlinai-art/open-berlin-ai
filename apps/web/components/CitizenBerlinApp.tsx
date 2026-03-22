@@ -80,6 +80,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // ─── Unified filter state ──────────────────────────────────────────────────
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ALL_DEFAULTS))
+  const [filterQuery, setFilterQuery] = useState('')
 
   const [mapZoom, setMapZoom] = useState(11)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
@@ -802,25 +803,73 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Google Maps-style quick category chips ────────────────── */}
+        {/* ── Category chips + search-to-select ────────────────────── */}
         <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {CHIP_CONFIG.map(chip => {
-              const Icon = chip.icon
-              const active = isChipActive(chip, activeFilters)
+          {/* Search input for subcategories */}
+          <div className="relative mb-1.5">
+            <input
+              type="text"
+              placeholder="Find a category (e.g. Späti, tattoo, yoga…)"
+              value={filterQuery}
+              onChange={e => setFilterQuery(e.target.value)}
+              className="w-full text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 pr-7 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
+              autoComplete="off"
+            />
+            {filterQuery && (
+              <button
+                onClick={() => setFilterQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--text-primary)]"
+              >
+                <X size={11} />
+              </button>
+            )}
+            {/* Search results dropdown */}
+            {filterQuery.trim().length >= 2 && (() => {
+              const q = filterQuery.trim().toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/ß/g, 'ss').replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+              const matches = FILTER_GROUPS.flatMap(g =>
+                g.categories.filter(c => {
+                  const normLabel = c.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/ß/g, 'ss').replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+                  const normKey = c.key.replace(/_/g, ' ')
+                  return normLabel.includes(q) || normKey.includes(q) || c.label.toLowerCase().includes(filterQuery.trim().toLowerCase())
+                }).map(c => ({ group: g, cat: c, fk: `${g.key}:${c.key}` }))
+              ).slice(0, 20)
+              if (matches.length === 0) return null
               return (
-                <button
-                  key={chip.key}
-                  onClick={() => toggleChip(chip)}
-                  className={`inline-flex items-center gap-1 text-[11px] whitespace-nowrap px-2 py-1 rounded-full border shrink-0 ${active ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-                  style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
-                >
-                  <Icon size={11} className="shrink-0" />
-                  {chip.label}
-                </button>
+                <div className="absolute z-50 left-0 right-0 mt-0.5 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] max-h-52 overflow-y-auto">
+                  {matches.map(({ group, cat, fk }) => {
+                    const on = activeFilters.has(fk)
+                    return (
+                      <button
+                        key={fk}
+                        onClick={() => {
+                          setActiveFilters(prev => {
+                            const next = new Set(prev)
+                            if (on) next.delete(fk); else next.add(fk)
+                            pushFilterURL(next)
+                            return next
+                          })
+                          setMode('venues')
+                        }}
+                        className={`flex items-center gap-2 w-full text-left text-xs px-2.5 py-1.5 hover:bg-[var(--bg-secondary)] ${on ? 'font-bold' : ''}`}
+                      >
+                        <span className="w-3 h-3 shrink-0 rounded-sm border-2 flex items-center justify-center" style={{ borderColor: cat.color, background: on ? cat.color : 'transparent' }}>
+                          {on && <span className="text-white text-[8px]">✓</span>}
+                        </span>
+                        <span>{cat.label}</span>
+                        <span className="text-[9px] text-gray-400 ml-auto">{group.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               )
-            })}
-            {MORE_CHIPS.map(chip => {
+            })()}
+          </div>
+          {/* Quick category chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {[...CHIP_CONFIG, ...MORE_CHIPS].map(chip => {
               const Icon = chip.icon
               const active = isChipActive(chip, activeFilters)
               return (
