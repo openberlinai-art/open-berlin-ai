@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic'
 import { Share2, Check } from 'lucide-react'
 import JourneyWidget from '@/components/JourneyWidget'
 import VibeCheck from '@/components/VibeCheck'
+import SimilarPlaces from '@/components/SimilarPlaces'
+import FavoriteButton from '@/components/FavoriteButton'
 import { fetchTransitStopsVBB, fetchDepartures } from '@/lib/opendata'
 import type { VBBStop, Departure } from '@/lib/opendata'
 
@@ -163,6 +165,13 @@ export function POIPageClient({ id, lat, lng, name, category, categoryGroup }: P
           category={`${categoryGroup}/${category}`}
         />
       </div>
+
+      {/* Similar Places */}
+      <SimilarPlaces
+        query={`${name} ${category}`}
+        excludeId={id}
+        categoryGroup={categoryGroup}
+      />
 
       {/* Nearby transit */}
       {lat && lng && <POITransit lat={lat} lng={lng} />}

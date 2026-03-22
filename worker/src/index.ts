@@ -109,7 +109,33 @@ app.get('/api/events', async c => {
 app.get('/api/events/:id', async c => {
   const event = await getEvent(c.env.DB, c.req.param('id'))
   if (!event) return c.json({ error: 'Not found' }, 404)
-  return c.json({ data: event })
+
+  // Fetch related events in parallel
+  const today = new Date().toISOString().slice(0, 10)
+  const [sameVenueRes, sameDateRes] = await Promise.all([
+    event.location_id
+      ? c.env.DB.prepare(`
+          SELECT id, title, date_start, time_start, category, price_type
+          FROM events
+          WHERE location_id = ? AND id != ? AND date_start >= ?
+          ORDER BY date_start ASC LIMIT 10
+        `).bind(event.location_id, event.id, today).all<Record<string, unknown>>()
+      : Promise.resolve({ results: [] as Record<string, unknown>[] }),
+    c.env.DB.prepare(`
+      SELECT id, title, date_start, time_start, category, price_type, location_name
+      FROM events
+      WHERE category = ? AND date_start = ? AND id != ?
+      ORDER BY time_start ASC LIMIT 10
+    `).bind(event.category ?? '', event.date_start ?? today, event.id).all<Record<string, unknown>>(),
+  ])
+
+  return c.json({
+    data: event,
+    related: {
+      sameVenue: sameVenueRes.results,
+      sameDate:  sameDateRes.results,
+    },
+  })
 })
 
 // ─── GET /api/locations ───────────────────────────────────────────────────────
@@ -832,6 +858,75 @@ app.get('/api/proxy/vbb', async c => {
   return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } })
 })
 
+// ─── Haversine distance helper ────────────────────────────────────────────────
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000 // metres
+  const toRad = (d: number) => d * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// ─── GET /api/nearby ──────────────────────────────────────────────────────────
+
+app.get('/api/nearby', async c => {
+  const lat    = parseFloat(c.req.query('lat') ?? '')
+  const lng    = parseFloat(c.req.query('lng') ?? '')
+  const radius = Math.min(5000, Math.max(100, parseInt(c.req.query('radius') ?? '500', 10)))
+  const limit  = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '20', 10)))
+
+  if (isNaN(lat) || isNaN(lng)) return c.json({ error: 'lat and lng are required' }, 400)
+
+  // Compute bbox from radius
+  const latDelta = radius / 111320
+  const lngDelta = radius / (111320 * Math.cos(lat * Math.PI / 180))
+  const minLat = lat - latDelta, maxLat = lat + latDelta
+  const minLng = lng - lngDelta, maxLng = lng + lngDelta
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Query events, pois, locations in parallel
+  const [eventsRes, poisRes, locationsRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT id, title AS name, category, lat, lng, 'event' AS type
+      FROM events
+      WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? AND date_start >= ?
+      LIMIT 100
+    `).bind(minLat, maxLat, minLng, maxLng, today).all<{ id: string; name: string; category: string | null; lat: number; lng: number; type: string }>(),
+    c.env.DB.prepare(`
+      SELECT id, name, category, lat, lng, 'poi' AS type
+      FROM pois
+      WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+      LIMIT 100
+    `).bind(minLat, maxLat, minLng, maxLng).all<{ id: string; name: string | null; category: string | null; lat: number; lng: number; type: string }>(),
+    c.env.DB.prepare(`
+      SELECT id, name, category, lat, lng, 'location' AS type
+      FROM locations
+      WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? AND lat IS NOT NULL
+      LIMIT 100
+    `).bind(minLat, maxLat, minLng, maxLng).all<{ id: string; name: string | null; category: string | null; lat: number; lng: number; type: string }>(),
+  ])
+
+  // Merge, compute distance, filter by radius, sort
+  const all = [...eventsRes.results, ...poisRes.results, ...locationsRes.results]
+    .map(item => ({
+      type: item.type,
+      id: item.id,
+      name: item.name ?? 'Unnamed',
+      category: item.category ?? undefined,
+      lat: item.lat,
+      lng: item.lng,
+      distance_m: haversine(lat, lng, item.lat, item.lng),
+    }))
+    .filter(item => item.distance_m <= radius)
+    .sort((a, b) => a.distance_m - b.distance_m)
+    .slice(0, limit)
+
+  return c.json({ results: all })
+})
+
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', async c => {
@@ -839,18 +934,43 @@ app.post('/api/chat', async c => {
   const allowed = await checkRateLimit(c.env.DB, `chat:${ip}`, 10, 300)
   if (!allowed) return c.json({ error: 'Too many requests' }, 429)
 
-  const body = await c.req.json<{ messages: { role: string; content: string }[]; date?: string }>().catch(() => null)
+  const body = await c.req.json<{
+    messages: { role: string; content: string }[]
+    date?: string
+    viewport?: { lat: number; lng: number; zoom: number }
+  }>().catch(() => null)
   if (!body?.messages?.length) {
     return c.json({ error: 'messages is required' }, 400)
   }
 
   const date = body.date ?? new Date().toISOString().split('T')[0]
+  const viewport = body.viewport
 
   // Extract the latest user message for vector retrieval
   const latestUserMsg = [...body.messages].reverse().find(m => m.role === 'user')?.content ?? ''
 
-  // Fetch rich context in parallel (vector-retrieve venues instead of random)
-  const [eventsRes, catRes, venuesRes, locationCountRes, parkCountRes] = await Promise.all([
+  // Extract keywords from user message for D1 fallback search
+  const keywords = latestUserMsg
+    .toLowerCase()
+    .replace(/[^a-zäöüß\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length >= 3)
+    .slice(0, 5)
+
+  // Compute viewport bbox for spatial event filtering
+  let viewportBbox: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null = null
+  if (viewport && viewport.lat && viewport.lng && viewport.zoom) {
+    const span = 360 / Math.pow(2, viewport.zoom)
+    viewportBbox = {
+      minLat: viewport.lat - span / 2,
+      maxLat: viewport.lat + span / 2,
+      minLng: viewport.lng - span,
+      maxLng: viewport.lng + span,
+    }
+  }
+
+  // Fetch rich context in parallel (vector-retrieve venues, fall back to keyword D1 search)
+  const [eventsRes, catRes, venuesRes, locationCountRes, parkCountRes, viewportEventsRes] = await Promise.all([
     // Up to 50 events for the date
     getEvents(c.env.DB, { date_from: date, date_to: date, limit: 50 }),
     // Category breakdown
@@ -858,7 +978,7 @@ app.post('/api/chat', async c => {
       .prepare(`SELECT category, COUNT(*) as n FROM events WHERE date_start = ? GROUP BY category ORDER BY n DESC`)
       .bind(date)
       .all<{ category: string | null; n: number }>(),
-    // Vector-retrieve relevant POIs based on user's message, fall back to random locations
+    // Vector-retrieve relevant POIs based on user's message, fall back to keyword search
     (c.env.VECTORIZE && latestUserMsg.length >= 3
       ? semanticSearchPOIs(c.env, latestUserMsg, { topK: 25 }).then(async matches => {
           if (matches.length === 0) throw new Error('no matches')
@@ -870,12 +990,23 @@ app.post('/api/chat', async c => {
           `).bind(...ids).all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
         }).catch(() => null)
       : Promise.resolve(null)
-    ).then(vectorRes =>
-      vectorRes ?? c.env.DB
+    ).then(vectorRes => {
+      if (vectorRes) return vectorRes
+      // Fallback: keyword search on pois table
+      if (keywords.length > 0) {
+        const kw = `%${keywords[0]}%`
+        return c.env.DB.prepare(`
+          SELECT name, category, region AS borough, address FROM pois
+          WHERE name LIKE ? OR category LIKE ? OR category_group LIKE ?
+          LIMIT 25
+        `).bind(kw, kw, kw).all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+      }
+      // Final fallback: random locations
+      return c.env.DB
         .prepare(`SELECT name, category, borough, address FROM locations
                   WHERE lat IS NOT NULL ORDER BY RANDOM() LIMIT 25`)
         .all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
-    ),
+    }),
     // Total locations count
     c.env.DB.prepare(`SELECT COUNT(*) as n FROM locations`).first<{ n: number }>(),
     // Total upcoming events count (next 7 days)
@@ -883,6 +1014,16 @@ app.post('/api/chat', async c => {
       .prepare(`SELECT COUNT(*) as n FROM events WHERE date_start >= ? AND date_start <= date(?, '+7 days')`)
       .bind(date, date)
       .first<{ n: number }>(),
+    // Viewport-filtered events
+    viewportBbox
+      ? c.env.DB.prepare(`
+          SELECT title, category, time_start, location_name, borough
+          FROM events
+          WHERE date_start = ? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+          LIMIT 15
+        `).bind(date, viewportBbox.minLat, viewportBbox.maxLat, viewportBbox.minLng, viewportBbox.maxLng)
+          .all<{ title: string; category: string | null; time_start: string | null; location_name: string | null; borough: string | null }>()
+      : Promise.resolve(null),
   ])
 
   const { events, total } = eventsRes
@@ -902,8 +1043,23 @@ app.post('/api/chat', async c => {
   const totalLocations = locationCountRes?.n ?? 0
   const weekEvents = parkCountRes?.n ?? 0
 
+  // Viewport events section
+  let viewportSection = ''
+  if (viewportEventsRes?.results?.length) {
+    viewportSection = `\n\n## EVENTS IN CURRENT MAP VIEW\n${viewportEventsRes.results.map(e =>
+      `- ${e.title} | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'}`
+    ).join('\n')}`
+  }
+
+  // Viewport context
+  const viewportContext = viewport
+    ? `\nThe user is viewing the map near [${viewport.lat.toFixed(4)}, ${viewport.lng.toFixed(4)}] at zoom ${viewport.zoom.toFixed(0)}.`
+    : ''
+
   const systemPrompt = `You are Citizen.Berlin, a Berlin culture events assistant with access to a live database.
-Today is ${date}.
+Today is ${date}.${viewportContext}
+
+Available place types: heritage, monuments, nightlife, food_drink, culture, worship, tourism, nature, transport, sports, services, shopping, accommodation, wellness, education, quirky.
 
 ## EVENTS ON ${date} (${total} total)
 Categories: ${categoryBreakdown}
@@ -911,8 +1067,8 @@ Categories: ${categoryBreakdown}
 Events (up to 40 listed):
 ${eventsList || 'No events found for this date.'}
 
-## VENUES & LOCATIONS (${totalLocations} total in database, 25 shown)
-${venuesList}
+## VENUES & PLACES (${totalLocations} total in database, 25 shown)
+${venuesList}${viewportSection}
 
 ## OTHER DATA
 - Parks: hundreds of Berlin parks are mapped (Grünanlagen from Berlin GDI). Users can enable the Parks layer on the map.
@@ -934,9 +1090,9 @@ ${venuesList}
     })),
   ]
 
-  const aiResponse = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+  const aiResponse = await c.env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
     messages,
-    max_tokens: 500,
+    max_tokens: 800,
   }) as { response?: string }
 
   return c.json({

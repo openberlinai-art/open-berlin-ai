@@ -24,9 +24,13 @@ import NotificationsBell        from './NotificationsBell'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
 import ListingsList from './ListingsList'
+import FavoriteButton from './FavoriteButton'
 import { useUser } from '@/providers/UserProvider'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { ErrorBoundary } from './ErrorBoundary'
+import { readFromURL, syncToURL, filtersToString, filtersFromString } from '@/hooks/useMapState'
+import { useFavorites } from '@/hooks/useFavorites'
+import { MapPin, Heart, Share2, Check, Navigation } from 'lucide-react'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -47,6 +51,7 @@ interface Props {
 function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const { user, unreadCount, attendance } = useUser()
   const { lang } = useLanguage()
+  const { isFavorite: isFav, count: favCount } = useFavorites()
 
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
@@ -70,6 +75,73 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('culture')
 
   const [mapZoom, setMapZoom] = useState(11)
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
+
+  // ─── Nearby Discovery ──────────────────────────────────────────────────────
+  const [nearbyMode, setNearbyMode] = useState(false)
+  const [nearbyResults, setNearbyResults] = useState<Array<{
+    type: string; id: string; name: string; category?: string; distance_m: number; lat: number; lng: number
+  }> | null>(null)
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [nearbyRadius, setNearbyRadius] = useState(500)
+
+  // ─── Favorites view ─────────────────────────────────────────────────────────
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+
+  // ─── Share URL ──────────────────────────────────────────────────────────────
+  const [urlCopied, setUrlCopied] = useState(false)
+
+  // ─── Deep link: read URL on mount ──────────────────────────────────────────
+  const urlInitRef = useRef(false)
+  useEffect(() => {
+    if (urlInitRef.current) return
+    urlInitRef.current = true
+    const s = readFromURL()
+    if (s.mode) setMode(s.mode)
+    if (s.query) setSearch(s.query)
+    if (s.filters) setActiveFilters(filtersFromString(s.filters))
+    if (s.lat != null && s.lng != null) {
+      setMapCenter({ lat: s.lat, lng: s.lng })
+      if (s.zoom != null) setMapZoom(s.zoom)
+      setFlyTo([s.lng, s.lat])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Deep link: sync URL on state changes
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => {
+    clearTimeout(syncTimeoutRef.current)
+    syncTimeoutRef.current = setTimeout(() => {
+      syncToURL({
+        lat: mapCenter?.lat,
+        lng: mapCenter?.lng,
+        zoom: mapZoom,
+        mode: mode !== 'events' ? mode : undefined,
+        filters: activeFilters.size > 0 && filtersToString(activeFilters) !== filtersToString(new Set(CULTURE_DEFAULTS))
+          ? filtersToString(activeFilters) : undefined,
+        query: search.trim() || undefined,
+      })
+    }, 300)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapCenter, mapZoom, mode, activeFilters, search])
+
+  // Deep link: popstate listener
+  useEffect(() => {
+    function onPopState() {
+      const s = readFromURL()
+      if (s.mode) setMode(s.mode)
+      if (s.query !== undefined) setSearch(s.query ?? '')
+      if (s.filters) setActiveFilters(filtersFromString(s.filters))
+      if (s.lat != null && s.lng != null) {
+        setFlyTo([s.lng, s.lat])
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const resolved = useMemo(() => resolveActiveFiltersForZoom(activeFilters, mapZoom), [activeFilters, mapZoom])
   const suppressedCount = useMemo(() => countZoomSuppressedFilters(activeFilters, mapZoom), [activeFilters, mapZoom])
 
@@ -116,7 +188,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [liveRadar,    setLiveRadar]    = useState(false)
-  const [mode,      setMode]      = useState<'events' | 'venues' | 'listings'>('events')
+  const [mode,      setModeRaw]      = useState<'events' | 'venues' | 'listings'>('events')
+  const setMode = useCallback((m: 'events' | 'venues' | 'listings') => {
+    setModeRaw(m)
+    syncToURL({
+      lat: mapCenter?.lat, lng: mapCenter?.lng, zoom: mapZoom,
+      mode: m !== 'events' ? m : undefined,
+      filters: activeFilters.size > 0 ? filtersToString(activeFilters) : undefined,
+      query: search.trim() || undefined,
+    }, true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapCenter, mapZoom, activeFilters, search])
   const [listingType, setListingType] = useState<string | undefined>(undefined)
   const [listingStreetFilter, setListingStreetFilter] = useState<string | undefined>(undefined)
   const [listingStreetQuery, setListingStreetQuery] = useState('')
@@ -655,7 +737,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* Mode toggle + live radar */}
+        {/* Mode toggle + live radar + nearby + favorites + share */}
         <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
           <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
           <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
@@ -667,6 +749,57 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             title="Live vehicle radar"
           >
             ● Live
+          </button>
+          <button
+            onClick={() => {
+              if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
+              setNearbyLoading(true)
+              navigator.geolocation.getCurrentPosition(
+                pos => {
+                  const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                  setUserLocation(loc)
+                  setNearbyMode(true)
+                  setFlyTo([loc.lng, loc.lat])
+                  fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
+                    .then(r => r.json())
+                    .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
+                    .catch(() => setNearbyResults([]))
+                    .finally(() => setNearbyLoading(false))
+                },
+                () => { setNearbyLoading(false) },
+                { enableHighAccuracy: true, timeout: 10000 },
+              )
+            }}
+            className={nearbyMode ? btnActive : btn}
+            title="Near Me"
+          >
+            <span className="flex items-center gap-1">
+              <Navigation size={10} />
+              {nearbyLoading ? '...' : 'Near Me'}
+            </span>
+          </button>
+          <button
+            onClick={() => setShowFavoritesOnly(v => !v)}
+            className={showFavoritesOnly ? btnActive : btn}
+            title="Show favorites"
+          >
+            <span className="flex items-center gap-1">
+              <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
+              {favCount > 0 ? favCount : ''}
+            </span>
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href).catch(() => {})
+              setUrlCopied(true)
+              setTimeout(() => setUrlCopied(false), 2000)
+            }}
+            className={btn}
+            title="Share this view"
+          >
+            <span className="flex items-center gap-1">
+              {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
+            </span>
           </button>
           {activeId && mode === 'events' && (
             <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">Transit nearby</span>
@@ -855,7 +988,60 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Search results / Event list / Venue list */}
         <div className="flex-1 overflow-y-auto pb-14 md:pb-0">
-          {search.trim() && mode !== 'listings' ? (
+          {/* Nearby radius picker */}
+          {nearbyMode && (
+            <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2">
+              <span className="text-[10px] text-gray-500">Radius:</span>
+              {[250, 500, 1000].map(r => (
+                <button
+                  key={r}
+                  onClick={() => {
+                    setNearbyRadius(r)
+                    if (userLocation) {
+                      setNearbyLoading(true)
+                      fetch(`/api/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=${r}&limit=20`)
+                        .then(res => res.json())
+                        .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
+                        .catch(() => setNearbyResults([]))
+                        .finally(() => setNearbyLoading(false))
+                    }
+                  }}
+                  className={nearbyRadius === r ? btnActive : btn}
+                >
+                  {r >= 1000 ? `${r / 1000}km` : `${r}m`}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Nearby results */}
+          {nearbyMode && nearbyResults ? (
+            nearbyResults.length === 0 ? (
+              <div className="flex items-center justify-center h-32 text-sm text-gray-400">Nothing nearby</div>
+            ) : (
+              nearbyResults.map((item, i) => (
+                <div
+                  key={`${item.type}-${item.id}-${i}`}
+                  className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setFlyTo([item.lng, item.lat])}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-900 leading-snug truncate">{item.name}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        {item.category ?? item.type}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono bg-gray-100 border border-gray-300 px-1.5 py-0.5">
+                        {item.distance_m < 1000 ? `${Math.round(item.distance_m)}m` : `${(item.distance_m / 1000).toFixed(1)}km`}
+                      </span>
+                      <FavoriteButton type={item.type} id={item.id} size={12} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )
+          ) : search.trim() && mode !== 'listings' ? (
             /* ── Search results ── */
             searching && !searchResults ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Searching…</div>
@@ -876,17 +1062,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                           if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}
-                        </p>
-                        <a
-                          href={`/events/${ev.id}`}
-                          onClick={e => e.stopPropagation()}
-                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
-                        >
-                          Details →
-                        </a>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              {ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}
+                            </p>
+                            <a
+                              href={`/events/${ev.id}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                            >
+                              Details →
+                            </a>
+                          </div>
+                          <FavoriteButton type="event" id={ev.id} size={12} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -906,17 +1097,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                           if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{loc.name}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {[loc.category, loc.borough].filter(Boolean).join(' · ')}
-                        </p>
-                        <a
-                          href={`/locations/${loc.id}`}
-                          onClick={e => e.stopPropagation()}
-                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
-                        >
-                          Details →
-                        </a>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-900 leading-snug">{loc.name}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              {[loc.category, loc.borough].filter(Boolean).join(' · ')}
+                            </p>
+                            <a
+                              href={`/locations/${loc.id}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                            >
+                              Details →
+                            </a>
+                          </div>
+                          <FavoriteButton type="location" id={loc.id} size={12} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -957,17 +1153,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                           if (poi.lat && poi.lng) setFlyTo([poi.lng, poi.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{poi.name ?? 'Unnamed'}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {[poi.category, poi.region].filter(Boolean).join(' · ')}
-                        </p>
-                        <a
-                          href={`/pois/${poi.id.replace('/', '_')}`}
-                          onClick={e => e.stopPropagation()}
-                          className="text-[10px] text-gray-400 hover:text-black hover:underline"
-                        >
-                          Details →
-                        </a>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-gray-900 leading-snug">{poi.name ?? 'Unnamed'}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              {[poi.category, poi.region].filter(Boolean).join(' · ')}
+                            </p>
+                            <a
+                              href={`/pois/${poi.id.replace('/', '_')}`}
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] text-gray-400 hover:text-black hover:underline"
+                            >
+                              Details →
+                            </a>
+                          </div>
+                          <FavoriteButton type="poi" id={poi.id} size={12} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1152,6 +1353,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                               Website →
                             </a>
                           )}
+                          <FavoriteButton
+                            type={isPOI ? 'poi' : isPark ? 'park' : isPlayground ? 'playground' : 'location'}
+                            id={p.id ?? gid ?? String(i)}
+                            size={12}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1196,7 +1402,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             resolvedFilters={resolved}
             venueGeoJSON={venueGeoJSON}
             mode={mode}
-            onBboxChange={useCallback((bbox: string, zoom: number) => { setMapBbox(bbox); setMapZoom(zoom) }, [])}
+            onBboxChange={useCallback((bbox: string, zoom: number) => {
+              setMapBbox(bbox)
+              setMapZoom(zoom)
+              // Track map center from bbox
+              const [minLng, minLat, maxLng, maxLat] = bbox.split(',').map(Number)
+              setMapCenter({ lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 })
+            }, [])}
             flyTo={flyTo}
             openVenuePopup={surpriseVenuePopup}
             liveRadar={liveRadar}
@@ -1226,12 +1438,72 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       </div>
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}
-      <ChatPanel date={dateFrom} />
+      <ChatPanel date={dateFrom} viewport={mapCenter ? { ...mapCenter, zoom: mapZoom } : undefined} />
+
+      {/* ── Favorites migration prompt ─────────────────── */}
+      <FavoritesMigrationPrompt />
 
       {/* ── Modals / drawers ────────────────────────────── */}
       {showAuth     && <AuthModal     onClose={() => setShowAuth(false)}     />}
       {showLists    && <ListsDrawer   onClose={() => setShowLists(false)}    />}
       {showCalendar && <CalendarPanel onClose={() => setShowCalendar(false)} />}
+    </div>
+  )
+}
+
+function FavoritesMigrationPrompt() {
+  const { user, createList, addToList } = useUser()
+  const { getAll, count: favCount } = useFavorites()
+  const [show, setShow] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const prompted = useRef(false)
+
+  useEffect(() => {
+    if (user && favCount > 0 && !prompted.current) {
+      const migrated = localStorage.getItem('citizen-favorites-migrated')
+      if (!migrated) {
+        prompted.current = true
+        setShow(true)
+      }
+    }
+  }, [user, favCount])
+
+  if (!show) return null
+
+  return (
+    <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-5 sm:w-80 z-50 bg-white border-2 border-black shadow-[4px_4px_0_#000] p-4">
+      <p className="text-xs font-bold mb-2">Save {favCount} favorite{favCount !== 1 ? 's' : ''} to your account?</p>
+      <p className="text-[10px] text-gray-500 mb-3">Your favorites are stored locally. Save them to a list so they sync across devices.</p>
+      <div className="flex gap-2">
+        <button
+          onClick={async () => {
+            setMigrating(true)
+            try {
+              const list = await createList('Favorites', '', false)
+              const items = getAll()
+              for (const item of items) {
+                await addToList(list.id, item.type as 'event' | 'location' | 'listing', item.id)
+              }
+              localStorage.setItem('citizen-favorites-migrated', 'true')
+              setShow(false)
+            } catch { /* ignore */ }
+            setMigrating(false)
+          }}
+          disabled={migrating}
+          className="text-xs border-2 border-black px-2.5 py-1 bg-black text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          {migrating ? 'Saving...' : 'Save to list'}
+        </button>
+        <button
+          onClick={() => {
+            localStorage.setItem('citizen-favorites-migrated', 'true')
+            setShow(false)
+          }}
+          className="text-xs border-2 border-black px-2.5 py-1 hover:bg-gray-100"
+        >
+          Not now
+        </button>
+      </div>
     </div>
   )
 }

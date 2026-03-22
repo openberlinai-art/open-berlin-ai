@@ -56,11 +56,16 @@ export async function fetchLocation(id: string): Promise<Location> {
 
 // ─── Event detail ─────────────────────────────────────────────────────────────
 
-export async function fetchEvent(id: string): Promise<Event> {
+export interface RelatedEvents {
+  sameVenue: Array<{ id: string; title: string; date_start: string; time_start: string | null; category: string | null; price_type: string | null }>
+  sameDate:  Array<{ id: string; title: string; date_start: string; time_start: string | null; category: string | null; price_type: string | null; location_name: string | null }>
+}
+
+export async function fetchEvent(id: string): Promise<Event & { related?: RelatedEvents }> {
   const res = await fetch(`${WORKER}/api/events/${id}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const json = await res.json() as { data: Event }
-  return json.data
+  const json = await res.json() as { data: Event; related?: RelatedEvents }
+  return { ...json.data, related: json.related }
 }
 
 // ─── Transit stops (VBB) ─────────────────────────────────────────────────────

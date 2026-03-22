@@ -31,9 +31,10 @@ interface Message {
 
 interface Props {
   date: string
+  viewport?: { lat: number; lng: number; zoom: number }
 }
 
-export default function ChatPanel({ date }: Props) {
+export default function ChatPanel({ date, viewport }: Props) {
   const [open,     setOpen]     = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input,    setInput]    = useState('')
@@ -55,7 +56,7 @@ export default function ChatPanel({ date }: Props) {
       const res  = await fetch('/api/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ messages: next, date }),
+        body:    JSON.stringify({ messages: next, date, viewport }),
       })
       const data = await res.json()
       const reply = data.response ?? data.error ?? 'No response'

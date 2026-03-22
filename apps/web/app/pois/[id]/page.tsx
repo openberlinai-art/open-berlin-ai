@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { fetchPOIDetail } from '@/lib/opendata'
 import { getPOILabel } from '@/lib/poi-config'
 import { POIPageClient } from './POIPageClient'
+import FavoriteButton from '@/components/FavoriteButton'
 
 export const revalidate = 3600
 
@@ -76,9 +77,12 @@ export default async function POIPage({ params }: Props) {
               {poi.category_group.replace('_', ' ')}
             </span>
           </div>
-          <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
-            {poi.name ?? `Unnamed ${label}`}
-          </h1>
+          <div className="flex items-start gap-2">
+            <h1 className="text-2xl font-extrabold leading-tight text-gray-900 flex-1">
+              {poi.name ?? `Unnamed ${label}`}
+            </h1>
+            <FavoriteButton type="poi" id={poi.id} size={20} className="mt-1" />
+          </div>
         </div>
 
         {/* Description */}

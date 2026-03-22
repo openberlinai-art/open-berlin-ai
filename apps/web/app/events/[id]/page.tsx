@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { fetchEvent } from '@/lib/opendata'
 import { EventPageClient } from '@/components/EventPageClient'
+import FavoriteButton from '@/components/FavoriteButton'
 import TranslatedText from '@/components/TranslatedText'
 
 export const revalidate = 300
@@ -113,9 +114,12 @@ export default async function EventPage({ params }: Props) {
               </span>
             ))}
           </div>
-          <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
-            <TranslatedText text={ev.title ?? 'Untitled Event'} />
-          </h1>
+          <div className="flex items-start gap-2">
+            <h1 className="text-2xl font-extrabold leading-tight text-gray-900 flex-1">
+              <TranslatedText text={ev.title ?? 'Untitled Event'} />
+            </h1>
+            <FavoriteButton type="event" id={id} size={20} className="mt-1" />
+          </div>
         </div>
 
         {/* Date/time */}
@@ -239,6 +243,50 @@ export default async function EventPage({ params }: Props) {
             } catch { return null }
           })()}
         </div>
+
+        {/* Related events: More at this venue */}
+        {ev.related?.sameVenue && ev.related.sameVenue.length > 0 && (
+          <div className="mb-6">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">More at this venue</p>
+            <div className="border-2 border-black divide-y-2 divide-black">
+              {ev.related.sameVenue.map(r => (
+                <Link
+                  key={r.id}
+                  href={`/events/${r.id}`}
+                  className="block px-3 py-2 hover:bg-gray-50 transition-colors"
+                >
+                  <p className="text-xs font-bold text-gray-900 leading-snug">{r.title}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    {new Date(r.date_start + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    {r.time_start ? ` · ${r.time_start.slice(0, 5)}` : ''}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Related events: Also on this date */}
+        {ev.related?.sameDate && ev.related.sameDate.length > 0 && (
+          <div className="mb-6">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Also on this date</p>
+            <div className="border-2 border-black divide-y-2 divide-black">
+              {ev.related.sameDate.map(r => (
+                <Link
+                  key={r.id}
+                  href={`/events/${r.id}`}
+                  className="block px-3 py-2 hover:bg-gray-50 transition-colors"
+                >
+                  <p className="text-xs font-bold text-gray-900 leading-snug">{r.title}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    {r.time_start ? r.time_start.slice(0, 5) : 'All day'}
+                    {r.location_name ? ` · ${r.location_name}` : ''}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Client actions + map/transit */}
         <EventPageClient id={id} lat={ev.lat ?? undefined} lng={ev.lng ?? undefined} />

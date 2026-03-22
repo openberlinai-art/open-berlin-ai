@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { fetchLocation } from '@/lib/opendata'
 import { VenuePageClient } from '@/components/VenuePageClient'
 import VibeCheck from '@/components/VibeCheck'
+import SimilarPlaces from '@/components/SimilarPlaces'
+import FavoriteButton from '@/components/FavoriteButton'
 import TranslatedText from '@/components/TranslatedText'
 import type { OpeningHour } from '@/lib/types'
 
@@ -130,9 +132,12 @@ export default async function LocationPage({ params }: Props) {
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-extrabold leading-tight text-gray-900">
-            <TranslatedText text={loc.name ?? 'Unknown Venue'} />
-          </h1>
+          <div className="flex items-start gap-2">
+            <h1 className="text-2xl font-extrabold leading-tight text-gray-900 flex-1">
+              <TranslatedText text={loc.name ?? 'Unknown Venue'} />
+            </h1>
+            <FavoriteButton type="location" id={loc.id} size={20} className="mt-1" />
+          </div>
         </div>
 
         {/* ── Photo collage (Wikimedia Commons) ── */}
@@ -274,6 +279,12 @@ export default async function LocationPage({ params }: Props) {
             ))}
           </div>
         )}
+
+        {/* ── Similar venues ── */}
+        <SimilarPlaces
+          query={`${loc.name ?? ''} ${loc.category ?? ''}`}
+          excludeId={loc.id}
+        />
 
         {/* ── Client section: mini map + share + add-to-list + grouped events ── */}
         <VenuePageClient
