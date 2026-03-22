@@ -1900,8 +1900,25 @@ app.patch('/api/notifications/:id', async c => {
 function normalizeQ(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/ß/g, 'ss')
+    // Normalize German digraphs: ae→a, oe→o, ue→u (but also handle doubled letters)
     .replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+    .replace(/tt/g, 't').replace(/ss/g, 's') // "spaetti"→"spati", "strasse"→"strase"
     .replace(/[-]/g, ' ')
+}
+
+/** Extra normalization patterns for fuzzy matching — returns additional LIKE patterns */
+function fuzzyVariants(raw: string): string[] {
+  const lower = raw.toLowerCase()
+  const variants: string[] = []
+  // If user typed ae/oe/ue, also try with ä/ö/ü (for DB columns that store originals)
+  if (/ae|oe|ue/.test(lower)) {
+    variants.push(`%${lower.replace(/ae/g, 'ä').replace(/oe/g, 'ö').replace(/ue/g, 'ü')}%`)
+  }
+  // If user typed a/o/u, also try with ä/ö/ü
+  if (/sp.t|sp.ti/i.test(lower)) {
+    variants.push(`%spät%`)
+  }
+  return variants
 }
 
 function parseAddressQuery(q: string): { street: string; number: string | null } {
@@ -1996,13 +2013,19 @@ app.get('/api/search', async c => {
         AND lat IS NOT NULL
       LIMIT 15
     `).bind(pattern, pattern, pattern).all<Record<string, unknown>>(),
-    c.env.DB.prepare(`
-      SELECT id, name, category_group, category, region, address, lat, lng
-      FROM pois
-      WHERE ${normSql('name')} LIKE ?
-         OR ${normSql('address')} LIKE ?
-      LIMIT 15
-    `).bind(pattern, pattern).all<Record<string, unknown>>(),
+    (() => {
+      const fv = fuzzyVariants(searchTerm)
+      const fuzzyPattern = fv.length > 0 ? fv[0] : '%__NOMATCH__%'
+      return c.env.DB.prepare(`
+        SELECT id, name, category_group, category, region, address, lat, lng
+        FROM pois
+        WHERE ${normSql('name')} LIKE ?
+           OR ${normSql('address')} LIKE ?
+           OR ${normSql('category')} LIKE ?
+           OR name LIKE ?
+        LIMIT 30
+      `).bind(pattern, pattern, pattern, fuzzyPattern).all<Record<string, unknown>>()
+    })(),
     c.env.DB.prepare(`
       SELECT name, lat, lng, postcode, borough FROM streets
       WHERE name_norm LIKE ? OR name_norm LIKE ?
