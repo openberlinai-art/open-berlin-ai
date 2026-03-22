@@ -352,8 +352,8 @@ export async function fetchJourney(
   const data = await res.json() as {
     journeys?: Array<{
       legs: Array<{
-        origin?:      { name?: string; location?: { longitude?: number; latitude?: number } }
-        destination?: { name?: string; location?: { longitude?: number; latitude?: number } }
+        origin?:      { name?: string; latitude?: number; longitude?: number; location?: { longitude?: number; latitude?: number } }
+        destination?: { name?: string; latitude?: number; longitude?: number; location?: { longitude?: number; latitude?: number } }
         departure?:   string
         arrival?:     string
         line?:        { name?: string; product?: string }
@@ -367,8 +367,10 @@ export async function fetchJourney(
 
   return (data.journeys ?? []).map(j => {
     const legs: JourneyLeg[] = j.legs.map(leg => {
-      const oLoc = leg.origin?.location
-      const dLoc = leg.destination?.location
+      const oLng = leg.origin?.location?.longitude ?? leg.origin?.longitude
+      const oLat = leg.origin?.location?.latitude  ?? leg.origin?.latitude
+      const dLng = leg.destination?.location?.longitude ?? leg.destination?.longitude
+      const dLat = leg.destination?.location?.latitude  ?? leg.destination?.latitude
       return {
         origin:      leg.origin?.name ?? '',
         destination: leg.destination?.name ?? '',
@@ -379,8 +381,8 @@ export async function fetchJourney(
         direction:   leg.direction     ?? null,
         walking:     leg.walking       ?? false,
         distance:    leg.distance      ?? null,
-        originCoords:      oLoc?.longitude != null && oLoc?.latitude != null ? [oLoc.longitude, oLoc.latitude] : null,
-        destinationCoords: dLoc?.longitude != null && dLoc?.latitude != null ? [dLoc.longitude, dLoc.latitude] : null,
+        originCoords:      oLng != null && oLat != null ? [oLng, oLat] : null,
+        destinationCoords: dLng != null && dLat != null ? [dLng, dLat] : null,
         polyline:          leg.polyline ?? null,
       }
     })
@@ -423,13 +425,24 @@ export function buildRouteDisplay(journey: Journey): RouteDisplayData | null {
     let geometry: GeoJSON.Feature<GeoJSON.LineString> | null = null
 
     if (!leg.walking && leg.polyline) {
-      // Transit leg: extract first LineString from the polyline FeatureCollection
-      const lineFeature = leg.polyline.features?.find(
-        (f): f is GeoJSON.Feature<GeoJSON.LineString> =>
-          f.geometry?.type === 'LineString',
-      )
-      if (lineFeature) {
-        geometry = lineFeature
+      // BVG API returns polyline as a FeatureCollection of Point features
+      // — collect all coordinates into a single LineString
+      const coords: [number, number][] = []
+      for (const f of leg.polyline.features ?? []) {
+        if (f.geometry?.type === 'Point') {
+          coords.push(f.geometry.coordinates as [number, number])
+        } else if (f.geometry?.type === 'LineString') {
+          for (const c of (f.geometry as GeoJSON.LineString).coordinates) {
+            coords.push(c as [number, number])
+          }
+        }
+      }
+      if (coords.length >= 2) {
+        geometry = {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: coords },
+        }
       }
     }
 
