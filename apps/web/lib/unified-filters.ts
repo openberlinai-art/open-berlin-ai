@@ -595,29 +595,24 @@ export interface FilterChip {
   groups: string[]     // which FILTER_GROUPS keys this controls
 }
 
-export const CHIP_CONFIG: FilterChip[] = [
-  { key: 'culture',    label: 'Culture',      icon: Palette,         color: '#7c3aed', groups: ['culture'] },
-  { key: 'nightlife',  label: 'Nightlife',    icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
-  { key: 'food_drink', label: 'Food & Drink', icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
-  { key: 'outdoors',   label: 'Outdoors',     icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
-  { key: 'shopping',   label: 'Shopping',     icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
-  { key: 'sports',     label: 'Sports',       icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
-  { key: 'services',   label: 'Services',     icon: Building2,       color: '#2563eb', groups: ['services'] },
-  { key: 'tourism',    label: 'Tourism',      icon: Camera,          color: '#0891b2', groups: ['tourism'] },
+/** Single scrollable row of quick-access chips (replaces CHIP_CONFIG + MORE_CHIPS) */
+export const QUICK_CHIPS: FilterChip[] = [
+  { key: 'food_drink', label: 'Restaurants', icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
+  { key: 'nightlife',  label: 'Nightlife',   icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
+  { key: 'shopping',   label: 'Shopping',    icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
+  { key: 'culture',    label: 'Culture',     icon: Palette,         color: '#7c3aed', groups: ['culture'] },
+  { key: 'outdoors',   label: 'Outdoors',    icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
+  { key: 'transport',  label: 'Transport',   icon: Train,           color: '#15803d', groups: ['transport'] },
+  { key: 'health',     label: 'Health',      icon: HeartPulse,      color: '#0891b2', groups: ['health', 'wellness'] },
+  { key: 'sports',     label: 'Sports',      icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
+  { key: 'services',   label: 'Services',    icon: Building2,       color: '#2563eb', groups: ['services'] },
+  { key: 'tourism',    label: 'Tourism',     icon: Camera,          color: '#0891b2', groups: ['tourism'] },
 ]
 
-export const MORE_CHIPS: FilterChip[] = [
-  { key: 'heritage',      label: 'Heritage',      icon: Castle,        color: '#854d0e', groups: ['heritage'] },
-  { key: 'monuments',     label: 'Monuments',      icon: Milestone,     color: '#b91c1c', groups: ['monuments'] },
-  { key: 'worship',       label: 'Worship',        icon: Church,        color: '#a16207', groups: ['worship'] },
-  { key: 'transport',     label: 'Transport',      icon: Train,         color: '#15803d', groups: ['transport'] },
-  { key: 'accommodation', label: 'Accommodation',  icon: Bed,           color: '#7c3aed', groups: ['accommodation'] },
-  { key: 'wellness',      label: 'Wellness',       icon: Heart,         color: '#0891b2', groups: ['wellness'] },
-  { key: 'education',     label: 'Education',      icon: GraduationCap, color: '#1d4ed8', groups: ['education'] },
-  { key: 'quirky',        label: 'Quirky',         icon: Sparkles,      color: '#d946ef', groups: ['quirky'] },
-  { key: 'health',        label: 'Health',         icon: HeartPulse,    color: '#0891b2', groups: ['health'] },
-  { key: 'craft',         label: 'Trades & Craft', icon: Wrench,        color: '#78716c', groups: ['craft'] },
-]
+/** @deprecated Use QUICK_CHIPS instead */
+export const CHIP_CONFIG = QUICK_CHIPS
+/** @deprecated Use QUICK_CHIPS instead */
+export const MORE_CHIPS: FilterChip[] = []
 
 export function getChipFilterKeys(chip: FilterChip): string[] {
   return chip.groups.flatMap(gk => {
@@ -628,4 +623,40 @@ export function getChipFilterKeys(chip: FilterChip): string[] {
 
 export function isChipActive(chip: FilterChip, active: Set<string>): boolean {
   return getChipFilterKeys(chip).some(k => active.has(k))
+}
+
+/** Google Maps-style isolate: when all filters are on, isolate to just this chip's groups */
+export function isolateChip(chip: FilterChip, activeFilters: Set<string>, allDefaults: Set<string>): Set<string> {
+  const chipKeys = new Set(getChipFilterKeys(chip))
+  const allActive = allDefaults.size === activeFilters.size && [...allDefaults].every(k => activeFilters.has(k))
+  const isIsolated = !allActive && chipKeys.size === activeFilters.size && [...activeFilters].every(k => chipKeys.has(k))
+
+  if (isIsolated) {
+    // Already isolated to this chip → restore all
+    return new Set(allDefaults)
+  }
+  // Isolate to only this chip
+  return chipKeys
+}
+
+// ─── Normalized filter search ───────────────────────────────────────────
+
+/** Normalize a string for German-aware fuzzy matching */
+export function normFilter(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/ß/g, 'ss').replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+    .replace(/tt/g, 't').replace(/ss/g, 's')
+}
+
+/** Search all subcategories matching a query, returns {group, cat, filterKey} */
+export function searchCategories(query: string): Array<{ group: UnifiedGroup; cat: UnifiedCategory; filterKey: string }> {
+  if (query.length < 2) return []
+  const q = normFilter(query)
+  return FILTER_GROUPS.flatMap(g =>
+    g.categories.filter(c => {
+      const normLabel = normFilter(c.label)
+      const normKey = normFilter(c.key.replace(/_/g, ' '))
+      return normLabel.includes(q) || normKey.includes(q)
+    }).map(c => ({ group: g, cat: c, filterKey: `${g.key}:${c.key}` }))
+  ).slice(0, 15)
 }

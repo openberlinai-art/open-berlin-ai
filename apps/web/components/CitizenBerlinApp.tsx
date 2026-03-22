@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
-  List, Map, CalendarDays,
+  List, Map, CalendarDays, MoreHorizontal,
 } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
@@ -16,7 +16,7 @@ import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, usePOIs
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
   FILTER_GROUPS, ALL_DEFAULTS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom,
-  CHIP_CONFIG, MORE_CHIPS, getChipFilterKeys, isChipActive,
+  QUICK_CHIPS, getChipFilterKeys, isChipActive, isolateChip, searchCategories,
 } from '@/lib/unified-filters'
 import type { FilterChip } from '@/lib/unified-filters'
 import type { VenuePopupState } from './MapView'
@@ -80,7 +80,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // ─── Unified filter state ──────────────────────────────────────────────────
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ALL_DEFAULTS))
-  const [filterQuery, setFilterQuery] = useState('')
 
   const [mapZoom, setMapZoom] = useState(11)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
@@ -120,12 +119,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   }, [mapCenter, mapZoom, mode, search])
 
   function toggleChip(chip: FilterChip) {
-    const keys = getChipFilterKeys(chip)
     setActiveFilters(prev => {
-      const next = new Set(prev)
-      const active = keys.some(k => next.has(k))
-      if (active) keys.forEach(k => next.delete(k))
-      else keys.forEach(k => next.add(k))
+      const next = isolateChip(chip, prev, new Set(ALL_DEFAULTS))
       pushFilterURL(next)
       return next
     })
@@ -144,6 +139,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [liveRadar,    setLiveRadar]    = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
   const setMode = useCallback((m: 'events' | 'venues' | 'listings') => {
     setModeRaw(m)
     syncToURL({
@@ -404,6 +401,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     function handleClick(e: MouseEvent) {
       if (calRef.current && !calRef.current.contains(e.target as Node)) setCalOpen(false)
       if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -495,67 +493,51 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b-2 border-[var(--border-primary)]">
-          <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-bold tracking-tight">Citizen.Berlin</h1>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  const pool = mode === 'events' ? events : allVenueFeatures
-                  if (!pool.length) return
-                  const item = pool[Math.floor(Math.random() * pool.length)]
-                  if (mode === 'events') {
-                    const ev = item as Event
-                    if (ev.lat && ev.lng) {
-                      setFlyTo([ev.lng, ev.lat])
-                      setActiveId(ev.id)
-                    }
-                  } else {
-                    const f = item as GeoJSON.Feature<GeoJSON.Point>
-                    const coords = f.geometry?.coordinates as [number, number] | undefined
-                    if (coords) {
-                      setFlyTo(coords)
-                      const p = f.properties ?? {}
-                      setSurpriseVenuePopup({
-                        _key:     Date.now(),
-                        lat:      coords[1],
-                        lng:      coords[0],
-                        name:     (p.name as string) ?? 'Venue',
-                        category: (p.category as string) ?? 'other',
-                        address:  (p.address as string) ?? undefined,
-                        website:  (p.website as string) ?? undefined,
-                        id:       (p.id as string) ?? undefined,
-                        borough:  (p.borough as string) ?? undefined,
-                      })
-                    }
-                  }
-                }}
-                className="text-[10px] border border-[var(--border-primary)] px-1.5 py-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] font-bold"
-                title="Surprise Me"
-              >
-                ✦ Surprise
-              </button>
               {user && <NotificationsBell />}
-              <ThemeToggle />
-              <LanguageSelector />
-              <button
-                onClick={() => { if (user) setShowCalendar(true); else setShowAuth(true) }}
-                title="My Calendar"
-                className="relative flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
-              >
-                <CalendarDays size={14} />
-                {user && attendance.length > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-[var(--accent)] text-[var(--accent-text)] text-[9px] font-bold flex items-center justify-center border border-white">
-                    {attendance.length > 9 ? '9+' : attendance.length}
-                  </span>
+              {/* ⋯ More menu */}
+              <div ref={moreMenuRef} className="relative">
+                <button
+                  onClick={() => setMoreMenuOpen(o => !o)}
+                  title="More options"
+                  className="flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
+                >
+                  <MoreHorizontal size={14} />
+                </button>
+                {moreMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] w-48 py-1">
+                    <div className="px-3 py-1.5 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Theme</span>
+                      <ThemeToggle />
+                    </div>
+                    <div className="px-3 py-1.5 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Language</span>
+                      <LanguageSelector />
+                    </div>
+                    <button
+                      onClick={() => { setMoreMenuOpen(false); if (user) setShowCalendar(true); else setShowAuth(true) }}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--bg-secondary)] flex items-center gap-2"
+                    >
+                      <CalendarDays size={12} />
+                      My Calendar
+                      {user && attendance.length > 0 && (
+                        <span className="ml-auto text-[9px] font-bold bg-[var(--accent)] text-[var(--accent-text)] px-1 py-0.5">
+                          {attendance.length > 9 ? '9+' : attendance.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => { setMoreMenuOpen(false); if (user) setShowLists(true); else setShowAuth(true) }}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--bg-secondary)] flex items-center gap-2"
+                    >
+                      <BookMarked size={12} />
+                      My Lists
+                    </button>
+                  </div>
                 )}
-              </button>
-              <button
-                onClick={() => { if (user) setShowLists(true); else setShowAuth(true) }}
-                title="My Lists"
-                className="relative flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
-              >
-                <BookMarked size={14} />
-              </button>
+              </div>
               {user ? (
                 <a
                   href="/profile"
@@ -575,14 +557,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               )}
             </div>
           </div>
-          <p className="text-xs text-[var(--text-secondary)]">Berlin culture events, live<WeatherWidget /></p>
 
-          {/* Search */}
-          <div className="relative mt-2">
+          {/* Unified Search */}
+          <div className="relative">
             <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search events, venues, streets…"
+              placeholder="Search places, events, categories…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full text-xs border-2 border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
@@ -595,6 +576,40 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 <X size={11} />
               </button>
             )}
+            {/* Unified search dropdown: filter matches + Surprise Me when empty */}
+            {search.trim().length >= 2 && (() => {
+              const filterMatches = searchCategories(search.trim())
+              if (filterMatches.length === 0) return null
+              return (
+                <div className="absolute z-50 left-0 right-0 top-full mt-0.5 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] max-h-52 overflow-y-auto">
+                  <p className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-100">Filter by category</p>
+                  {filterMatches.map(({ group, cat, filterKey }) => {
+                    const on = activeFilters.has(filterKey)
+                    return (
+                      <button
+                        key={filterKey}
+                        onClick={() => {
+                          setActiveFilters(prev => {
+                            const next = new Set(prev)
+                            if (on) next.delete(filterKey); else next.add(filterKey)
+                            pushFilterURL(next)
+                            return next
+                          })
+                          setMode('venues')
+                        }}
+                        className={`flex items-center gap-2 w-full text-left text-xs px-2.5 py-1.5 hover:bg-[var(--bg-secondary)] ${on ? 'font-bold' : ''}`}
+                      >
+                        <span className="w-3 h-3 shrink-0 rounded-sm border-2 flex items-center justify-center" style={{ borderColor: cat.color, background: on ? cat.color : 'transparent' }}>
+                          {on && <span className="text-white text-[8px]">✓</span>}
+                        </span>
+                        <span>{cat.label}</span>
+                        <span className="text-[9px] text-gray-400 ml-auto">{group.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Filter row — only shown in events mode */}
@@ -734,20 +749,45 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Mode + utility row ──────────────────────────────────────── */}
+        {/* ── Mode row ──────────────────────────────────────── */}
         <div className="px-4 py-2 border-b-2 border-[var(--border-primary)]">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Mode chips */}
+          <div className="flex items-center gap-1.5">
             <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
+            <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
             <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
-            <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
-            {/* Utility buttons */}
+            <WeatherWidget />
+          </div>
+        </div>
+
+        {/* ── Category chips + utility icons ────────────────────── */}
+        <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {QUICK_CHIPS.map(chip => {
+              const Icon = chip.icon
+              const chipKeys = new Set(getChipFilterKeys(chip))
+              const allDefaults = new Set(ALL_DEFAULTS)
+              const allActive = allDefaults.size === activeFilters.size && [...allDefaults].every(k => activeFilters.has(k))
+              const isIsolated = !allActive && chipKeys.size === activeFilters.size && [...activeFilters].every(k => chipKeys.has(k))
+              return (
+                <button
+                  key={chip.key}
+                  onClick={() => toggleChip(chip)}
+                  className={`inline-flex items-center gap-1 text-[11px] whitespace-nowrap px-2 py-1 rounded-full border shrink-0 ${isIsolated ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
+                  style={isIsolated ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                >
+                  <Icon size={11} className="shrink-0" />
+                  {chip.label}
+                </button>
+              )
+            })}
+            {/* Utility icons at the end of chip row */}
+            <span className="text-gray-200 mx-0.5 shrink-0">|</span>
             <button
               onClick={() => setLiveRadar(v => !v)}
-              className={`shrink-0 ${liveRadar ? btnActive : btn}`}
+              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${liveRadar ? 'bg-red-500 border-red-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
               title="Live vehicle radar"
             >
-              ● Live
+              <span className="text-[10px]">●</span>
             </button>
             <button
               onClick={() => {
@@ -769,23 +809,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   { enableHighAccuracy: true, timeout: 10000 },
                 )
               }}
-              className={`shrink-0 ${nearbyMode ? btnActive : btn}`}
+              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${nearbyMode ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
               title="Near Me"
             >
-              <span className="flex items-center gap-1">
-                <Navigation size={10} />
-                {nearbyLoading ? '...' : 'Near Me'}
-              </span>
+              <Navigation size={12} />
             </button>
             <button
               onClick={() => setShowFavoritesOnly(v => !v)}
-              className={`shrink-0 ${showFavoritesOnly ? btnActive : btn}`}
+              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${showFavoritesOnly ? 'bg-pink-500 border-pink-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
               title="Show favorites"
             >
-              <span className="flex items-center gap-1">
-                <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
-                {favCount > 0 ? favCount : ''}
-              </span>
+              <Heart size={12} fill={showFavoritesOnly ? '#fff' : 'none'} />
             </button>
             <button
               onClick={() => {
@@ -793,97 +827,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 setUrlCopied(true)
                 setTimeout(() => setUrlCopied(false), 2000)
               }}
-              className={`shrink-0 ${btn}`}
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
               title="Share this view"
             >
-              <span className="flex items-center gap-1">
-                {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
-              </span>
+              {urlCopied ? <Check size={12} /> : <Share2 size={12} />}
             </button>
-          </div>
-        </div>
-
-        {/* ── Category chips + search-to-select ────────────────────── */}
-        <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
-          {/* Search input for subcategories */}
-          <div className="relative mb-1.5">
-            <input
-              type="text"
-              placeholder="Find a category (e.g. Späti, tattoo, yoga…)"
-              value={filterQuery}
-              onChange={e => setFilterQuery(e.target.value)}
-              className="w-full text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 pr-7 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
-              autoComplete="off"
-            />
-            {filterQuery && (
-              <button
-                onClick={() => setFilterQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--text-primary)]"
-              >
-                <X size={11} />
-              </button>
-            )}
-            {/* Search results dropdown */}
-            {filterQuery.trim().length >= 2 && (() => {
-              const q = filterQuery.trim().toLowerCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/ß/g, 'ss').replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
-              const matches = FILTER_GROUPS.flatMap(g =>
-                g.categories.filter(c => {
-                  const normLabel = c.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/ß/g, 'ss').replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
-                  const normKey = c.key.replace(/_/g, ' ')
-                  return normLabel.includes(q) || normKey.includes(q) || c.label.toLowerCase().includes(filterQuery.trim().toLowerCase())
-                }).map(c => ({ group: g, cat: c, fk: `${g.key}:${c.key}` }))
-              ).slice(0, 20)
-              if (matches.length === 0) return null
-              return (
-                <div className="absolute z-50 left-0 right-0 mt-0.5 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] max-h-52 overflow-y-auto">
-                  {matches.map(({ group, cat, fk }) => {
-                    const on = activeFilters.has(fk)
-                    return (
-                      <button
-                        key={fk}
-                        onClick={() => {
-                          setActiveFilters(prev => {
-                            const next = new Set(prev)
-                            if (on) next.delete(fk); else next.add(fk)
-                            pushFilterURL(next)
-                            return next
-                          })
-                          setMode('venues')
-                        }}
-                        className={`flex items-center gap-2 w-full text-left text-xs px-2.5 py-1.5 hover:bg-[var(--bg-secondary)] ${on ? 'font-bold' : ''}`}
-                      >
-                        <span className="w-3 h-3 shrink-0 rounded-sm border-2 flex items-center justify-center" style={{ borderColor: cat.color, background: on ? cat.color : 'transparent' }}>
-                          {on && <span className="text-white text-[8px]">✓</span>}
-                        </span>
-                        <span>{cat.label}</span>
-                        <span className="text-[9px] text-gray-400 ml-auto">{group.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-          </div>
-          {/* Quick category chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {[...CHIP_CONFIG, ...MORE_CHIPS].map(chip => {
-              const Icon = chip.icon
-              const active = isChipActive(chip, activeFilters)
-              return (
-                <button
-                  key={chip.key}
-                  onClick={() => toggleChip(chip)}
-                  className={`inline-flex items-center gap-1 text-[11px] whitespace-nowrap px-2 py-1 rounded-full border shrink-0 ${active ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-                  style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
-                >
-                  <Icon size={11} className="shrink-0" />
-                  {chip.label}
-                </button>
-              )
-            })}
           </div>
         </div>
 
@@ -1240,6 +1188,21 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             />
           ) : mode === 'events' ? (
             <>
+            {/* Surprise Me — moved from header */}
+            <button
+              onClick={() => {
+                const pool = events
+                if (!pool.length) return
+                const ev = pool[Math.floor(Math.random() * pool.length)]
+                if (ev.lat && ev.lng) {
+                  setFlyTo([ev.lng, ev.lat])
+                  setActiveId(ev.id)
+                }
+              }}
+              className="mx-4 mt-2 mb-1 text-xs border-2 border-dashed border-[var(--border-primary)] px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] hover:border-solid w-[calc(100%-2rem)]"
+            >
+              ✦ Surprise me — random event
+            </button>
             <ForYouSection />
             <WeatherPicks date={dateFrom} />
             <TrendingSection />
@@ -1409,152 +1372,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
       {/* ── Map ─────────────────────────────────────────── */}
       <div className={`flex-1 relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
-        {/* Mobile map search bar */}
-        <div className="absolute top-2 left-2 right-2 z-10 md:hidden">
-          <div className="relative">
-            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search events, venues, streets…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full text-xs border-2 border-[var(--border-primary)] bg-[var(--bg-primary)] pl-7 pr-7 py-2 outline-none shadow-[2px_2px_0_var(--border-primary)]"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
-          {/* Mobile search results dropdown */}
-          {search.trim() && searchResults && (
-            <div className="mt-1 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[2px_2px_0_var(--border-primary)] max-h-[50vh] overflow-y-auto">
-              {(searchResults.events?.length ?? 0) === 0 && (searchResults.locations?.length ?? 0) === 0 && (searchResults.places?.length ?? 0) === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 ? (
-                <p className="px-3 py-3 text-xs text-gray-400 text-center">{searching ? 'Searching…' : 'No results'}</p>
-              ) : (
-                <>
-                  {searchResults.events?.slice(0, 5).map(ev => (
-                    <div key={ev.id} className="flex items-center border-b border-gray-100">
-                      <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
-                        onClick={() => {
-                          setSearch('')
-                          if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
-                        }}
-                      >
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{ev.title}</p>
-                        <p className="text-[10px] text-gray-500">{ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}</p>
-                      </button>
-                      {ev.lat && ev.lng && (
-                        <button
-                          className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
-                          onClick={() => {
-                            setSearch('')
-                            setFlyTo([ev.lng!, ev.lat!])
-                            setMobileSheetPopup({ lat: ev.lat!, lng: ev.lng!, name: ev.title, category: ev.category ?? 'Event' })
-                          }}
-                        >↗</button>
-                      )}
-                    </div>
-                  ))}
-                  {searchResults.locations?.slice(0, 5).map(loc => (
-                    <div key={loc.id} className="flex items-center border-b border-gray-100">
-                      <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
-                        onClick={() => {
-                          setSearch('')
-                          if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
-                        }}
-                      >
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{loc.name}</p>
-                        <p className="text-[10px] text-gray-500">{loc.category}{loc.borough ? ` · ${loc.borough}` : ''}</p>
-                      </button>
-                      {loc.lat && loc.lng && (
-                        <button
-                          className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
-                          onClick={() => {
-                            setSearch('')
-                            setFlyTo([loc.lng!, loc.lat!])
-                            setMobileSheetPopup({ lat: loc.lat!, lng: loc.lng!, name: loc.name, category: loc.category ?? 'Venue', address: loc.address ?? undefined, id: loc.id, borough: loc.borough ?? undefined })
-                          }}
-                        >↗</button>
-                      )}
-                    </div>
-                  ))}
-                  {searchResults.pois?.slice(0, 5).map(poi => (
-                    <div key={poi.id} className="flex items-center border-b border-gray-100">
-                      <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([poi.lng, poi.lat])
-                        }}
-                      >
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{poi.name ?? poi.category}</p>
-                        <p className="text-[10px] text-gray-500">{poi.category_group} · {poi.region}</p>
-                      </button>
-                      <button
-                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([poi.lng, poi.lat])
-                          setMobileSheetPopup({ lat: poi.lat, lng: poi.lng, name: poi.name ?? poi.category, category: poi.category_group, address: poi.address ?? undefined, id: `poi:${poi.id}` })
-                        }}
-                      >↗</button>
-                    </div>
-                  ))}
-                  {searchResults.streets?.slice(0, 3).map((st, i) => (
-                    <div key={`st-${i}`} className="flex items-center border-b border-gray-100">
-                      <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([st.lng, st.lat])
-                        }}
-                      >
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{st.name}</p>
-                        <p className="text-[10px] text-gray-500">{st.borough}{st.postcode ? ` · ${st.postcode}` : ''}</p>
-                      </button>
-                      <button
-                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([st.lng, st.lat])
-                          setMobileSheetPopup({ lat: st.lat, lng: st.lng, name: st.name, category: 'Street' })
-                        }}
-                      >↗</button>
-                    </div>
-                  ))}
-                  {searchResults.places?.slice(0, 3).map(pl => (
-                    <div key={pl.id} className="flex items-center border-b border-gray-100">
-                      <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([pl.lng, pl.lat])
-                        }}
-                      >
-                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{pl.name}</p>
-                        <p className="text-[10px] text-gray-500">{pl.type}</p>
-                      </button>
-                      <button
-                        className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-black shrink-0"
-                        onClick={() => {
-                          setSearch('')
-                          setFlyTo([pl.lng, pl.lat])
-                          setMobileSheetPopup({ lat: pl.lat, lng: pl.lng, name: pl.name, category: pl.type })
-                        }}
-                      >↗</button>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Mobile floating search button — scrolls to sidebar search */}
+        <button
+          className="absolute top-2 right-2 z-10 md:hidden w-10 h-10 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[2px_2px_0_var(--border-primary)] flex items-center justify-center"
+          onClick={() => setMobileView('list')}
+          title="Search"
+        >
+          <Search size={14} />
+        </button>
         <ErrorBoundary fallback={
           <div className="flex items-center justify-center h-full text-xs text-gray-500">Map failed to load.</div>
         }>
@@ -1640,7 +1465,15 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   View details
                 </a>
               )}
-              {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && !mobileSheetPopup.id.startsWith('park:') && !mobileSheetPopup.id.startsWith('playground:') && (
+              {mobileSheetPopup.id?.startsWith('listing:') && (
+                <a
+                  href={`/listings/${mobileSheetPopup.id.replace('listing:', '')}`}
+                  className="text-xs font-bold border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
+                >
+                  View listing
+                </a>
+              )}
+              {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && !mobileSheetPopup.id.startsWith('park:') && !mobileSheetPopup.id.startsWith('playground:') && !mobileSheetPopup.id.startsWith('listing:') && (
                 <a
                   href={`/locations/${mobileSheetPopup.id}`}
                   className="text-xs font-bold border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"

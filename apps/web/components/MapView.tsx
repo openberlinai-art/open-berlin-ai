@@ -15,10 +15,8 @@ import {
 import type { VBBStop, Departure } from '@/lib/opendata'
 import type { ResolvedFilters } from '@/lib/unified-filters'
 import { getMinZoomForFilter } from '@/lib/zoom-tiers'
-import VibeCheck from './VibeCheck'
 import JourneyWidget from './JourneyWidget'
 import FavoriteButton from './FavoriteButton'
-import SuggestEditButton from './SuggestEditButton'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 
 const MAP_STYLE   = 'https://tiles.openfreemap.org/styles/liberty'
@@ -320,12 +318,22 @@ export default function MapView({
     const feature = features[0]
     const layerId = feature.layer?.id
 
-    // Event marker → select/deselect
+    // Event marker → select/deselect (on mobile, also open bottom sheet)
     if (layerId === 'events-point') {
       const id = feature.properties?.id as string
       onEventSelect(id === activeId ? null : id)
       setTransitPopup(null)
       setVenuePopup(null)
+      if (isMobileRef.current && onMobilePopupRef.current && id !== activeId) {
+        const props = feature.properties
+        const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+        onMobilePopupRef.current({
+          lat:      coords[1],
+          lng:      coords[0],
+          name:     (props?.title as string) ?? 'Event',
+          category: (props?.category as string) ?? 'Event',
+        })
+      }
       return
     }
 
@@ -441,20 +449,30 @@ export default function MapView({
       return
     }
 
-    // Listing marker → show listing popup
+    // Listing marker → show listing popup (on mobile, use bottom sheet)
     if (layerId === 'listings-point') {
       const props  = feature.properties
       if (!props) return
       const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
-      setListingPopup({
-        lat:             coords[1],
-        lng:             coords[0],
-        id:              (props.id as string) ?? '',
-        title:           (props.title as string) ?? 'Listing',
-        type:            (props.type as string) ?? 'item',
-        price_label:     (props.price_label as string) ?? '',
-        first_image_url: (props.first_image_url as string) ?? null,
-      })
+      if (isMobileRef.current && onMobilePopupRef.current) {
+        onMobilePopupRef.current({
+          lat:      coords[1],
+          lng:      coords[0],
+          name:     (props.title as string) ?? 'Listing',
+          category: ((props.type as string) ?? 'item').replace('_', ' '),
+          id:       `listing:${(props.id as string) ?? ''}`,
+        })
+      } else {
+        setListingPopup({
+          lat:             coords[1],
+          lng:             coords[0],
+          id:              (props.id as string) ?? '',
+          title:           (props.title as string) ?? 'Listing',
+          type:            (props.type as string) ?? 'item',
+          price_label:     (props.price_label as string) ?? '',
+          first_image_url: (props.first_image_url as string) ?? null,
+        })
+      }
       setVenuePopup(null)
       setTransitPopup(null)
       setGreenspacePopup(null)
@@ -1191,7 +1209,7 @@ export default function MapView({
           </Popup>
         )}
 
-        {/* ── Venue popup ──────────────────────────── */}
+        {/* ── Venue popup (compact) ──────────────────── */}
         {venuePopup && (
           <Popup
             longitude={venuePopup.lng}
@@ -1199,17 +1217,9 @@ export default function MapView({
             anchor="bottom"
             closeButton={false}
             onClose={() => setVenuePopup(null)}
-            maxWidth="280px"
+            maxWidth="260px"
           >
-            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[200px]">
-              {venuePopup.image_url && (
-                <img
-                  src={venuePopup.image_url}
-                  alt={venuePopup.name}
-                  loading="lazy"
-                  className="w-full h-28 object-cover"
-                />
-              )}
+            <div className="font-sans text-xs border-2 border-black bg-white shadow-[3px_3px_0_#000] min-w-[180px]">
               <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
                 <div>
                   <p className="font-bold text-gray-900 leading-snug">{venuePopup.name}</p>
@@ -1217,36 +1227,16 @@ export default function MapView({
                     <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{venuePopup.category}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                  {venuePopup.id && (
-                    <FavoriteButton
-                      type={venuePopup.id.startsWith('poi:') ? 'poi' : venuePopup.id.startsWith('node/') || venuePopup.id.startsWith('way/') ? 'osm' : 'location'}
-                      id={venuePopup.id.replace('poi:', '')}
-                      size={14}
-                    />
-                  )}
-                  <button
-                    onClick={() => setVenuePopup(null)}
-                    className="w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none"
-                    aria-label="Close"
-                  >✕</button>
-                </div>
+                <button
+                  onClick={() => setVenuePopup(null)}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center border border-black hover:bg-black hover:text-white font-bold text-[11px] leading-none mt-0.5"
+                  aria-label="Close"
+                >✕</button>
               </div>
               <div className="px-3 pb-2.5 space-y-1">
                 {venuePopup.address && (
                   <p className="text-gray-500 font-mono text-[10px]">{venuePopup.address}</p>
                 )}
-                {venuePopup.website && (
-                  <a
-                    href={venuePopup.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-500 underline break-all text-[10px] block"
-                  >
-                    {venuePopup.website.replace(/^https?:\/\//, '')}
-                  </a>
-                )}
-                {/* Directions + Street View */}
                 <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${venuePopup.lat},${venuePopup.lng}&travelmode=transit`}
@@ -1256,20 +1246,12 @@ export default function MapView({
                   >
                     ↗ Directions
                   </a>
-                  <a
-                    href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${venuePopup.lat},${venuePopup.lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] text-gray-500 border border-gray-300 px-1.5 py-0.5 hover:border-black"
-                  >
-                    Street View
-                  </a>
                   {venuePopup.id && venuePopup.id.startsWith('poi:') && (
                     <Link
                       href={`/pois/${venuePopup.id.replace('poi:', '')}`}
                       className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
                     >
-                      View details →
+                      Details →
                     </Link>
                   )}
                   {venuePopup.id && !venuePopup.id.startsWith('node/') && !venuePopup.id.startsWith('way/') && !venuePopup.id.startsWith('poi:') && (
@@ -1277,51 +1259,27 @@ export default function MapView({
                       href={`/locations/${venuePopup.id}`}
                       className="inline-block text-[10px] font-bold border border-black px-1.5 py-0.5 hover:bg-black hover:text-white transition-colors"
                     >
-                      View venue →
+                      Details →
                     </Link>
                   )}
                 </div>
-                <SuggestEditButton
-                  venueId={venuePopup.id}
-                  osmId={venuePopup.id?.startsWith('node/') || venuePopup.id?.startsWith('way/') ? venuePopup.id : undefined}
-                  poiId={venuePopup.id?.startsWith('poi:') ? venuePopup.id.replace('poi:', '') : undefined}
-                  category={venuePopup.category}
-                  name={venuePopup.name}
-                  lat={venuePopup.lat}
-                  lng={venuePopup.lng}
-                />
-                {/* Vibe Check */}
-                {venuePopup.id && (
-                  <VibeCheck
-                    id={venuePopup.id}
-                    name={venuePopup.name}
-                    category={venuePopup.category}
-                    borough={venuePopup.borough}
-                  />
-                )}
-              </div>
-              {transitData && transitData.length > 0 && (
-                <div className="px-3 pb-2.5 pt-1.5 border-t border-gray-100 flex flex-wrap gap-1.5">
-                  {(['subway', 'suburban', 'tram', 'bus'] as const).map(type => {
-                    const stop = transitData.find(s => s.type === type)
-                    if (!stop) return null
-                    const meta = {
-                      subway:   { s: 'U', c: '#1d4ed8' },
-                      suburban: { s: 'S', c: '#15803d' },
-                      tram:     { s: 'T', c: '#b91c1c' },
-                      bus:      { s: 'B', c: '#6b7280' },
-                    }[type]
-                    return (
-                      <span key={type} className="flex items-center gap-1 text-[10px] text-gray-600">
-                        <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-extrabold text-white shrink-0" style={{ background: meta.c }}>{meta.s}</span>
-                        {stop.name}
-                      </span>
-                    )
-                  })}
-                </div>
-              )}
-              <div className="px-3 pb-2.5 pt-1 border-t border-gray-100">
-                <JourneyWidget toLat={venuePopup.lat} toLng={venuePopup.lng} />
+                {/* Closest transit stop only */}
+                {transitData && transitData.length > 0 && (() => {
+                  const stop = transitData[0]
+                  const meta: Record<string, { s: string; c: string }> = {
+                    subway:   { s: 'U', c: '#1d4ed8' },
+                    suburban: { s: 'S', c: '#15803d' },
+                    tram:     { s: 'T', c: '#b91c1c' },
+                    bus:      { s: 'B', c: '#6b7280' },
+                  }
+                  const m = meta[stop.type] ?? { s: '?', c: '#6b7280' }
+                  return (
+                    <div className="flex items-center gap-1 text-[10px] text-gray-500 pt-0.5">
+                      <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-extrabold text-white shrink-0" style={{ background: m.c }}>{m.s}</span>
+                      {stop.name}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           </Popup>
