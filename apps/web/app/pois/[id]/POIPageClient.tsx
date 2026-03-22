@@ -6,6 +6,7 @@ import JourneyWidget from '@/components/JourneyWidget'
 import VibeCheck from '@/components/VibeCheck'
 import SimilarPlaces from '@/components/SimilarPlaces'
 import FavoriteButton from '@/components/FavoriteButton'
+import ReviewSection from '@/components/ReviewSection'
 import { fetchTransitStopsVBB, fetchDepartures } from '@/lib/opendata'
 import type { VBBStop, Departure } from '@/lib/opendata'
 
@@ -175,6 +176,9 @@ export function POIPageClient({ id, lat, lng, name, category, categoryGroup }: P
 
       {/* Nearby transit */}
       {lat && lng && <POITransit lat={lat} lng={lng} />}
+
+      {/* Reviews */}
+      <ReviewSection itemType="poi" itemId={id} />
     </>
   )
 }

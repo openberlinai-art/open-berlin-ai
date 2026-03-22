@@ -32,9 +32,10 @@ interface Message {
 interface Props {
   date: string
   viewport?: { lat: number; lng: number; zoom: number }
+  token?: string | null
 }
 
-export default function ChatPanel({ date, viewport }: Props) {
+export default function ChatPanel({ date, viewport, token }: Props) {
   const [open,     setOpen]     = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input,    setInput]    = useState('')
@@ -53,9 +54,11 @@ export default function ChatPanel({ date, viewport }: Props) {
     setMessages(next)
     setLoading(true)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const res = await fetch('/api/chat', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body:    JSON.stringify({ messages: next, date, viewport }),
       })
 
@@ -118,7 +121,7 @@ export default function ChatPanel({ date, viewport }: Props) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-5 sm:bottom-5 z-50 bg-black text-white p-3 border-2 border-black shadow-[4px_4px_0_#555] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
+          className="fixed bottom-20 right-5 sm:bottom-5 z-50 bg-[var(--accent)] text-[var(--accent-text)] p-3 border-2 border-[var(--border-primary)] shadow-[4px_4px_0_#555] hover:shadow-none hover:translate-x-1 hover:translate-y-1"
           aria-label="Open chat"
         >
           <MessageSquare size={20} />
@@ -127,9 +130,9 @@ export default function ChatPanel({ date, viewport }: Props) {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-20 right-5 sm:bottom-5 z-50 w-80 max-h-[480px] flex flex-col bg-white border-2 border-black shadow-[4px_4px_0_#000] overflow-hidden">
+        <div className="fixed bottom-20 right-5 sm:bottom-5 z-50 w-80 max-h-[480px] flex flex-col bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-black bg-black text-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border-primary)] bg-[var(--accent)] text-[var(--accent-text)]">
             <span className="text-sm font-bold">Ask about today's events</span>
             <button onClick={() => setOpen(false)} className="hover:opacity-70">
               <X size={16} />
@@ -140,13 +143,13 @@ export default function ChatPanel({ date, viewport }: Props) {
           <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm min-h-0">
             {messages.length === 0 && (
               <div className="mt-3 space-y-2">
-                <p className="text-gray-400 text-[10px] text-center">Ask anything or try:</p>
+                <p className="text-[var(--text-muted)] text-[10px] text-center">Ask anything or try:</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {suggestedPrompts.map(prompt => (
                     <button
                       key={prompt}
                       onClick={() => send(prompt)}
-                      className="text-[10px] border border-gray-300 px-2 py-1 hover:border-black hover:bg-gray-50 transition-colors"
+                      className="text-[10px] border border-[var(--border-secondary)] px-2 py-1 hover:border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] transition-colors"
                     >
                       {prompt}
                     </button>
@@ -158,8 +161,8 @@ export default function ChatPanel({ date, viewport }: Props) {
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                 <div className={
                   m.role === 'user'
-                    ? 'bg-black text-white px-3 py-2 max-w-[85%] text-xs border-2 border-black'
-                    : 'bg-gray-100 text-gray-900 px-3 py-2 max-w-[85%] text-xs border-2 border-black leading-relaxed'
+                    ? 'bg-[var(--accent)] text-[var(--accent-text)] px-3 py-2 max-w-[85%] text-xs border-2 border-[var(--border-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] px-3 py-2 max-w-[85%] text-xs border-2 border-[var(--border-primary)] leading-relaxed'
                 }>
                   {m.role === 'user'
                     ? m.content
@@ -170,7 +173,7 @@ export default function ChatPanel({ date, viewport }: Props) {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-400 px-3 py-2 text-xs border-2 border-gray-300">
+                <div className="bg-[var(--bg-secondary)] text-[var(--text-muted)] px-3 py-2 text-xs border-2 border-[var(--border-secondary)]">
                   Thinking…
                 </div>
               </div>
@@ -179,18 +182,18 @@ export default function ChatPanel({ date, viewport }: Props) {
           </div>
 
           {/* Input */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t-2 border-black">
+          <div className="flex items-center gap-2 px-3 py-2 border-t-2 border-[var(--border-primary)]">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && send()}
               placeholder="Ask about events…"
-              className="flex-1 text-xs border-2 border-black px-3 py-2 outline-none focus:bg-gray-50"
+              className="flex-1 text-xs border-2 border-[var(--border-primary)] px-3 py-2 outline-none focus:bg-[var(--bg-secondary)]"
             />
             <button
               onClick={() => send()}
               disabled={!input.trim() || loading}
-              className="p-2 bg-black text-white border-2 border-black disabled:opacity-40 hover:bg-gray-800"
+              className="p-2 bg-[var(--accent)] text-[var(--accent-text)] border-2 border-[var(--border-primary)] disabled:opacity-40 hover:bg-[var(--accent)]"
             >
               <Send size={14} />
             </button>

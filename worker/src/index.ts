@@ -29,6 +29,8 @@ import {
   shareList,
 } from './lists'
 import { sendWeeklyDigest } from './digest'
+import { generateSmartNotifications } from './smart-notifications'
+import { sendPushReminders } from './push-reminders'
 import { enrichLocationsWithImages } from './enrich-images'
 import { enrichPOIImages } from './enrich-poi-images'
 import {
@@ -102,7 +104,7 @@ app.get('/api/events', async c => {
       limit:       result.limit,
       total_pages: Math.ceil(result.total / result.limit),
     },
-  })
+  }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' })
 })
 
 // ─── GET /api/events/:id ──────────────────────────────────────────────────────
@@ -136,7 +138,7 @@ app.get('/api/events/:id', async c => {
       sameVenue: sameVenueRes.results,
       sameDate:  sameDateRes.results,
     },
-  })
+  }, 200, { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' })
 })
 
 // ─── GET /api/locations ───────────────────────────────────────────────────────
@@ -184,7 +186,9 @@ app.get('/api/locations', async c => {
     },
   }))
 
-  return c.json({ type: 'FeatureCollection', features })
+  return c.json({ type: 'FeatureCollection', features }, 200, {
+    'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+  })
 })
 
 // ─── GET /api/locations/:id ───────────────────────────────────────────────────
@@ -197,7 +201,7 @@ app.get('/api/locations/:id', async c => {
   if (!loc) return c.json({ error: 'Not found' }, 404)
 
   const today = new Date().toISOString().slice(0, 10)
-  const [upcomingRes, pastRes] = await Promise.all([
+  const [upcomingRes, pastRes, ratingRes] = await Promise.all([
     c.env.DB.prepare(`SELECT id, title, date_start, time_start, category, price_type, description
                       FROM events WHERE location_id = ? AND date_start >= ?
                       ORDER BY date_start ASC LIMIT 100`)
@@ -206,9 +210,19 @@ app.get('/api/locations/:id', async c => {
                       FROM events WHERE location_id = ? AND date_start < ?
                       ORDER BY date_start DESC LIMIT 50`)
       .bind(id, today).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`SELECT AVG(rating) as avg_rating, COUNT(*) as review_count FROM reviews WHERE item_type = 'location' AND item_id = ?`)
+      .bind(id).first<{ avg_rating: number | null; review_count: number }>(),
   ])
 
-  return c.json({ data: { ...loc, events: upcomingRes.results, pastEvents: pastRes.results } })
+  return c.json({ data: {
+    ...loc,
+    events: upcomingRes.results,
+    pastEvents: pastRes.results,
+    avg_rating: ratingRes?.avg_rating ? Math.round(ratingRes.avg_rating * 10) / 10 : null,
+    review_count: ratingRes?.review_count ?? 0,
+  } }, 200, {
+    'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+  })
 })
 
 // ─── GET /api/geodata/parks ───────────────────────────────────────────────────
@@ -514,11 +528,19 @@ app.get('/api/pois/:id', async c => {
   const rawId = c.req.param('id')
   const id = rawId.replace('_', '/')
 
-  const row = await c.env.DB.prepare(`SELECT * FROM pois WHERE id = ?`).bind(id)
-    .first<Record<string, unknown>>()
+  const [row, ratingRes] = await Promise.all([
+    c.env.DB.prepare(`SELECT * FROM pois WHERE id = ?`).bind(id)
+      .first<Record<string, unknown>>(),
+    c.env.DB.prepare(`SELECT AVG(rating) as avg_rating, COUNT(*) as review_count FROM reviews WHERE item_type = 'poi' AND item_id = ?`)
+      .bind(id).first<{ avg_rating: number | null; review_count: number }>(),
+  ])
   if (!row) return c.json({ error: 'Not found' }, 404)
 
-  return c.json({ data: row }, 200, {
+  return c.json({ data: {
+    ...row,
+    avg_rating: ratingRes?.avg_rating ? Math.round(ratingRes.avg_rating * 10) / 10 : null,
+    review_count: ratingRes?.review_count ?? 0,
+  } }, 200, {
     'Cache-Control': 'public, max-age=3600',
   })
 })
@@ -876,11 +898,13 @@ app.get('/api/weather', async c => {
     'https://api.open-meteo.com/v1/forecast' +
     '?latitude=52.52&longitude=13.41' +
     '&current=temperature_2m,weather_code,wind_speed_10m' +
+    '&daily=weather_code,temperature_2m_max,precipitation_probability_max' +
+    '&forecast_days=3' +
     '&timezone=Europe%2FBerlin'
   )
   const data = await res.json()
   return c.json(data, {
-    headers: { 'Cache-Control': 'public, max-age=600' },
+    headers: { 'Cache-Control': 'public, max-age=600, stale-while-revalidate=1800' },
   })
 })
 
@@ -986,7 +1010,267 @@ app.get('/api/nearby', async c => {
     .sort((a, b) => a.distance_m - b.distance_m)
     .slice(0, limit)
 
-  return c.json({ results: all })
+  return c.json({ results: all }, 200, {
+    'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+  })
+})
+
+// ─── GET /api/events/for-you (auth required) ─────────────────────────────────
+
+app.get('/api/events/for-you', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const user = await c.env.DB
+    .prepare(`SELECT preferences FROM users WHERE id = ?`)
+    .bind(auth.sub).first<{ preferences: string | null }>()
+
+  let prefs: { categories?: string[]; boroughs?: string[] } = {}
+  try { prefs = user?.preferences ? JSON.parse(user.preferences) : {} } catch { /* ignore */ }
+
+  const cats = prefs.categories ?? []
+  const boroughs = prefs.boroughs ?? []
+
+  let results: Record<string, unknown>[] = []
+
+  if (cats.length > 0 || boroughs.length > 0) {
+    const conditions: string[] = [`date_start >= date('now')`]
+    const params: (string | number)[] = []
+    const orParts: string[] = []
+
+    if (cats.length > 0) {
+      orParts.push(`category IN (${cats.map(() => '?').join(',')})`)
+      params.push(...cats)
+    }
+    if (boroughs.length > 0) {
+      orParts.push(`borough IN (${boroughs.map(() => '?').join(',')})`)
+      params.push(...boroughs)
+    }
+
+    conditions.push(`(${orParts.join(' OR ')})`)
+
+    const { results: rows } = await c.env.DB
+      .prepare(`SELECT * FROM events WHERE ${conditions.join(' AND ')} ORDER BY date_start ASC LIMIT 20`)
+      .bind(...params).all<Record<string, unknown>>()
+    results = rows
+  }
+
+  // Fall back to trending if no preferences or no results
+  if (results.length === 0) {
+    const { results: trending } = await c.env.DB.prepare(`
+      SELECT e.* FROM events e
+      INNER JOIN item_views iv ON iv.item_type = 'event' AND iv.item_id = e.id
+      WHERE e.date_start >= date('now') AND iv.view_date >= date('now', '-7 days')
+      GROUP BY e.id
+      ORDER BY SUM(iv.count) DESC
+      LIMIT 20
+    `).all<Record<string, unknown>>()
+    results = trending
+  }
+
+  return c.json({ data: results }, 200, {
+    'Cache-Control': 'private, max-age=60',
+  })
+})
+
+// ─── GET /api/events/weather-picks ───────────────────────────────────────────
+
+app.get('/api/events/weather-picks', async c => {
+  const date = c.req.query('date') ?? new Date().toISOString().slice(0, 10)
+
+  // Fetch weather for the date
+  const weatherRes = await fetch(
+    'https://api.open-meteo.com/v1/forecast' +
+    '?latitude=52.52&longitude=13.41' +
+    '&daily=weather_code,temperature_2m_max,precipitation_probability_max' +
+    '&forecast_days=3' +
+    '&timezone=Europe%2FBerlin'
+  )
+  const weatherData = await weatherRes.json() as {
+    daily?: {
+      time?: string[]
+      weather_code?: number[]
+      temperature_2m_max?: number[]
+      precipitation_probability_max?: number[]
+    }
+  }
+
+  const daily = weatherData.daily
+  const dayIndex = daily?.time?.indexOf(date) ?? 0
+  const weatherCode = daily?.weather_code?.[dayIndex] ?? 0
+  const tempMax = daily?.temperature_2m_max?.[dayIndex] ?? 20
+  const precipProb = daily?.precipitation_probability_max?.[dayIndex] ?? 0
+
+  // Classify weather
+  const RAINY_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99])
+  const isRainy = RAINY_CODES.has(weatherCode) || precipProb > 60
+  const recommendation = isRainy ? 'indoor' : 'outdoor'
+
+  const WMO_LABELS: Record<number, string> = {
+    0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',
+    45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',
+    56:'Freezing drizzle',57:'Heavy freezing drizzle',
+    61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',
+    71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',
+    80:'Light showers',81:'Showers',82:'Heavy showers',
+    85:'Light snow showers',86:'Heavy snow showers',
+    95:'Thunderstorm',96:'Thunderstorm with hail',99:'Heavy thunderstorm with hail',
+  }
+  const label = WMO_LABELS[weatherCode] ?? 'Unknown'
+
+  // Pick events matching recommendation
+  const indoorCats = ['Exhibition','Film','Theater','Music','Talks','Literature']
+  const outdoorCats = ['Recreation','Tours','Sports','Kids']
+  const targetCats = isRainy ? indoorCats : outdoorCats
+  const placeholders = targetCats.map(() => '?').join(',')
+
+  const { results: picks } = await c.env.DB
+    .prepare(`
+      SELECT * FROM events
+      WHERE date_start = ? AND category IN (${placeholders})
+      ORDER BY time_start ASC
+      LIMIT 8
+    `)
+    .bind(date, ...targetCats)
+    .all<Record<string, unknown>>()
+
+  // Fall back to any events if no category match
+  let finalPicks = picks
+  if (picks.length === 0) {
+    const { results: fallback } = await c.env.DB
+      .prepare(`SELECT * FROM events WHERE date_start = ? ORDER BY time_start ASC LIMIT 8`)
+      .bind(date).all<Record<string, unknown>>()
+    finalPicks = fallback
+  }
+
+  return c.json({
+    weather: { code: weatherCode, label, isRainy, tempMax, precipProb },
+    picks: finalPicks,
+    recommendation,
+  }, 200, { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=600' })
+})
+
+// ─── Reviews & Ratings ──────────────────────────────────────────────────────
+
+app.get('/api/reviews', async c => {
+  const itemType = c.req.query('item_type')
+  const itemId = c.req.query('item_id')
+  if (!itemType || !itemId) return c.json({ error: 'item_type and item_id required' }, 400)
+
+  const [reviewsRes, aggRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT r.*, u.display_name, u.email
+      FROM reviews r
+      LEFT JOIN users u ON r.user_id = u.id
+      WHERE r.item_type = ? AND r.item_id = ?
+      ORDER BY r.created_at DESC
+      LIMIT 50
+    `).bind(itemType, itemId).all<Record<string, unknown>>(),
+    c.env.DB.prepare(`
+      SELECT AVG(rating) as avg_rating, COUNT(*) as count
+      FROM reviews WHERE item_type = ? AND item_id = ?
+    `).bind(itemType, itemId).first<{ avg_rating: number | null; count: number }>(),
+  ])
+
+  return c.json({
+    reviews: reviewsRes.results,
+    aggregate: {
+      avg_rating: aggRes?.avg_rating ? Math.round(aggRes.avg_rating * 10) / 10 : null,
+      count: aggRes?.count ?? 0,
+    },
+  }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' })
+})
+
+app.post('/api/reviews', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json<{
+    item_type?: string; item_id?: string; rating?: number; body?: string
+  }>().catch(() => null)
+
+  if (!body?.item_type || !body.item_id || !body.rating) {
+    return c.json({ error: 'item_type, item_id, and rating required' }, 400)
+  }
+  if (!['location', 'poi'].includes(body.item_type)) {
+    return c.json({ error: 'item_type must be location or poi' }, 400)
+  }
+  if (body.rating < 1 || body.rating > 5) {
+    return c.json({ error: 'rating must be 1-5' }, 400)
+  }
+
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+  await c.env.DB.prepare(`
+    INSERT INTO reviews (id, user_id, item_type, item_id, rating, body)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, item_type, item_id) DO UPDATE SET
+      rating = excluded.rating,
+      body = excluded.body,
+      updated_at = datetime('now')
+  `).bind(id, auth.sub, body.item_type, body.item_id, body.rating, body.body ?? null).run()
+
+  return c.json({ ok: true }, 201)
+})
+
+app.delete('/api/reviews/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const result = await c.env.DB.prepare(`
+    DELETE FROM reviews WHERE id = ? AND user_id = ?
+  `).bind(c.req.param('id'), auth.sub).run()
+
+  return result.meta.changes > 0
+    ? c.json({ ok: true })
+    : c.json({ error: 'Not found or not owner' }, 404)
+})
+
+// ─── Push subscription endpoints ─────────────────────────────────────────────
+
+app.post('/api/push/subscribe', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json<{
+    endpoint?: string; keys?: { p256dh?: string; auth?: string }
+  }>().catch(() => null)
+
+  if (!body?.endpoint || !body.keys?.p256dh || !body.keys?.auth) {
+    return c.json({ error: 'endpoint, keys.p256dh, and keys.auth required' }, 400)
+  }
+
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+  await c.env.DB.prepare(`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, endpoint) DO UPDATE SET
+      p256dh = excluded.p256dh,
+      auth = excluded.auth
+  `).bind(id, auth.sub, body.endpoint, body.keys.p256dh, body.keys.auth).run()
+
+  return c.json({ ok: true }, 201)
+})
+
+// ─── PATCH /api/attendance/reminder ─────────────────────────────────────────
+
+app.patch('/api/attendance/reminder', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json<{
+    item_type?: string; item_id?: string; reminder_hours?: number | null
+  }>().catch(() => null)
+
+  if (!body?.item_type || !body.item_id) {
+    return c.json({ error: 'item_type and item_id required' }, 400)
+  }
+
+  await c.env.DB.prepare(`
+    UPDATE user_attendance SET reminder_hours = ?, reminder_sent = NULL
+    WHERE user_id = ? AND item_type = ? AND item_id = ?
+  `).bind(body.reminder_hours ?? null, auth.sub, body.item_type, body.item_id).run()
+
+  return c.json({ ok: true })
 })
 
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
@@ -1007,6 +1291,41 @@ app.post('/api/chat', async c => {
 
   const date = body.date ?? new Date().toISOString().split('T')[0]
   const viewport = body.viewport
+
+  // Optionally load user preferences for personalization
+  let userPrefsSection = ''
+  const chatAuth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
+  if (chatAuth) {
+    try {
+      const prefRow = await c.env.DB
+        .prepare(`SELECT preferences FROM users WHERE id = ?`)
+        .bind(chatAuth.sub).first<{ preferences: string | null }>()
+      if (prefRow?.preferences) {
+        const prefs = JSON.parse(prefRow.preferences) as { categories?: string[]; boroughs?: string[] }
+        if (prefs.categories?.length || prefs.boroughs?.length) {
+          userPrefsSection = `\n\n## USER PREFERENCES\nThis user prefers: categories=[${(prefs.categories ?? []).join(', ')}], boroughs=[${(prefs.boroughs ?? []).join(', ')}].\nPrioritise these in suggestions.`
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Fetch current weather for context
+  let weatherSection = ''
+  try {
+    const wRes = await fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,weather_code&timezone=Europe%2FBerlin'
+    )
+    const wData = await wRes.json() as { current?: { temperature_2m?: number; weather_code?: number } }
+    if (wData.current) {
+      const temp = wData.current.temperature_2m ?? 0
+      const code = wData.current.weather_code ?? 0
+      const RAINY_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99])
+      const isRainy = RAINY_CODES.has(code)
+      const WMO: Record<number, string> = {0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',61:'Light rain',63:'Rain',65:'Heavy rain',80:'Showers',95:'Thunderstorm'}
+      const desc = WMO[code] ?? (isRainy ? 'Rain' : 'Unknown')
+      weatherSection = `\n\n## WEATHER\nCurrent: ${temp}°C, ${desc}.${isRainy ? '\nSuggest indoor events if weather is bad.' : ''}`
+    }
+  } catch { /* ignore */ }
 
   // Extract the latest user message for vector retrieval
   const latestUserMsg = [...body.messages].reverse().find(m => m.role === 'user')?.content ?? ''
@@ -1142,7 +1461,7 @@ ${venuesList}${viewportSection}
 - Suggest specific events or venues from the lists above when relevant.
 - For parks/playgrounds, explain users can see them on the map by enabling the Parks or Playgrounds toggle.
 - Keep answers concise (2-4 sentences). Do not repeat the full event list unless asked.
-- If asked about something outside Berlin culture, politely redirect.`
+- If asked about something outside Berlin culture, politely redirect.${userPrefsSection}${weatherSection}`
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
@@ -1236,7 +1555,7 @@ app.get('/api/trending', async c => {
   }))
 
   return c.json({ data: enriched.filter(r => r.title) }, 200, {
-    'Cache-Control': 'public, max-age=300',
+    'Cache-Control': 'public, max-age=120, stale-while-revalidate=600',
   })
 })
 
@@ -1738,7 +2057,7 @@ app.get('/api/search', async c => {
       postcode: a.postcode,
     })),
     semantic_pois: semanticRes.results,
-  })
+  }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' })
 })
 
 // ─── GET /api/search/semantic ──────────────────────────────────────────────────
@@ -2047,7 +2366,14 @@ export default {
     env:   Env,
     ctx:   ExecutionContext
   ): Promise<void> {
-    if (event.cron === '*/30 * * * *') {
+    if (event.cron === '0 9 * * *') {
+      // Daily 9am UTC: Smart notifications
+      ctx.waitUntil(
+        generateSmartNotifications(env)
+          .then(r => console.log(`[smart-notifs] sent=${r.sent}`))
+          .catch(err => console.error('[smart-notifs]', err))
+      )
+    } else if (event.cron === '*/30 * * * *') {
       // Geocode-only pass — runs frequently to catch up after ingest (events + locations)
       ctx.waitUntil(
         Promise.all([
@@ -2058,6 +2384,12 @@ export default {
             .then(n => console.log(`[geocode] locations: ${n}`))
             .catch(err => console.error('[geocode:locations]', err)),
         ])
+      )
+      // Push reminders — check every 30 min
+      ctx.waitUntil(
+        sendPushReminders(env)
+          .then(r => r.sent > 0 && console.log(`[push-reminders] sent=${r.sent}`))
+          .catch(err => console.error('[push-reminders]', err))
       )
     } else if (event.cron === '0 2 * * *') {
       // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin

@@ -234,7 +234,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
     return (
       <button
         onClick={plan}
-        className="w-full flex items-center justify-center gap-2 text-sm font-bold border-2 border-black px-4 py-2.5 hover:bg-black hover:text-white transition-colors"
+        className="w-full flex items-center justify-center gap-2 text-sm font-bold border-2 border-[var(--border-primary)] px-4 py-2.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] transition-colors"
       >
         Plan route
       </button>
@@ -256,7 +256,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                 setDateValue(getDefaultDate())
               }
             }}
-            className={`px-2 py-1 border text-[10px] font-bold ${timeMode === m ? 'bg-black text-white border-black' : 'border-gray-300 text-gray-600 hover:border-black'}`}
+            className={`px-2 py-1 border text-[10px] font-bold ${timeMode === m ? 'bg-[var(--accent)] text-[var(--accent-text)] border-[var(--border-primary)]' : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:border-[var(--border-primary)]'}`}
           >
             {m === 'now' ? 'Leave now' : m === 'depart' ? 'Depart at' : 'Arrive by'}
           </button>
@@ -268,18 +268,18 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
             type="time"
             value={timeValue}
             onChange={e => setTimeValue(e.target.value)}
-            className="text-xs border-2 border-black px-2 py-1 outline-none font-mono"
+            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono"
           />
           <input
             type="date"
             value={dateValue}
             onChange={e => setDateValue(e.target.value)}
-            className="text-xs border-2 border-black px-2 py-1 outline-none font-mono"
+            className="text-xs border-2 border-[var(--border-primary)] px-2 py-1 outline-none font-mono"
           />
           {lastFromRef.current && (
             <button
               onClick={() => lastFromRef.current && doFetchJourney(lastFromRef.current.lat, lastFromRef.current.lng)}
-              className="text-[10px] font-bold border-2 border-black px-2 py-1 hover:bg-black hover:text-white shrink-0"
+              className="text-[10px] font-bold border-2 border-[var(--border-primary)] px-2 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] shrink-0"
             >
               Go
             </button>
@@ -287,12 +287,12 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
         </div>
       )}
 
-      {loading && <p className="text-gray-400 mt-1">Finding routes…</p>}
+      {loading && <p className="text-[var(--text-muted)] mt-1">Finding routes…</p>}
 
       {/* Manual address fallback */}
       {showManual && !loading && (
         <div className="mt-1">
-          <p className="text-xs text-gray-500 mb-1.5">Location unavailable — enter your starting address:</p>
+          <p className="text-xs text-[var(--text-secondary)] mb-1.5">Location unavailable — enter your starting address:</p>
           <div className="relative">
             <input
               type="text"
@@ -302,15 +302,15 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="e.g. Alexanderplatz, Berlin"
               autoComplete="off"
-              className="w-full text-xs border-2 border-black px-2.5 py-1.5 outline-none focus:shadow-[2px_2px_0_#000]"
+              className="w-full text-xs border-2 border-[var(--border-primary)] px-2.5 py-1.5 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <ul className="absolute z-50 left-0 right-0 bg-white border-2 border-black mt-0.5 max-h-48 overflow-y-auto shadow-[2px_2px_0_#000]">
+              <ul className="absolute z-50 left-0 right-0 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] mt-0.5 max-h-48 overflow-y-auto shadow-[2px_2px_0_var(--border-primary)]">
                 {suggestions.map((s, i) => (
                   <li key={i}>
                     <button
                       type="button"
-                      className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-gray-100"
+                      className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-[var(--bg-secondary)]"
                       onMouseDown={e => { e.preventDefault(); selectSuggestion(s) }}
                     >
                       {s.label}
@@ -331,13 +331,13 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
           {/* Summary row + option navigator */}
           <div className="flex items-center justify-between mb-2">
             <div className="leading-snug">
-              <span className="font-bold text-gray-900">{journey.duration} min</span>
+              <span className="font-bold text-[var(--text-primary)]">{journey.duration} min</span>
               {journey.transfers > 0 && (
-                <span className="text-gray-500">
+                <span className="text-[var(--text-secondary)]">
                   {' · '}{journey.transfers} change{journey.transfers > 1 ? 's' : ''}
                 </span>
               )}
-              <span className="text-gray-400 ml-1">
+              <span className="text-[var(--text-muted)] ml-1">
                 {fmt(journey.legs[0]?.departure)}–{fmt(journey.legs[journey.legs.length - 1]?.arrival)}
               </span>
             </div>
@@ -346,13 +346,13 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                 <button
                   onClick={() => setIdx(i => Math.max(0, i - 1))}
                   disabled={idx === 0}
-                  className="w-4 h-4 flex items-center justify-center border border-gray-300 hover:border-black disabled:opacity-30 text-[9px]"
+                  className="w-4 h-4 flex items-center justify-center border border-[var(--border-secondary)] hover:border-[var(--border-primary)] disabled:opacity-30 text-[9px]"
                 >‹</button>
-                <span className="text-gray-400 px-0.5">{idx + 1}/{journeys.length}</span>
+                <span className="text-[var(--text-muted)] px-0.5">{idx + 1}/{journeys.length}</span>
                 <button
                   onClick={() => setIdx(i => Math.min(journeys.length - 1, i + 1))}
                   disabled={idx === journeys.length - 1}
-                  className="w-4 h-4 flex items-center justify-center border border-gray-300 hover:border-black disabled:opacity-30 text-[9px]"
+                  className="w-4 h-4 flex items-center justify-center border border-[var(--border-secondary)] hover:border-[var(--border-primary)] disabled:opacity-30 text-[9px]"
                 >›</button>
               </div>
             )}
@@ -365,12 +365,12 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                 const mins = legMin(leg)
                 const dist = leg.distance ? ` · ${leg.distance} m` : ''
                 return (
-                  <div key={i} className="flex items-start gap-1.5 text-gray-500 py-0.5">
+                  <div key={i} className="flex items-start gap-1.5 text-[var(--text-secondary)] py-0.5">
                     <span className="shrink-0 mt-0.5">🚶</span>
                     <div>
                       <span>Walk {mins > 0 ? `${mins} min` : ''}{dist}</span>
                       {leg.destination && leg.destination !== leg.origin && (
-                        <span className="text-gray-400"> to {leg.destination}</span>
+                        <span className="text-[var(--text-muted)]"> to {leg.destination}</span>
                       )}
                     </div>
                   </div>
@@ -394,21 +394,21 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                     >
                       {meta.s}
                     </span>
-                    <span className="font-bold text-gray-900">{leg.line}</span>
-                    <span className="text-gray-400">dir.</span>
-                    <span className="text-gray-600 truncate">{leg.direction}</span>
+                    <span className="font-bold text-[var(--text-primary)]">{leg.line}</span>
+                    <span className="text-[var(--text-muted)]">dir.</span>
+                    <span className="text-[var(--text-secondary)] truncate">{leg.direction}</span>
                   </div>
                   {/* Origin row */}
-                  <div className="flex items-baseline gap-1.5 text-gray-500">
-                    <span className="font-mono text-[9px] text-gray-400 shrink-0 w-9">{fmt(leg.departure)}</span>
+                  <div className="flex items-baseline gap-1.5 text-[var(--text-secondary)]">
+                    <span className="font-mono text-[9px] text-[var(--text-muted)] shrink-0 w-9">{fmt(leg.departure)}</span>
                     <span className="truncate">{leg.origin}</span>
                   </div>
                   {/* Destination row */}
-                  <div className="flex items-baseline gap-1.5 text-gray-500">
-                    <span className="font-mono text-[9px] text-gray-400 shrink-0 w-9">{fmt(leg.arrival)}</span>
+                  <div className="flex items-baseline gap-1.5 text-[var(--text-secondary)]">
+                    <span className="font-mono text-[9px] text-[var(--text-muted)] shrink-0 w-9">{fmt(leg.arrival)}</span>
                     <span className="truncate">{leg.destination}</span>
                     {mins > 0 && (
-                      <span className="text-gray-400 shrink-0 ml-auto">{mins} min</span>
+                      <span className="text-[var(--text-muted)] shrink-0 ml-auto">{mins} min</span>
                     )}
                   </div>
                 </div>
@@ -430,7 +430,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                   .catch(() => {})
                   .finally(() => setLoading(false))
               }}
-              className="text-[9px] font-bold border border-gray-300 px-2 py-0.5 hover:border-black"
+              className="text-[9px] font-bold border border-[var(--border-secondary)] px-2 py-0.5 hover:border-[var(--border-primary)]"
             >
               ← Earlier
             </button>
@@ -446,7 +446,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                   .catch(() => {})
                   .finally(() => setLoading(false))
               }}
-              className="text-[9px] font-bold border border-gray-300 px-2 py-0.5 hover:border-black"
+              className="text-[9px] font-bold border border-[var(--border-secondary)] px-2 py-0.5 hover:border-[var(--border-primary)]"
             >
               Later →
             </button>
@@ -454,7 +454,7 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
 
           <button
             onClick={() => { setShowManual(true); setJourneys([]); setManualAddr('') }}
-            className="mt-2 text-[9px] text-gray-400 hover:text-black underline"
+            className="mt-2 text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
           >
             Change starting point
           </button>

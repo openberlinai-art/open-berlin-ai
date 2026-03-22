@@ -155,3 +155,35 @@ export function useJourney(
     staleTime: 60_000,
   })
 }
+
+export function useForYou(token: string | null) {
+  return useQuery({
+    queryKey: ['for-you', token],
+    queryFn: async () => {
+      const res = await fetch('/api/events/for-you', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json() as { data: Record<string, unknown>[] }
+      return data.data
+    },
+    enabled: !!token,
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useWeatherPicks(date: string) {
+  return useQuery({
+    queryKey: ['weather-picks', date],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/weather-picks?date=${date}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json() as Promise<{
+        weather: { code: number; label: string; isRainy: boolean; tempMax: number; precipProb: number }
+        picks: Record<string, unknown>[]
+        recommendation: string
+      }>
+    },
+    staleTime: 10 * 60_000,
+  })
+}

@@ -7,6 +7,7 @@ import { useLanguage } from '@/providers/LanguageProvider'
 import { useTranslation } from '@/hooks/useTranslation'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
+import ReviewSection from './ReviewSection'
 import JourneyWidget from './JourneyWidget'
 import { fetchTransitStopsVBB, fetchDepartures } from '@/lib/opendata'
 import type { VBBStop, Departure } from '@/lib/opendata'
@@ -333,6 +334,9 @@ export function VenuePageClient({ id, lat, lng, name, events, pastEvents }: Prop
           )}
         </div>
       )}
+
+      {/* Reviews */}
+      <ReviewSection itemType="location" itemId={id} />
     </>
   )
 }

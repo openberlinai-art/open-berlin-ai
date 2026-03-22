@@ -3,8 +3,8 @@ import type { Env } from './types'
 export async function sendWeeklyDigest(env: Env): Promise<void> {
   // Fetch opted-in users
   const { results: users } = await env.DB
-    .prepare(`SELECT id, email FROM users WHERE digest_opt_in = 1`)
-    .all<{ id: string; email: string }>()
+    .prepare(`SELECT id, email, preferences FROM users WHERE digest_opt_in = 1`)
+    .all<{ id: string; email: string; preferences: string | null }>()
 
   if (users.length === 0) {
     console.log('[digest] no opted-in users')

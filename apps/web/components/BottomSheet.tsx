@@ -125,7 +125,7 @@ export default function BottomSheet({ children, isOpen, onClose }: Props) {
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className="fixed bottom-0 left-0 right-0 z-[61] bg-white border-t-2 border-black overflow-hidden"
+        className="fixed bottom-0 left-0 right-0 z-[61] bg-[var(--bg-primary)] border-t-2 border-[var(--border-primary)] overflow-hidden"
         style={{
           willChange: 'height',
           borderRadius: '12px 12px 0 0',
@@ -139,7 +139,7 @@ export default function BottomSheet({ children, isOpen, onClose }: Props) {
           onTouchEnd={onTouchEnd}
           style={{ touchAction: 'none' }}
         >
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
+          <div className="w-10 h-1 rounded-full bg-[var(--border-secondary)]" />
         </div>
 
         {/* Content */}

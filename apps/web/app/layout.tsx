@@ -3,6 +3,7 @@ import { Libre_Franklin } from 'next/font/google'
 import QueryProvider from '@/providers/QueryProvider'
 import { UserProvider } from '@/providers/UserProvider'
 import { LanguageProvider } from '@/providers/LanguageProvider'
+import { ThemeProvider } from '@/providers/ThemeProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import './globals.css'
 
@@ -34,8 +35,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={franklin.variable} suppressHydrationWarning>
-      <body className="bg-white text-gray-900 antialiased font-sans" suppressHydrationWarning>
-        <QueryProvider><LanguageProvider><UserProvider><ErrorBoundary>{children}</ErrorBoundary></UserProvider></LanguageProvider></QueryProvider>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('citizen_theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')` }} />
+      </head>
+      <body className="bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased font-sans" suppressHydrationWarning>
+        <QueryProvider><LanguageProvider><UserProvider><ThemeProvider><ErrorBoundary>{children}</ErrorBoundary></ThemeProvider></UserProvider></LanguageProvider></QueryProvider>
       </body>
     </html>
   )

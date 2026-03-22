@@ -4,6 +4,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme variables ───────────────────────────────────────────────────── */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border-primary: #000000;
+  --border-secondary: #e5e7eb;
+  --accent: #000000;
+  --accent-text: #ffffff;
+}
+html.dark {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --border-primary: #e0e0e0;
+  --border-secondary: #333333;
+  --accent: #e0e0e0;
+  --accent-text: #0f0f0f;
+}
+
 /* ── Squeaks.dev design system ─────────────────────────────────────────────── */
 
 /* Font */
@@ -80,10 +104,10 @@ body {
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar       { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #000; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border-primary); }
 
 /* ── Day picker overrides ─────────────────────────────────────────────────── */
 .rdp-root {
-  --rdp-accent-color: #000 !important;
-  --rdp-accent-background-color: #000 !important;
+  --rdp-accent-color: var(--accent) !important;
+  --rdp-accent-background-color: var(--accent) !important;
 }

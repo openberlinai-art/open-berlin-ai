@@ -30,22 +30,34 @@ export default function NotificationsBell() {
   function notifLabel(type: string, data: string) {
     try {
       const d = JSON.parse(data) as Record<string, string>
-      if (type === 'list_shared') return `${d.from_name ?? 'Someone'} shared a list: "${d.list_name ?? ''}"`
-      if (type === 'invite')      return `${d.from_name ?? 'Someone'} invited you to "${d.list_name ?? ''}"`
+      if (type === 'list_shared')        return `${d.from_name ?? 'Someone'} shared a list: "${d.list_name ?? ''}"`
+      if (type === 'invite')             return `${d.from_name ?? 'Someone'} invited you to "${d.list_name ?? ''}"`
+      if (type === 'new_event_at_venue') return `New event at ${d.venue_name ?? 'a venue'}: ${d.event_title ?? ''}`
+      if (type === 'trending_in_borough') return `Trending in ${d.borough ?? 'your area'}`
+      if (type === 'event_tomorrow')     return `${d.event_title ?? 'An event'} is tomorrow`
     } catch { /* ignore */ }
     return type
+  }
+
+  function notifUrl(type: string, data: string): string | null {
+    try {
+      const d = JSON.parse(data) as Record<string, string>
+      if (d.event_id) return `/events/${d.event_id}`
+      if (d.venue_id) return `/venues/${d.venue_id}`
+    } catch { /* ignore */ }
+    return null
   }
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+        className="relative flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
         title="Notifications"
       >
         <Bell size={14} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-black text-white text-[9px] font-bold flex items-center justify-center px-0.5">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-[var(--accent)] text-[var(--accent-text)] text-[9px] font-bold flex items-center justify-center px-0.5">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -53,14 +65,14 @@ export default function NotificationsBell() {
 
       {open && (
         /* fixed so it never clips outside the viewport on any screen size */
-        <div className="fixed right-2 top-14 z-[200] bg-white border-2 border-black shadow-[3px_3px_0_#000] w-72 max-w-[calc(100vw-1rem)]">
-          <div className="flex items-center justify-between px-3 py-2 border-b-2 border-black">
+        <div className="fixed right-2 top-14 z-[200] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[3px_3px_0_var(--border-primary)] w-72 max-w-[calc(100vw-1rem)]">
+          <div className="flex items-center justify-between px-3 py-2 border-b-2 border-[var(--border-primary)]">
             <span className="text-[10px] font-bold uppercase tracking-wide">Notifications</span>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={() => markNotificationRead('all')}
-                  className="text-[9px] text-gray-400 underline"
+                  className="text-[9px] text-[var(--text-muted)] underline"
                 >
                   Mark all read
                 </button>
@@ -68,34 +80,52 @@ export default function NotificationsBell() {
               <Link
                 href="/notifications"
                 onClick={() => setOpen(false)}
-                className="text-[9px] text-gray-400 underline"
+                className="text-[9px] text-[var(--text-muted)] underline"
               >
                 See all
               </Link>
-              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-black">
+              <button onClick={() => setOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                 <X size={11} />
               </button>
             </div>
           </div>
 
           {notifications.length === 0 ? (
-            <p className="text-[11px] text-gray-400 px-3 py-4 text-center">No notifications yet</p>
+            <p className="text-[11px] text-[var(--text-muted)] px-3 py-4 text-center">No notifications yet</p>
           ) : (
             <div className="max-h-72 overflow-y-auto">
-              {notifications.slice(0, 10).map(n => (
-                <button
-                  key={n.id}
-                  onClick={() => markNotificationRead(n.id)}
-                  className={`w-full text-left px-3 py-2.5 border-b border-gray-100 hover:bg-gray-50 flex items-start gap-2 ${!n.read ? 'bg-gray-50' : ''}`}
-                >
-                  {!n.read && <span className="mt-1 w-1.5 h-1.5 bg-black shrink-0" />}
-                  {n.read  && <span className="mt-1 w-1.5 h-1.5 shrink-0" />}
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium leading-snug">{notifLabel(n.type, n.data)}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{formatRelative(n.created_at)}</p>
-                  </div>
-                </button>
-              ))}
+              {notifications.slice(0, 10).map(n => {
+                const href = notifUrl(n.type, n.data)
+                const inner = (
+                  <>
+                    {!n.read && <span className="mt-1 w-1.5 h-1.5 bg-black shrink-0" />}
+                    {n.read  && <span className="mt-1 w-1.5 h-1.5 shrink-0" />}
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium leading-snug">{notifLabel(n.type, n.data)}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{formatRelative(n.created_at)}</p>
+                    </div>
+                  </>
+                )
+                const cls = `w-full text-left px-3 py-2.5 border-b border-[var(--border-secondary)] hover:bg-[var(--bg-secondary)] flex items-start gap-2 ${!n.read ? 'bg-[var(--bg-secondary)]' : ''}`
+                return href ? (
+                  <Link
+                    key={n.id}
+                    href={href}
+                    onClick={() => { markNotificationRead(n.id); setOpen(false) }}
+                    className={cls}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <button
+                    key={n.id}
+                    onClick={() => markNotificationRead(n.id)}
+                    className={cls}
+                  >
+                    {inner}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

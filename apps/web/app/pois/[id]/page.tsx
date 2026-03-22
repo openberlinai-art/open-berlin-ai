@@ -62,29 +62,29 @@ export default async function POIPage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-white font-sans">
+    <main className="min-h-screen bg-[var(--bg-primary)] font-sans">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <ViewTracker itemType="poi" itemId={id} />
       {/* Nav bar */}
-      <div className="border-b-2 border-black px-4 py-3 flex items-center gap-3">
+      <div className="border-b-2 border-[var(--border-primary)] px-4 py-3 flex items-center gap-3">
         <Link
           href="/"
-          className="text-xs font-bold border-2 border-black px-2 py-1 hover:bg-black hover:text-white transition-colors"
+          className="text-xs font-bold border-2 border-[var(--border-primary)] px-2 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] transition-colors"
         >
           ← Back to map
         </Link>
-        <span className="text-xs text-gray-400 capitalize">{label}</span>
-        <span className="text-[10px] border border-gray-300 px-1.5 py-0.5 text-gray-500 uppercase">
+        <span className="text-xs text-[var(--text-muted)] capitalize">{label}</span>
+        <span className="text-[10px] border border-[var(--border-secondary)] px-1.5 py-0.5 text-[var(--text-secondary)] uppercase">
           {poi.region}
         </span>
       </div>
 
       {poi.image_url && (
         <div className="max-w-2xl mx-auto mt-6 px-4">
-          <div className="border-2 border-black overflow-hidden">
+          <div className="border-2 border-[var(--border-primary)] overflow-hidden">
             <img
               src={poi.image_url}
               alt={poi.name ?? label}
@@ -98,15 +98,15 @@ export default async function POIPage({ params }: Props) {
         {/* Name + category badges */}
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block px-1.5 py-0.5 border-2 border-black text-[10px] font-bold bg-white uppercase">
+            <span className="inline-block px-1.5 py-0.5 border-2 border-[var(--border-primary)] text-[10px] font-bold bg-[var(--bg-primary)] uppercase">
               {label}
             </span>
-            <span className="inline-block px-1.5 py-0.5 border border-gray-300 text-[10px] text-gray-500 uppercase">
+            <span className="inline-block px-1.5 py-0.5 border border-[var(--border-secondary)] text-[10px] text-[var(--text-secondary)] uppercase">
               {poi.category_group.replace('_', ' ')}
             </span>
           </div>
           <div className="flex items-start gap-2">
-            <h1 className="text-2xl font-extrabold leading-tight text-gray-900 flex-1">
+            <h1 className="text-2xl font-extrabold leading-tight text-[var(--text-primary)] flex-1">
               {poi.name ?? `Unnamed ${label}`}
             </h1>
             <FavoriteButton type="poi" id={poi.id} size={20} className="mt-1" />
@@ -115,17 +115,17 @@ export default async function POIPage({ params }: Props) {
 
         {/* Description */}
         {poi.description && (
-          <p className="text-sm text-gray-600 leading-relaxed mb-4">{poi.description}</p>
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">{poi.description}</p>
         )}
 
         {/* Address + phone */}
         {(poi.address || poi.phone) && (
-          <div className="border-2 border-black p-3 mb-4 text-sm space-y-0.5">
-            {poi.address && <p className="font-mono text-gray-700">{poi.address}</p>}
+          <div className="border-2 border-[var(--border-primary)] p-3 mb-4 text-sm space-y-0.5">
+            {poi.address && <p className="font-mono text-[var(--text-secondary)]">{poi.address}</p>}
             {poi.phone && (
               <a
                 href={`tel:${poi.phone.replace(/\s/g, '')}`}
-                className="text-xs text-gray-600 hover:text-black font-mono block mt-1"
+                className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-mono block mt-1"
               >
                 {poi.phone}
               </a>
@@ -135,9 +135,9 @@ export default async function POIPage({ params }: Props) {
 
         {/* Opening hours */}
         {poi.opening_hours && (
-          <div className="border-2 border-black p-3 mb-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Opening Hours</p>
-            <p className="text-xs text-gray-700 font-mono">{poi.opening_hours}</p>
+          <div className="border-2 border-[var(--border-primary)] p-3 mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] mb-1">Opening Hours</p>
+            <p className="text-xs text-[var(--text-secondary)] font-mono">{poi.opening_hours}</p>
           </div>
         )}
 
@@ -157,14 +157,14 @@ export default async function POIPage({ params }: Props) {
 
         {/* Operator */}
         {poi.operator && (
-          <p className="text-xs text-gray-500 mb-4">Operator: {poi.operator}</p>
+          <p className="text-xs text-[var(--text-secondary)] mb-4">Operator: {poi.operator}</p>
         )}
 
         {/* Extra OSM tags */}
         {Object.keys(extraTags).length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-4">
             {Object.entries(extraTags).map(([k, v]) => (
-              <span key={k} className="px-1.5 py-0.5 border border-gray-300 text-[10px] text-gray-500 font-mono">
+              <span key={k} className="px-1.5 py-0.5 border border-[var(--border-secondary)] text-[10px] text-[var(--text-secondary)] font-mono">
                 {k}: {v}
               </span>
             ))}

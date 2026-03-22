@@ -42,20 +42,20 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
     <div
       onClick={onClick}
       className={cn(
-        'px-4 py-3 border-b-2 border-black cursor-pointer hover:bg-gray-50',
-        active && 'bg-gray-100 border-l-4 border-l-black'
+        'px-4 py-3 border-b-2 border-[var(--border-primary)] cursor-pointer hover:bg-[var(--bg-secondary)]',
+        active && 'bg-[var(--bg-secondary)] border-l-4 border-l-black'
       )}
     >
       {/* Date + badges */}
       <div className="flex justify-between items-start gap-2 mb-1.5">
         <div>
-          <p className={cn("text-xs font-bold", isCancelled ? "text-red-600 line-through" : "text-gray-900")}>
+          <p className={cn("text-xs font-bold", isCancelled ? "text-red-600 line-through" : "text-[var(--text-primary)]")}>
             {formatDate(event.date_start)}
           </p>
           {time && (
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               {time}
-              {doorTime && doorTime !== time && <span className="text-gray-400"> · doors {doorTime}</span>}
+              {doorTime && doorTime !== time && <span className="text-[var(--text-muted)]"> · doors {doorTime}</span>}
             </p>
           )}
         </div>
@@ -86,15 +86,15 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
             </span>
           )}
           {event.category && (
-            <span className="px-1.5 py-0.5 border-2 border-black text-[10px] font-bold bg-white">
+            <span className="px-1.5 py-0.5 border-2 border-[var(--border-primary)] text-[10px] font-bold bg-white">
               {event.category}
             </span>
           )}
           <span className={cn(
             'px-1.5 py-0.5 border-2 text-[10px] font-bold',
-            event.price_type === 'free'    && 'border-black bg-black text-white',
-            event.price_type === 'paid'    && 'border-black bg-white text-black',
-            event.price_type === 'unknown' && 'border-gray-400 text-gray-400',
+            event.price_type === 'free'    && 'border-[var(--border-primary)] bg-[var(--accent)] text-[var(--accent-text)]',
+            event.price_type === 'paid'    && 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)]',
+            event.price_type === 'unknown' && 'border-gray-400 text-[var(--text-muted)]',
           )}>
             {event.price_type === 'free' ? 'Free' : event.price_type === 'paid' ? 'Paid' : '?'}
           </span>
@@ -103,8 +103,8 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
 
       {/* Title */}
       <p className={cn(
-        'font-bold text-sm leading-snug text-gray-900 mb-1',
-        lang !== 'de' && !translatedTitle && 'animate-pulse text-gray-400',
+        'font-bold text-sm leading-snug text-[var(--text-primary)] mb-1',
+        lang !== 'de' && !translatedTitle && 'animate-pulse text-[var(--text-muted)]',
       )}>
         {displayTitle}
       </p>
@@ -113,7 +113,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
       {hasDesc && (
         <div className="mb-2">
           <p className={cn(
-            'text-xs text-gray-600 leading-relaxed',
+            'text-xs text-[var(--text-secondary)] leading-relaxed',
             lang !== 'de' && event.description && !translatedDesc && 'animate-pulse text-gray-300',
           )}>
             {desc}{showEllipsis && '…'}
@@ -121,7 +121,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
           {(event.description?.length ?? 0) > 140 && (
             <button
               onClick={e => { e.stopPropagation(); setExpanded(x => !x) }}
-              className="text-[10px] text-gray-500 flex items-center gap-0.5 mt-0.5 hover:text-black"
+              className="text-[10px] text-[var(--text-secondary)] flex items-center gap-0.5 mt-0.5 hover:text-[var(--text-primary)]"
             >
               {expanded ? <><ChevronUp size={10}/> less</> : <><ChevronDown size={10}/> more</>}
             </button>
@@ -132,19 +132,19 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
       {/* Venue */}
       {event.location_name && (
         <div className="flex items-start gap-1 mb-2.5">
-          <MapPin size={10} className="text-gray-400 mt-0.5 shrink-0"/>
+          <MapPin size={10} className="text-[var(--text-muted)] mt-0.5 shrink-0"/>
           <div>
             {event.location_id
               ? <Link
                   href={`/locations/${event.location_id}`}
                   onClick={e => e.stopPropagation()}
-                  className="text-xs text-gray-700 leading-tight hover:underline"
+                  className="text-xs text-[var(--text-secondary)] leading-tight hover:underline"
                 >
                   {event.location_name}
                 </Link>
-              : <p className="text-xs text-gray-700 leading-tight">{event.location_name}</p>
+              : <p className="text-xs text-[var(--text-secondary)] leading-tight">{event.location_name}</p>
             }
-            {event.borough && <p className="text-[10px] text-gray-400">{event.borough}</p>}
+            {event.borough && <p className="text-[10px] text-[var(--text-muted)]">{event.borough}</p>}
           </div>
         </div>
       )}
@@ -163,7 +163,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
             <a
               href={event.admission_link}
               target="_blank" rel="noopener noreferrer"
-              className="text-[10px] font-bold border-2 border-black px-2 py-0.5 hover:bg-black hover:text-white flex items-center gap-0.5"
+              className="text-[10px] font-bold border-2 border-[var(--border-primary)] px-2 py-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] flex items-center gap-0.5"
             >
               Tickets <ExternalLink size={8}/>
             </a>
@@ -171,7 +171,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
           <Link
             href={`/events/${event.id}`}
             onClick={e => e.stopPropagation()}
-            className="text-xs text-gray-400 hover:text-black flex items-center gap-0.5"
+            className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-0.5"
           >
             More info
           </Link>

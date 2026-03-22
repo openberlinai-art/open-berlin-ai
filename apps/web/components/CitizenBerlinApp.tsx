@@ -21,9 +21,12 @@ import { isCategoryVisibleAtZoom } from '@/lib/zoom-tiers'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import TrendingSection          from './TrendingSection'
+import ForYouSection            from './ForYouSection'
+import WeatherPicks             from './WeatherPicks'
 import BottomSheet              from './BottomSheet'
 import JourneyWidget            from './JourneyWidget'
 import NotificationsBell        from './NotificationsBell'
+import ThemeToggle              from './ThemeToggle'
 import WeatherWidget             from './WeatherWidget'
 import LanguageSelector          from './LanguageSelector'
 import ListingsList from './ListingsList'
@@ -31,6 +34,7 @@ import FavoriteButton from './FavoriteButton'
 import { useUser } from '@/providers/UserProvider'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { ErrorBoundary } from './ErrorBoundary'
+import OfflineBanner from './OfflineBanner'
 import { readFromURL, syncToURL, filtersToString, filtersFromString } from '@/hooks/useMapState'
 import { useFavorites } from '@/hooks/useFavorites'
 import { MapPin, Heart, Share2, Check, Navigation } from 'lucide-react'
@@ -52,7 +56,7 @@ interface Props {
 }
 
 function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
-  const { user, unreadCount, attendance } = useUser()
+  const { user, token, unreadCount, attendance } = useUser()
   const { lang } = useLanguage()
   const { isFavorite: isFav, count: favCount } = useFavorites()
 
@@ -500,18 +504,20 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       : formatDate(dateFrom)
 
   // Shared button classes
-  const btn = 'text-xs border-2 border-black px-2.5 py-1 bg-white text-black hover:bg-black hover:text-white'
-  const btnActive = 'text-xs border-2 border-black px-2.5 py-1 bg-black text-white'
+  const btn = 'text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'
+  const btnActive = 'text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-text)]'
 
   const anyFiltersActive = activeFilters.size > 0
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <div className="flex flex-col h-screen w-screen overflow-hidden">
+      <OfflineBanner />
+      <div className="flex flex-1 overflow-hidden">
       {/* ── Left panel ─────────────────────────────────── */}
-      <div className={`flex flex-col border-r-2 border-black bg-white w-full md:w-[445px] md:shrink-0 ${mobileView === 'map' ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex flex-col border-r-2 border-[var(--border-primary)] bg-[var(--bg-primary)] w-full md:w-[445px] md:shrink-0 ${mobileView === 'map' ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b-2 border-black">
+        <div className="px-4 pt-4 pb-3 border-b-2 border-[var(--border-primary)]">
           <div className="flex items-center justify-between mb-0.5">
             <h1 className="text-lg font-bold tracking-tight">Citizen.Berlin</h1>
             <div className="flex items-center gap-1">
@@ -546,21 +552,22 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                     }
                   }
                 }}
-                className="text-[10px] border border-black px-1.5 py-0.5 hover:bg-black hover:text-white font-bold"
+                className="text-[10px] border border-[var(--border-primary)] px-1.5 py-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] font-bold"
                 title="Surprise Me"
               >
                 ✦ Surprise
               </button>
               {user && <NotificationsBell />}
+              <ThemeToggle />
               <LanguageSelector />
               <button
                 onClick={() => { if (user) setShowCalendar(true); else setShowAuth(true) }}
                 title="My Calendar"
-                className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+                className="relative flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
               >
                 <CalendarDays size={14} />
                 {user && attendance.length > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-black text-white text-[9px] font-bold flex items-center justify-center border border-white">
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-[var(--accent)] text-[var(--accent-text)] text-[9px] font-bold flex items-center justify-center border border-white">
                     {attendance.length > 9 ? '9+' : attendance.length}
                   </span>
                 )}
@@ -568,7 +575,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               <button
                 onClick={() => { if (user) setShowLists(true); else setShowAuth(true) }}
                 title="My Lists"
-                className="relative flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+                className="relative flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
               >
                 <BookMarked size={14} />
               </button>
@@ -576,7 +583,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 <a
                   href="/profile"
                   title={user.display_name ?? user.email}
-                  className="flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white bg-black text-white"
+                  className="flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)] bg-[var(--accent)] text-[var(--accent-text)]"
                 >
                   <User size={14} />
                 </a>
@@ -584,14 +591,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 <button
                   onClick={() => setShowAuth(true)}
                   title="Sign in"
-                  className="flex items-center justify-center w-8 h-8 border-2 border-black hover:bg-black hover:text-white"
+                  className="flex items-center justify-center w-8 h-8 border-2 border-[var(--border-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
                 >
                   <User size={14} />
                 </button>
               )}
             </div>
           </div>
-          <p className="text-xs text-gray-500">Berlin culture events, live<WeatherWidget /></p>
+          <p className="text-xs text-[var(--text-secondary)]">Berlin culture events, live<WeatherWidget /></p>
 
           {/* Search */}
           <div className="relative mt-2">
@@ -601,7 +608,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               placeholder="Search events, venues, streets…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full text-xs border-2 border-black pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_#000]"
+              className="w-full text-xs border-2 border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] pl-7 pr-7 py-1.5 outline-none focus:shadow-[2px_2px_0_var(--border-primary)]"
             />
             {search && (
               <button
@@ -637,7 +644,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </button>
               )}
               {calOpen && (
-                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000]">
+                <div className="absolute top-full left-0 mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)]">
                   <div className="flex gap-1 px-2 pt-2">
                     {([
                       ['Today', 0],
@@ -694,7 +701,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </span>
               </button>
               {catOpen && (
-                <div className="absolute top-full left-0 mt-1 z-[1000] bg-white border-2 border-black shadow-[4px_4px_0_#000] w-44 py-1">
+                <div className="absolute top-full left-0 mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] w-44 py-1">
                   {CATEGORIES.map(c => {
                     const style   = getCategoryStyle(c)
                     const checked = cats.includes(c)
@@ -702,7 +709,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                       <button
                         key={c}
                         onClick={() => toggleCat(c)}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-gray-100 ${checked ? 'font-bold' : ''}`}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-[var(--bg-secondary)] ${checked ? 'font-bold' : ''}`}
                       >
                         <span className="w-2 h-2 shrink-0 border border-gray-400" style={{ background: style.hex }} />
                         {c}
@@ -713,7 +720,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {cats.length > 0 && (
                     <button
                       onClick={() => setCats([])}
-                      className="w-full text-left px-3 py-1.5 text-[10px] text-gray-500 border-t-2 border-gray-200 mt-1 pt-1.5 hover:bg-gray-100"
+                      className="w-full text-left px-3 py-1.5 text-[10px] text-gray-500 border-t-2 border-gray-200 mt-1 pt-1.5 hover:bg-[var(--bg-secondary)]"
                     >
                       Clear filters
                     </button>
@@ -825,7 +832,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* ── Unified filter accordion (Places mode) ──────────────────────── */}
         {mode === 'venues' && (
-          <div className="px-4 py-1.5 border-b-2 border-black">
+          <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
             {/* Group pills */}
             <div className="flex items-center gap-1 flex-wrap mb-1">
               {FILTER_GROUPS.map(group => {
@@ -836,12 +843,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   <button
                     key={group.key}
                     onClick={() => toggleGroupExpand(group.key)}
-                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-black bg-gray-100 font-bold' : 'border-gray-300 hover:border-gray-400'}`}
+                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-[var(--border-primary)] bg-[var(--bg-secondary)] font-bold' : 'border-gray-300 hover:border-gray-400'}`}
                   >
                     <Icon size={10} className="shrink-0 text-gray-500" />
                     {group.label}
                     {activeCount > 0 && (
-                      <span className="text-[8px] bg-black text-white px-1 py-px font-bold leading-none">{activeCount}</span>
+                      <span className="text-[8px] bg-[var(--accent)] text-[var(--accent-text)] px-1 py-px font-bold leading-none">{activeCount}</span>
                     )}
                   </button>
                 )
@@ -909,7 +916,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* ── Listings filter pills + new listing ──────────────────────── */}
         {mode === 'listings' && (
-          <div className="px-4 py-1.5 border-b-2 border-black">
+          <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
             <div className="flex items-center gap-1 flex-wrap mb-1">
               {([
                 { key: undefined,          label: 'All' },
@@ -931,7 +938,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   if (user) window.location.href = '/listings/new'
                   else setShowAuth(true)
                 }}
-                className="text-xs border-2 border-black px-2.5 py-1 bg-black text-white hover:bg-gray-800 ml-auto"
+                className="text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-text)] hover:bg-[var(--accent)] ml-auto"
               >
                 + New
               </button>
@@ -961,7 +968,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 }}
                 onFocus={() => listingStreetSuggestions.length > 0 && setShowStreetSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowStreetSuggestions(false), 200)}
-                className="w-full text-xs border-2 border-black px-2.5 py-1 outline-none focus:shadow-[2px_2px_0_#000] pr-7"
+                className="w-full text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 outline-none focus:shadow-[2px_2px_0_var(--border-primary)] pr-7"
                 autoComplete="off"
               />
               {listingStreetFilter && (
@@ -973,12 +980,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </button>
               )}
               {showStreetSuggestions && listingStreetSuggestions.length > 0 && (
-                <ul className="absolute z-50 left-0 right-0 bg-white border-2 border-black mt-0.5 max-h-40 overflow-y-auto shadow-[2px_2px_0_#000]">
+                <ul className="absolute z-50 left-0 right-0 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] mt-0.5 max-h-40 overflow-y-auto shadow-[2px_2px_0_var(--border-primary)]">
                   {listingStreetSuggestions.map((s, i) => (
                     <li key={`${s.name}-${s.postcode}-${i}`}>
                       <button
                         type="button"
-                        className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-gray-100"
+                        className="w-full text-left text-xs px-2.5 py-1.5 hover:bg-[var(--bg-secondary)]"
                         onMouseDown={e => {
                           e.preventDefault()
                           setListingStreetFilter(s.name)
@@ -1038,18 +1045,18 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               nearbyResults.map((item, i) => (
                 <div
                   key={`${item.type}-${item.id}-${i}`}
-                  className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                   onClick={() => setFlyTo([item.lng, item.lat])}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-gray-900 leading-snug truncate">{item.name}</p>
+                      <p className="text-xs font-bold text-[var(--text-primary)] leading-snug truncate">{item.name}</p>
                       <p className="text-[10px] text-gray-500 mt-0.5">
                         {item.category ?? item.type}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-mono bg-gray-100 border border-gray-300 px-1.5 py-0.5">
+                      <span className="text-[10px] font-mono bg-[var(--bg-secondary)] border border-gray-300 px-1.5 py-0.5">
                         {item.distance_m < 1000 ? `${Math.round(item.distance_m)}m` : `${(item.distance_m / 1000).toFixed(1)}km`}
                       </span>
                       <FavoriteButton type={item.type} id={item.id} size={12} />
@@ -1067,13 +1074,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* Event results */}
                 {(searchResults?.events?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Events ({searchResults!.events.length})
                     </p>
                     {searchResults!.events.map(ev => (
                       <div
                         key={ev.id}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
@@ -1081,7 +1088,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-900 leading-snug">{ev.title}</p>
+                            <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{ev.title}</p>
                             <p className="text-[10px] text-gray-500 mt-0.5">
                               {ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}
                             </p>
@@ -1102,13 +1109,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* Location results */}
                 {(searchResults?.locations?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Venues ({searchResults!.locations.length})
                     </p>
                     {searchResults!.locations.map(loc => (
                       <div
                         key={loc.id}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
@@ -1116,7 +1123,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-900 leading-snug">{loc.name}</p>
+                            <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{loc.name}</p>
                             <p className="text-[10px] text-gray-500 mt-0.5">
                               {[loc.category, loc.borough].filter(Boolean).join(' · ')}
                             </p>
@@ -1137,19 +1144,19 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* Places (parks, playgrounds, OSM spots) */}
                 {(searchResults?.places?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Places ({searchResults!.places.length})
                     </p>
                     {searchResults!.places.map(pl => (
                       <div
                         key={pl.id}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([pl.lng, pl.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{pl.name}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{pl.name}</p>
                         <p className="text-[10px] text-gray-500 mt-0.5">{pl.type}</p>
                       </div>
                     ))}
@@ -1158,13 +1165,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* POI results */}
                 {(searchResults?.pois?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Points of Interest ({searchResults!.pois!.length})
                     </p>
                     {searchResults!.pois!.map(poi => (
                       <div
                         key={poi.id}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           if (poi.lat && poi.lng) setFlyTo([poi.lng, poi.lat])
@@ -1172,7 +1179,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-900 leading-snug">{poi.name ?? 'Unnamed'}</p>
+                            <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{poi.name ?? 'Unnamed'}</p>
                             <p className="text-[10px] text-gray-500 mt-0.5">
                               {[poi.category, poi.region].filter(Boolean).join(' · ')}
                             </p>
@@ -1193,19 +1200,19 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* Address results */}
                 {(searchResults?.addresses?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Addresses ({searchResults!.addresses!.length})
                     </p>
                     {searchResults!.addresses!.map((addr, i) => (
                       <div
                         key={`addr-${addr.street}-${addr.housenumber}-${i}`}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([addr.lng, addr.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{addr.display}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{addr.display}</p>
                         {addr.postcode && (
                           <p className="text-[10px] text-gray-500 mt-0.5">{addr.postcode}</p>
                         )}
@@ -1216,19 +1223,19 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 {/* Street results */}
                 {(searchResults?.streets?.length ?? 0) > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-gray-50">
+                    <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400 border-b border-gray-200 bg-[var(--bg-secondary)]">
                       Streets ({searchResults!.streets!.length})
                     </p>
                     {searchResults!.streets!.map((st, i) => (
                       <div
                         key={`${st.name}-${st.postcode}-${i}`}
-                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        className="px-4 py-2.5 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([st.lng, st.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 leading-snug">{st.name}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] leading-snug">{st.name}</p>
                         <p className="text-[10px] text-gray-500 mt-0.5">
                           {[st.postcode, st.borough].filter(Boolean).join(' · ')}
                         </p>
@@ -1263,6 +1270,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             />
           ) : mode === 'events' ? (
             <>
+            <ForYouSection />
+            <WeatherPicks date={dateFrom} />
             <TrendingSection />
             {loading && events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
@@ -1345,12 +1354,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   return (
                     <div
                       key={p.id ?? gid ?? i}
-                      className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      className="px-4 py-3 border-b border-gray-100 hover:bg-[var(--bg-secondary)] cursor-pointer"
                       onClick={() => { if (coords) setFlyTo(coords) }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="font-bold text-sm text-gray-900 leading-snug truncate">
+                          <p className="font-bold text-sm text-[var(--text-primary)] leading-snug truncate">
                             {displayName}
                           </p>
                           {displayAddress && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{displayAddress}</p>}
@@ -1375,7 +1384,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                             <a
                               href={detailHref}
                               onClick={e => e.stopPropagation()}
-                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-[var(--border-primary)]"
                             >
                               Details →
                             </a>
@@ -1386,7 +1395,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={e => e.stopPropagation()}
-                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-black"
+                              className="text-[10px] text-gray-400 hover:text-black border border-gray-300 px-1.5 py-0.5 hover:border-[var(--border-primary)]"
                             >
                               Website →
                             </a>
@@ -1408,11 +1417,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* Pagination */}
         {mode === 'events' && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2 pb-[calc(0.5rem+3.5rem)] md:pb-2 border-t-2 border-black text-xs">
+          <div className="flex items-center justify-between px-4 py-2 pb-[calc(0.5rem+3.5rem)] md:pb-2 border-t-2 border-[var(--border-primary)] text-xs">
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
-              className="flex items-center gap-1 border-2 border-black px-2 py-1 disabled:opacity-30 hover:bg-black hover:text-white"
+              className="flex items-center gap-1 border-2 border-[var(--border-primary)] px-2 py-1 disabled:opacity-30 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
             >
               <ChevronLeft size={12} /> Prev
             </button>
@@ -1420,7 +1429,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => p + 1)}
-              className="flex items-center gap-1 border-2 border-black px-2 py-1 disabled:opacity-30 hover:bg-black hover:text-white"
+              className="flex items-center gap-1 border-2 border-[var(--border-primary)] px-2 py-1 disabled:opacity-30 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
             >
               Next <ChevronRight size={12} />
             </button>
@@ -1439,7 +1448,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               placeholder="Search events, venues, streets…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full text-xs border-2 border-black bg-white pl-7 pr-7 py-2 outline-none shadow-[2px_2px_0_#000]"
+              className="w-full text-xs border-2 border-[var(--border-primary)] bg-[var(--bg-primary)] pl-7 pr-7 py-2 outline-none shadow-[2px_2px_0_var(--border-primary)]"
             />
             {search && (
               <button
@@ -1452,7 +1461,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
           {/* Mobile search results dropdown */}
           {search.trim() && searchResults && (
-            <div className="mt-1 bg-white border-2 border-black shadow-[2px_2px_0_#000] max-h-[50vh] overflow-y-auto">
+            <div className="mt-1 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[2px_2px_0_var(--border-primary)] max-h-[50vh] overflow-y-auto">
               {(searchResults.events?.length ?? 0) === 0 && (searchResults.locations?.length ?? 0) === 0 && (searchResults.places?.length ?? 0) === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 ? (
                 <p className="px-3 py-3 text-xs text-gray-400 text-center">{searching ? 'Searching…' : 'No results'}</p>
               ) : (
@@ -1460,13 +1469,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {searchResults.events?.slice(0, 5).map(ev => (
                     <div key={ev.id} className="flex items-center border-b border-gray-100">
                       <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
                         onClick={() => {
                           setSearch('')
                           if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 truncate">{ev.title}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{ev.title}</p>
                         <p className="text-[10px] text-gray-500">{ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}</p>
                       </button>
                       {ev.lat && ev.lng && (
@@ -1484,13 +1493,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {searchResults.locations?.slice(0, 5).map(loc => (
                     <div key={loc.id} className="flex items-center border-b border-gray-100">
                       <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
                         onClick={() => {
                           setSearch('')
                           if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 truncate">{loc.name}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{loc.name}</p>
                         <p className="text-[10px] text-gray-500">{loc.category}{loc.borough ? ` · ${loc.borough}` : ''}</p>
                       </button>
                       {loc.lat && loc.lng && (
@@ -1508,13 +1517,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {searchResults.pois?.slice(0, 5).map(poi => (
                     <div key={poi.id} className="flex items-center border-b border-gray-100">
                       <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([poi.lng, poi.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 truncate">{poi.name ?? poi.category}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{poi.name ?? poi.category}</p>
                         <p className="text-[10px] text-gray-500">{poi.category_group} · {poi.region}</p>
                       </button>
                       <button
@@ -1530,13 +1539,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {searchResults.streets?.slice(0, 3).map((st, i) => (
                     <div key={`st-${i}`} className="flex items-center border-b border-gray-100">
                       <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([st.lng, st.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 truncate">{st.name}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{st.name}</p>
                         <p className="text-[10px] text-gray-500">{st.borough}{st.postcode ? ` · ${st.postcode}` : ''}</p>
                       </button>
                       <button
@@ -1552,13 +1561,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                   {searchResults.places?.slice(0, 3).map(pl => (
                     <div key={pl.id} className="flex items-center border-b border-gray-100">
                       <button
-                        className="flex-1 text-left px-3 py-2 hover:bg-gray-50"
+                        className="flex-1 text-left px-3 py-2 hover:bg-[var(--bg-secondary)]"
                         onClick={() => {
                           setSearch('')
                           setFlyTo([pl.lng, pl.lat])
                         }}
                       >
-                        <p className="text-xs font-bold text-gray-900 truncate">{pl.name}</p>
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{pl.name}</p>
                         <p className="text-[10px] text-gray-500">{pl.type}</p>
                       </button>
                       <button
@@ -1607,16 +1616,16 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       </div>
 
       {/* ── Mobile bottom bar ───────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t-2 border-black bg-white">
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex md:hidden border-t-2 border-[var(--border-primary)] bg-[var(--bg-primary)]">
         <button
           onClick={() => setMobileView('list')}
-          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'list' ? 'bg-black text-white' : ''}`}
+          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'list' ? 'bg-[var(--accent)] text-[var(--accent-text)]' : ''}`}
         >
           <List size={14} /> Events
         </button>
         <button
           onClick={() => setMobileView('map')}
-          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'map' ? 'bg-black text-white' : ''}`}
+          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 ${mobileView === 'map' ? 'bg-[var(--accent)] text-[var(--accent-text)]' : ''}`}
         >
           <Map size={14} /> Map
         </button>
@@ -1628,7 +1637,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-bold text-gray-900">{mobileSheetPopup.name}</p>
+                <p className="font-bold text-[var(--text-primary)]">{mobileSheetPopup.name}</p>
                 {mobileSheetPopup.category && (
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{mobileSheetPopup.category}</p>
                 )}
@@ -1649,14 +1658,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 href={`https://www.google.com/maps/dir/?api=1&destination=${mobileSheetPopup.lat},${mobileSheetPopup.lng}&travelmode=transit`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+                className="text-xs font-bold border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
               >
                 Directions
               </a>
               {mobileSheetPopup.id?.startsWith('poi:') && (
                 <a
                   href={`/pois/${mobileSheetPopup.id.replace('poi:', '')}`}
-                  className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+                  className="text-xs font-bold border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
                 >
                   View details
                 </a>
@@ -1664,7 +1673,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               {mobileSheetPopup.id && !mobileSheetPopup.id.startsWith('node/') && !mobileSheetPopup.id.startsWith('way/') && !mobileSheetPopup.id.startsWith('poi:') && !mobileSheetPopup.id.startsWith('park:') && !mobileSheetPopup.id.startsWith('playground:') && (
                 <a
                   href={`/locations/${mobileSheetPopup.id}`}
-                  className="text-xs font-bold border-2 border-black px-2.5 py-1 hover:bg-black hover:text-white"
+                  className="text-xs font-bold border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
                 >
                   View venue
                 </a>
@@ -1679,7 +1688,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       </BottomSheet>
 
       {/* ── AI Chat FAB ─────────────────────────────────── */}
-      <ChatPanel date={dateFrom} viewport={mapCenter ? { ...mapCenter, zoom: mapZoom } : undefined} />
+      <ChatPanel date={dateFrom} viewport={mapCenter ? { ...mapCenter, zoom: mapZoom } : undefined} token={token} />
 
       {/* ── Favorites migration prompt ─────────────────── */}
       <FavoritesMigrationPrompt />
@@ -1688,6 +1697,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       {showAuth     && <AuthModal     onClose={() => setShowAuth(false)}     />}
       {showLists    && <ListsDrawer   onClose={() => setShowLists(false)}    />}
       {showCalendar && <CalendarPanel onClose={() => setShowCalendar(false)} />}
+      </div>
     </div>
   )
 }
@@ -1712,7 +1722,7 @@ function FavoritesMigrationPrompt() {
   if (!show) return null
 
   return (
-    <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-5 sm:w-80 z-50 bg-white border-2 border-black shadow-[4px_4px_0_#000] p-4">
+    <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-5 sm:w-80 z-50 bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] p-4">
       <p className="text-xs font-bold mb-2">Save {favCount} favorite{favCount !== 1 ? 's' : ''} to your account?</p>
       <p className="text-[10px] text-gray-500 mb-3">Your favorites are stored locally. Save them to a list so they sync across devices.</p>
       <div className="flex gap-2">
@@ -1731,7 +1741,7 @@ function FavoritesMigrationPrompt() {
             setMigrating(false)
           }}
           disabled={migrating}
-          className="text-xs border-2 border-black px-2.5 py-1 bg-black text-white hover:bg-gray-800 disabled:opacity-50"
+          className="text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-text)] hover:bg-[var(--accent)] disabled:opacity-50"
         >
           {migrating ? 'Saving...' : 'Save to list'}
         </button>
@@ -1740,7 +1750,7 @@ function FavoritesMigrationPrompt() {
             localStorage.setItem('citizen-favorites-migrated', 'true')
             setShow(false)
           }}
-          className="text-xs border-2 border-black px-2.5 py-1 hover:bg-gray-100"
+          className="text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 hover:bg-[var(--bg-secondary)]"
         >
           Not now
         </button>

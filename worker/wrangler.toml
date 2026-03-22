@@ -6,10 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 [triggers]
 crons = [
   "0 * * * *",      # Ingest next 30 days — hourly
-  "*/30 * * * *",   # Geocode pass every 30 minutes
+  "*/30 * * * *",   # Geocode pass every 30 minutes + push reminders
   "0 2 * * *",      # Geodata + location refresh + POI Berlin — 2am daily
   "0 3 * * *",      # Full 365-day event sweep + POI Brandenburg (Wed) — 3am daily
   "0 8 * * 1",      # Weekly digest — Monday 8am UTC
+  "0 9 * * *",      # Smart notifications — daily 9am UTC
 ]
 
 [[r2_buckets]]
@@ -37,3 +38,5 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 # RESEND_API_KEY   — Resend API key for magic-link emails
 # JWT_SECRET       — random 32+ char string for signing session JWTs
 # FRONTEND_URL     — full URL of the Next.js app (e.g. https://citizen-berlin.vercel.app)
+# VAPID_PUBLIC_KEY  — VAPID public key for web push notifications
+# VAPID_PRIVATE_KEY — VAPID private key for web push notifications
