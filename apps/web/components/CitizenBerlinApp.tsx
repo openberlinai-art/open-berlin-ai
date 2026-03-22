@@ -1429,6 +1429,103 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
       {/* ── Map ─────────────────────────────────────────── */}
       <div className={`flex-1 relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
+        {/* Mobile map search bar */}
+        <div className="absolute top-2 left-2 right-2 z-10 md:hidden">
+          <div className="relative">
+            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search events, venues, streets…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full text-xs border-2 border-black bg-white pl-7 pr-7 py-2 outline-none shadow-[2px_2px_0_#000]"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
+          {/* Mobile search results dropdown */}
+          {search.trim() && searchResults && (
+            <div className="mt-1 bg-white border-2 border-black shadow-[2px_2px_0_#000] max-h-[50vh] overflow-y-auto">
+              {(searchResults.events?.length ?? 0) === 0 && (searchResults.locations?.length ?? 0) === 0 && (searchResults.places?.length ?? 0) === 0 && (searchResults.pois?.length ?? 0) === 0 && (searchResults.streets?.length ?? 0) === 0 ? (
+                <p className="px-3 py-3 text-xs text-gray-400 text-center">{searching ? 'Searching…' : 'No results'}</p>
+              ) : (
+                <>
+                  {searchResults.events?.slice(0, 5).map(ev => (
+                    <button
+                      key={ev.id}
+                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                      onClick={() => {
+                        setSearch('')
+                        if (ev.lat && ev.lng) setFlyTo([ev.lng, ev.lat])
+                      }}
+                    >
+                      <p className="text-xs font-bold text-gray-900 truncate">{ev.title}</p>
+                      <p className="text-[10px] text-gray-500">{ev.date_start}{ev.location_name ? ` · ${ev.location_name}` : ''}</p>
+                    </button>
+                  ))}
+                  {searchResults.locations?.slice(0, 5).map(loc => (
+                    <button
+                      key={loc.id}
+                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                      onClick={() => {
+                        setSearch('')
+                        if (loc.lat && loc.lng) setFlyTo([loc.lng, loc.lat])
+                      }}
+                    >
+                      <p className="text-xs font-bold text-gray-900 truncate">{loc.name}</p>
+                      <p className="text-[10px] text-gray-500">{loc.category}{loc.borough ? ` · ${loc.borough}` : ''}</p>
+                    </button>
+                  ))}
+                  {searchResults.pois?.slice(0, 5).map(poi => (
+                    <button
+                      key={poi.id}
+                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                      onClick={() => {
+                        setSearch('')
+                        setFlyTo([poi.lng, poi.lat])
+                      }}
+                    >
+                      <p className="text-xs font-bold text-gray-900 truncate">{poi.name ?? poi.category}</p>
+                      <p className="text-[10px] text-gray-500">{poi.category_group} · {poi.region}</p>
+                    </button>
+                  ))}
+                  {searchResults.streets?.slice(0, 3).map((st, i) => (
+                    <button
+                      key={`st-${i}`}
+                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                      onClick={() => {
+                        setSearch('')
+                        setFlyTo([st.lng, st.lat])
+                      }}
+                    >
+                      <p className="text-xs font-bold text-gray-900 truncate">{st.name}</p>
+                      <p className="text-[10px] text-gray-500">{st.borough}{st.postcode ? ` · ${st.postcode}` : ''}</p>
+                    </button>
+                  ))}
+                  {searchResults.places?.slice(0, 3).map(pl => (
+                    <button
+                      key={pl.id}
+                      className="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                      onClick={() => {
+                        setSearch('')
+                        setFlyTo([pl.lng, pl.lat])
+                      }}
+                    >
+                      <p className="text-xs font-bold text-gray-900 truncate">{pl.name}</p>
+                      <p className="text-[10px] text-gray-500">{pl.type}</p>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <ErrorBoundary fallback={
           <div className="flex items-center justify-center h-full text-xs text-gray-500">Map failed to load.</div>
         }>
