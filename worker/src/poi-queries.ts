@@ -6,6 +6,7 @@ export type POICategoryGroup =
   | 'transport' | 'food_drink' | 'sports' | 'services'
   | 'nightlife' | 'shopping' | 'accommodation'
   | 'culture' | 'wellness' | 'education' | 'quirky'
+  | 'health' | 'craft'
 
 export type POICategory = typeof POI_CATEGORIES[number]['key']
 
@@ -228,6 +229,96 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   { key: 'music_school',       group: 'education',     label: 'Music Schools' },
   // Nature additions
   { key: 'picnic_site',        group: 'nature',        label: 'Picnic Sites' },
+
+  // Health
+  { key: 'physiotherapist',    group: 'health',        label: 'Physiotherapy' },
+  { key: 'psychologist',       group: 'health',        label: 'Psychologists' },
+  { key: 'midwife',            group: 'health',        label: 'Midwives' },
+  { key: 'speech_therapist',   group: 'health',        label: 'Speech Therapy' },
+  { key: 'podiatrist',         group: 'health',        label: 'Podiatrists' },
+  { key: 'alternative_medicine',group: 'health',       label: 'Alternative Medicine' },
+  { key: 'massage',            group: 'health',        label: 'Massage' },
+  { key: 'hearing_aids',       group: 'health',        label: 'Hearing Aids' },
+
+  // Craft
+  { key: 'locksmith',          group: 'craft',         label: 'Locksmiths' },
+  { key: 'electrician',        group: 'craft',         label: 'Electricians' },
+  { key: 'plumber',            group: 'craft',         label: 'Plumbers' },
+  { key: 'carpenter',          group: 'craft',         label: 'Carpenters' },
+  { key: 'painter_craft',      group: 'craft',         label: 'Painters' },
+  { key: 'photographer_studio',group: 'craft',         label: 'Photo Studios' },
+  { key: 'printer',            group: 'craft',         label: 'Printers & Copy' },
+  { key: 'tailor',             group: 'craft',         label: 'Tailors' },
+  { key: 'shoemaker',          group: 'craft',         label: 'Cobblers' },
+  { key: 'goldsmith',          group: 'craft',         label: 'Goldsmiths' },
+  { key: 'watchmaker',         group: 'craft',         label: 'Watchmakers' },
+  { key: 'glazier',            group: 'craft',         label: 'Glaziers' },
+  { key: 'key_cutter',         group: 'craft',         label: 'Key Cutters' },
+
+  // Shopping batch 3
+  { key: 'department_store',   group: 'shopping',      label: 'Dept. Stores' },
+  { key: 'sports_shop',        group: 'shopping',      label: 'Sports Shops' },
+  { key: 'stationery',         group: 'shopping',      label: 'Stationery' },
+  { key: 'gift_shop',          group: 'shopping',      label: 'Gift Shops' },
+  { key: 'tobacco',            group: 'shopping',      label: 'Tobacco Shops' },
+  { key: 'newsagent',          group: 'shopping',      label: 'Newsagents' },
+  { key: 'garden_centre',      group: 'shopping',      label: 'Garden Centres' },
+  { key: 'toy_shop',           group: 'shopping',      label: 'Toy Shops' },
+  { key: 'alcohol_shop',       group: 'shopping',      label: 'Alcohol Shops' },
+  { key: 'antiques',           group: 'shopping',      label: 'Antiques' },
+  { key: 'cosmetics',          group: 'shopping',      label: 'Cosmetics' },
+  { key: 'computer_shop',      group: 'shopping',      label: 'Computer Shops' },
+  { key: 'greengrocer',        group: 'shopping',      label: 'Greengrocers' },
+  { key: 'confectionery',      group: 'shopping',      label: 'Confectionery' },
+  { key: 'art_shop',           group: 'shopping',      label: 'Art Supplies' },
+
+  // Food & Drink batch 3
+  { key: 'pastry',             group: 'food_drink',    label: 'Pastry Shops' },
+  { key: 'tea_house',          group: 'food_drink',    label: 'Tea Houses' },
+  { key: 'cheese_shop',        group: 'food_drink',    label: 'Cheese Shops' },
+  { key: 'seafood',            group: 'food_drink',    label: 'Seafood' },
+
+  // Services batch 3
+  { key: 'dry_cleaning',       group: 'services',      label: 'Dry Cleaning' },
+  { key: 'travel_agency',      group: 'services',      label: 'Travel Agencies' },
+  { key: 'estate_agent',       group: 'services',      label: 'Estate Agents' },
+  { key: 'notary',             group: 'services',      label: 'Notaries' },
+  { key: 'insurance',          group: 'services',      label: 'Insurance' },
+  { key: 'lawyer',             group: 'services',      label: 'Lawyers' },
+  { key: 'accountant',         group: 'services',      label: 'Accountants' },
+  { key: 'funeral_home',       group: 'services',      label: 'Funeral Homes' },
+  { key: 'animal_shelter',     group: 'services',      label: 'Animal Shelters' },
+  { key: 'childcare',          group: 'services',      label: 'Childcare' },
+  { key: 'internet_cafe',      group: 'services',      label: 'Internet Cafés' },
+
+  // Transport batch 3
+  { key: 'airport',            group: 'transport',     label: 'Airports' },
+  { key: 'marina',             group: 'transport',     label: 'Marinas' },
+
+  // Sports batch 3
+  { key: 'golf_course',        group: 'sports',        label: 'Golf Courses' },
+  { key: 'horse_riding',       group: 'sports',        label: 'Horse Riding' },
+  { key: 'tennis',             group: 'sports',        label: 'Tennis' },
+  { key: 'martial_arts',       group: 'sports',        label: 'Martial Arts' },
+  { key: 'swimming_outdoor',   group: 'sports',        label: 'Outdoor Swimming' },
+
+  // Nature batch 3
+  { key: 'waterfall',          group: 'nature',        label: 'Waterfalls' },
+  { key: 'spring',             group: 'nature',        label: 'Springs' },
+  { key: 'water_tower',        group: 'nature',        label: 'Water Towers' },
+  { key: 'pier',               group: 'nature',        label: 'Piers' },
+
+  // Heritage batch 3
+  { key: 'tomb',               group: 'heritage',      label: 'Tombs' },
+  { key: 'boundary_stone',     group: 'heritage',      label: 'Boundary Stones' },
+  { key: 'wayside_shrine',     group: 'heritage',      label: 'Wayside Shrines' },
+  { key: 'milestone_historic', group: 'heritage',      label: 'Milestones' },
+  { key: 'locomotive',         group: 'heritage',      label: 'Historic Trains' },
+  { key: 'lighthouse',         group: 'heritage',      label: 'Lighthouses' },
+
+  // Quirky batch 3
+  { key: 'observatory',        group: 'quirky',        label: 'Observatories' },
+  { key: 'clock_tower',        group: 'quirky',        label: 'Clocks' },
 ]
 
 // Map category key → Overpass QL body (use {BBOX} placeholder)
@@ -473,6 +564,96 @@ const OVERPASS_QUERIES: Record<string, string> = {
 
   // Nature additions (batch 2)
   picnic_site: `[out:json][timeout:30];(node[tourism=picnic_site]({BBOX});way[tourism=picnic_site]({BBOX});node[leisure=picnic_table]({BBOX}););out center;`,
+
+  // Health
+  physiotherapist: `[out:json][timeout:30];(node[healthcare=physiotherapist]({BBOX});way[healthcare=physiotherapist]({BBOX}););out center;`,
+  psychologist: `[out:json][timeout:30];(node[healthcare=psychotherapist]({BBOX});way[healthcare=psychotherapist]({BBOX});node[office=psychologist]({BBOX});way[office=psychologist]({BBOX}););out center;`,
+  midwife: `[out:json][timeout:30];(node[healthcare=midwife]({BBOX});way[healthcare=midwife]({BBOX}););out center;`,
+  speech_therapist: `[out:json][timeout:30];(node[healthcare=speech_therapist]({BBOX});way[healthcare=speech_therapist]({BBOX}););out center;`,
+  podiatrist: `[out:json][timeout:30];(node[healthcare=podiatrist]({BBOX});way[healthcare=podiatrist]({BBOX});node[healthcare=podology]({BBOX});way[healthcare=podology]({BBOX}););out center;`,
+  alternative_medicine: `[out:json][timeout:30];(node[healthcare=alternative]({BBOX});way[healthcare=alternative]({BBOX}););out center;`,
+  massage: `[out:json][timeout:30];(node[shop=massage]({BBOX});way[shop=massage]({BBOX}););out center;`,
+  hearing_aids: `[out:json][timeout:30];(node[shop=hearing_aids]({BBOX});way[shop=hearing_aids]({BBOX}););out center;`,
+
+  // Craft
+  locksmith: `[out:json][timeout:30];(node[shop=locksmith]({BBOX});way[shop=locksmith]({BBOX});node[craft=locksmith]({BBOX});way[craft=locksmith]({BBOX}););out center;`,
+  electrician: `[out:json][timeout:30];(node[craft=electrician]({BBOX});way[craft=electrician]({BBOX}););out center;`,
+  plumber: `[out:json][timeout:30];(node[craft=plumber]({BBOX});way[craft=plumber]({BBOX}););out center;`,
+  carpenter: `[out:json][timeout:30];(node[craft=carpenter]({BBOX});way[craft=carpenter]({BBOX}););out center;`,
+  painter_craft: `[out:json][timeout:30];(node[craft=painter]({BBOX});way[craft=painter]({BBOX}););out center;`,
+  photographer_studio: `[out:json][timeout:30];(node[craft=photographer]({BBOX});way[craft=photographer]({BBOX}););out center;`,
+  printer: `[out:json][timeout:30];(node[craft=printer]({BBOX});way[craft=printer]({BBOX});node[shop=copyshop]({BBOX});way[shop=copyshop]({BBOX}););out center;`,
+  tailor: `[out:json][timeout:30];(node[shop=tailor]({BBOX});way[shop=tailor]({BBOX});node[craft=tailor]({BBOX});way[craft=tailor]({BBOX}););out center;`,
+  shoemaker: `[out:json][timeout:30];(node[craft=shoemaker]({BBOX});way[craft=shoemaker]({BBOX}););out center;`,
+  goldsmith: `[out:json][timeout:30];(node[craft=goldsmith]({BBOX});way[craft=goldsmith]({BBOX}););out center;`,
+  watchmaker: `[out:json][timeout:30];(node[craft=watchmaker]({BBOX});way[craft=watchmaker]({BBOX}););out center;`,
+  glazier: `[out:json][timeout:30];(node[craft=glazier]({BBOX});way[craft=glazier]({BBOX}););out center;`,
+  key_cutter: `[out:json][timeout:30];(node[craft=key_cutter]({BBOX});way[craft=key_cutter]({BBOX}););out center;`,
+
+  // Shopping additions (batch 3)
+  department_store: `[out:json][timeout:30];(node[shop=department_store]({BBOX});way[shop=department_store]({BBOX}););out center;`,
+  sports_shop: `[out:json][timeout:30];(node[shop=sports]({BBOX});way[shop=sports]({BBOX}););out center;`,
+  stationery: `[out:json][timeout:30];(node[shop=stationery]({BBOX});way[shop=stationery]({BBOX}););out center;`,
+  gift_shop: `[out:json][timeout:30];(node[shop=gift]({BBOX});way[shop=gift]({BBOX}););out center;`,
+  tobacco: `[out:json][timeout:30];(node[shop=tobacco]({BBOX});way[shop=tobacco]({BBOX}););out center;`,
+  newsagent: `[out:json][timeout:30];(node[shop=newsagent]({BBOX});way[shop=newsagent]({BBOX}););out center;`,
+  garden_centre: `[out:json][timeout:30];(node[shop=garden_centre]({BBOX});way[shop=garden_centre]({BBOX}););out center;`,
+  toy_shop: `[out:json][timeout:30];(node[shop=toys]({BBOX});way[shop=toys]({BBOX}););out center;`,
+  alcohol_shop: `[out:json][timeout:30];(node[shop=alcohol]({BBOX});way[shop=alcohol]({BBOX}););out center;`,
+  antiques: `[out:json][timeout:30];(node[shop=antiques]({BBOX});way[shop=antiques]({BBOX}););out center;`,
+  cosmetics: `[out:json][timeout:30];(node[shop=cosmetics]({BBOX});way[shop=cosmetics]({BBOX}););out center;`,
+  computer_shop: `[out:json][timeout:30];(node[shop=computer]({BBOX});way[shop=computer]({BBOX}););out center;`,
+  greengrocer: `[out:json][timeout:30];(node[shop=greengrocer]({BBOX});way[shop=greengrocer]({BBOX}););out center;`,
+  confectionery: `[out:json][timeout:30];(node[shop=confectionery]({BBOX});way[shop=confectionery]({BBOX}););out center;`,
+  art_shop: `[out:json][timeout:30];(node[shop=art]({BBOX});way[shop=art]({BBOX}););out center;`,
+
+  // Food & Drink additions (batch 3)
+  pastry: `[out:json][timeout:30];(node[shop=pastry]({BBOX});way[shop=pastry]({BBOX}););out center;`,
+  tea_house: `[out:json][timeout:30];(node[shop=tea]({BBOX});way[shop=tea]({BBOX});node[amenity=cafe][cuisine=tea]({BBOX});way[amenity=cafe][cuisine=tea]({BBOX}););out center;`,
+  cheese_shop: `[out:json][timeout:30];(node[shop=cheese]({BBOX});way[shop=cheese]({BBOX}););out center;`,
+  seafood: `[out:json][timeout:30];(node[shop=seafood]({BBOX});way[shop=seafood]({BBOX}););out center;`,
+
+  // Services additions (batch 3)
+  dry_cleaning: `[out:json][timeout:30];(node[shop=dry_cleaning]({BBOX});way[shop=dry_cleaning]({BBOX}););out center;`,
+  travel_agency: `[out:json][timeout:30];(node[shop=travel_agency]({BBOX});way[shop=travel_agency]({BBOX}););out center;`,
+  estate_agent: `[out:json][timeout:30];(node[office=estate_agent]({BBOX});way[office=estate_agent]({BBOX}););out center;`,
+  notary: `[out:json][timeout:30];(node[office=notary]({BBOX});way[office=notary]({BBOX}););out center;`,
+  insurance: `[out:json][timeout:30];(node[office=insurance]({BBOX});way[office=insurance]({BBOX}););out center;`,
+  lawyer: `[out:json][timeout:30];(node[office=lawyer]({BBOX});way[office=lawyer]({BBOX}););out center;`,
+  accountant: `[out:json][timeout:30];(node[office=accountant]({BBOX});way[office=accountant]({BBOX}););out center;`,
+  funeral_home: `[out:json][timeout:30];(node[amenity=funeral_hall]({BBOX});way[amenity=funeral_hall]({BBOX});node[shop=funeral_directors]({BBOX});way[shop=funeral_directors]({BBOX}););out center;`,
+  animal_shelter: `[out:json][timeout:30];(node[amenity=animal_shelter]({BBOX});way[amenity=animal_shelter]({BBOX}););out center;`,
+  childcare: `[out:json][timeout:30];(node[amenity=childcare]({BBOX});way[amenity=childcare]({BBOX}););out center;`,
+  internet_cafe: `[out:json][timeout:30];(node[amenity=internet_cafe]({BBOX});way[amenity=internet_cafe]({BBOX}););out center;`,
+
+  // Transport additions (batch 3)
+  airport: `[out:json][timeout:30];(node[aeroway=aerodrome]({BBOX});way[aeroway=aerodrome]({BBOX}););out center;`,
+  marina: `[out:json][timeout:30];(node[leisure=marina]({BBOX});way[leisure=marina]({BBOX}););out center;`,
+
+  // Sports additions (batch 3)
+  golf_course: `[out:json][timeout:30];(node[leisure=golf_course]({BBOX});way[leisure=golf_course]({BBOX}););out center;`,
+  horse_riding: `[out:json][timeout:30];(node[leisure=horse_riding]({BBOX});way[leisure=horse_riding]({BBOX}););out center;`,
+  tennis: `[out:json][timeout:30];(node[leisure=pitch][sport=tennis]({BBOX});way[leisure=pitch][sport=tennis]({BBOX});node[sport=tennis]({BBOX}););out center;`,
+  martial_arts: `[out:json][timeout:30];(node[sport=martial_arts]({BBOX});way[sport=martial_arts]({BBOX});node[leisure=dojo]({BBOX});way[leisure=dojo]({BBOX}););out center;`,
+  swimming_outdoor: `[out:json][timeout:30];(node[leisure=swimming_area]({BBOX});way[leisure=swimming_area]({BBOX}););out center;`,
+
+  // Nature additions (batch 3)
+  waterfall: `[out:json][timeout:30];(node[waterway=waterfall]({BBOX});way[waterway=waterfall]({BBOX}););out center;`,
+  spring: `[out:json][timeout:30];(node[natural=spring]({BBOX});way[natural=spring]({BBOX}););out center;`,
+  water_tower: `[out:json][timeout:30];(node[man_made=water_tower]({BBOX});way[man_made=water_tower]({BBOX}););out center;`,
+  pier: `[out:json][timeout:30];(node[man_made=pier]({BBOX});way[man_made=pier]({BBOX}););out center;`,
+
+  // Heritage additions (batch 3)
+  tomb: `[out:json][timeout:30];(node[historic=tomb]({BBOX});way[historic=tomb]({BBOX}););out center;`,
+  boundary_stone: `[out:json][timeout:30];(node[historic=boundary_stone]({BBOX});way[historic=boundary_stone]({BBOX}););out center;`,
+  wayside_shrine: `[out:json][timeout:30];(node[historic=wayside_shrine]({BBOX});way[historic=wayside_shrine]({BBOX}););out center;`,
+  milestone_historic: `[out:json][timeout:30];(node[historic=milestone]({BBOX});way[historic=milestone]({BBOX}););out center;`,
+  locomotive: `[out:json][timeout:30];(node[historic=locomotive]({BBOX});way[historic=locomotive]({BBOX});node[historic=railway_car]({BBOX});way[historic=railway_car]({BBOX}););out center;`,
+  lighthouse: `[out:json][timeout:30];(node[man_made=lighthouse]({BBOX});way[man_made=lighthouse]({BBOX}););out center;`,
+
+  // Quirky additions (batch 3)
+  observatory: `[out:json][timeout:30];(node[man_made=observatory]({BBOX});way[man_made=observatory]({BBOX});node[amenity=observatory]({BBOX});way[amenity=observatory]({BBOX}););out center;`,
+  clock_tower: `[out:json][timeout:30];(node[man_made=clock]({BBOX});way[man_made=clock]({BBOX});node[amenity=clock][support=tower]({BBOX}););out center;`,
 }
 
 // Group metadata
@@ -493,4 +674,6 @@ export const POI_GROUPS: Array<{ key: POICategoryGroup; label: string }> = [
   { key: 'wellness',      label: 'Wellness' },
   { key: 'education',     label: 'Education' },
   { key: 'quirky',        label: 'Weird & Wonderful' },
+  { key: 'health',        label: 'Health' },
+  { key: 'craft',         label: 'Trades & Craft' },
 ]
