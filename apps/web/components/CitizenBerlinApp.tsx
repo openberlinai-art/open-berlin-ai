@@ -80,9 +80,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // ─── Unified filter state ──────────────────────────────────────────────────
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ALL_DEFAULTS))
-  const [filtersExpanded, setFiltersExpanded] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth >= 768
-  )
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
+
+  // Expand filters on desktop after hydration to avoid SSR mismatch
+  useEffect(() => {
+    if (window.innerWidth >= 768) setFiltersExpanded(true)
+  }, [])
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
 
