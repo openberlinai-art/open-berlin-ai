@@ -91,59 +91,13 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // ─── Favorites view ─────────────────────────────────────────────────────────
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
 
+  // ─── Mode (events / venues / listings) ────────────────────────────────────
+  const [mode,      setModeRaw]      = useState<'events' | 'venues' | 'listings'>('events')
+  const [search,    setSearch]    = useState('')
+
   // ─── Share URL ──────────────────────────────────────────────────────────────
   const [urlCopied, setUrlCopied] = useState(false)
 
-  // ─── Deep link: read URL on mount ──────────────────────────────────────────
-  const urlInitRef = useRef(false)
-  useEffect(() => {
-    if (urlInitRef.current) return
-    urlInitRef.current = true
-    const s = readFromURL()
-    if (s.mode) setMode(s.mode)
-    if (s.query) setSearch(s.query)
-    if (s.filters) setActiveFilters(filtersFromString(s.filters))
-    if (s.lat != null && s.lng != null) {
-      setMapCenter({ lat: s.lat, lng: s.lng })
-      if (s.zoom != null) setMapZoom(s.zoom)
-      setFlyTo([s.lng, s.lat])
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Deep link: sync URL on state changes
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => {
-    clearTimeout(syncTimeoutRef.current)
-    syncTimeoutRef.current = setTimeout(() => {
-      syncToURL({
-        lat: mapCenter?.lat,
-        lng: mapCenter?.lng,
-        zoom: mapZoom,
-        mode: mode !== 'events' ? mode : undefined,
-        filters: activeFilters.size > 0 && filtersToString(activeFilters) !== filtersToString(new Set(CULTURE_DEFAULTS))
-          ? filtersToString(activeFilters) : undefined,
-        query: search.trim() || undefined,
-      })
-    }, 300)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapCenter, mapZoom, mode, activeFilters, search])
-
-  // Deep link: popstate listener
-  useEffect(() => {
-    function onPopState() {
-      const s = readFromURL()
-      if (s.mode) setMode(s.mode)
-      if (s.query !== undefined) setSearch(s.query ?? '')
-      if (s.filters) setActiveFilters(filtersFromString(s.filters))
-      if (s.lat != null && s.lng != null) {
-        setFlyTo([s.lng, s.lat])
-      }
-    }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
   const resolved = useMemo(() => resolveActiveFiltersForZoom(activeFilters, mapZoom), [activeFilters, mapZoom])
   const suppressedCount = useMemo(() => countZoomSuppressedFilters(activeFilters, mapZoom), [activeFilters, mapZoom])
 
@@ -208,7 +162,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [showLists,    setShowLists]    = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
   const [liveRadar,    setLiveRadar]    = useState(false)
-  const [mode,      setModeRaw]      = useState<'events' | 'venues' | 'listings'>('events')
   const setMode = useCallback((m: 'events' | 'venues' | 'listings') => {
     setModeRaw(m)
     syncToURL({
@@ -235,7 +188,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     setFlyToRaw(coords)
     if (coords) setMobileView('map')
   }
-  const [search,    setSearch]    = useState('')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<{
     events:    Array<{ id: string; title: string; date_start: string; category: string | null; location_name: string | null; lat: number | null; lng: number | null }>
@@ -246,6 +198,57 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     addresses?: Array<{ street: string; housenumber: string; display: string; lat: number; lng: number; postcode: string | null }>
   } | null>(null)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // ─── Deep link: read URL on mount ──────────────────────────────────────────
+  const urlInitRef = useRef(false)
+  useEffect(() => {
+    if (urlInitRef.current) return
+    urlInitRef.current = true
+    const s = readFromURL()
+    if (s.mode) setMode(s.mode)
+    if (s.query) setSearch(s.query)
+    if (s.filters) setActiveFilters(filtersFromString(s.filters))
+    if (s.lat != null && s.lng != null) {
+      setMapCenter({ lat: s.lat, lng: s.lng })
+      if (s.zoom != null) setMapZoom(s.zoom)
+      setFlyTo([s.lng, s.lat])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Deep link: sync URL on state changes
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => {
+    clearTimeout(syncTimeoutRef.current)
+    syncTimeoutRef.current = setTimeout(() => {
+      syncToURL({
+        lat: mapCenter?.lat,
+        lng: mapCenter?.lng,
+        zoom: mapZoom,
+        mode: mode !== 'events' ? mode : undefined,
+        filters: activeFilters.size > 0 && filtersToString(activeFilters) !== filtersToString(new Set(CULTURE_DEFAULTS))
+          ? filtersToString(activeFilters) : undefined,
+        query: search.trim() || undefined,
+      })
+    }, 300)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapCenter, mapZoom, mode, activeFilters, search])
+
+  // Deep link: popstate listener
+  useEffect(() => {
+    function onPopState() {
+      const s = readFromURL()
+      if (s.mode) setMode(s.mode)
+      if (s.query !== undefined) setSearch(s.query ?? '')
+      if (s.filters) setActiveFilters(filtersFromString(s.filters))
+      if (s.lat != null && s.lng != null) {
+        setFlyTo([s.lng, s.lat])
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ─── Data fetching — uses resolved filters ────────────────────────────────
 

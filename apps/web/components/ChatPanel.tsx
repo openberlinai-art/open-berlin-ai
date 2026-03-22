@@ -188,7 +188,7 @@ export default function ChatPanel({ date, viewport }: Props) {
               className="flex-1 text-xs border-2 border-black px-3 py-2 outline-none focus:bg-gray-50"
             />
             <button
-              onClick={send}
+              onClick={() => send()}
               disabled={!input.trim() || loading}
               className="p-2 bg-black text-white border-2 border-black disabled:opacity-40 hover:bg-gray-800"
             >
