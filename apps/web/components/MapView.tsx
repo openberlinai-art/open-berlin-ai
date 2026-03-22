@@ -934,14 +934,13 @@ export default function MapView({
             type="circle"
             filter={['!', ['has', 'point_count']]}
             paint={{
-              'circle-radius': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], 13,
-                ['interpolate', ['linear'], ['zoom'],
-                  8, 2,
-                  11, 3,
-                  13, 5,
-                  15, 8,
-                ]],
+              'circle-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                8, 2,
+                11, 3,
+                13, 5,
+                15, 8,
+              ],
               'circle-color': ['get', 'color'],
               'circle-stroke-width': ['case',
                 ['==', ['get', 'id'], activeId ?? ''], 3, 2],
