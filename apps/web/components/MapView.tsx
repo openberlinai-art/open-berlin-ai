@@ -672,16 +672,23 @@ export default function MapView({
               id="parks-point"
               type="circle"
               paint={{
-                'circle-radius':       10,
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  11, 3,
+                  13, 5,
+                  15, 8,
+                ],
                 'circle-color':        '#16a34a',
                 'circle-stroke-color': '#14532d',
-                'circle-stroke-width': 2,
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                 'circle-opacity':      0.9,
               }}
             />
             <Layer
               id="parks-icon"
               type="symbol"
+              minzoom={14}
               layout={{
                 'icon-image':           'icon-outdoors',
                 'icon-size':            0.55,
@@ -698,10 +705,16 @@ export default function MapView({
               id="playgrounds-point"
               type="circle"
               paint={{
-                'circle-radius':       10,
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  11, 3,
+                  13, 5,
+                  15, 8,
+                ],
                 'circle-color':        '#e879f9',
                 'circle-stroke-color': '#86198f',
-                'circle-stroke-width': 2,
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                 'circle-opacity':      0.9,
               }}
             />
@@ -715,36 +728,33 @@ export default function MapView({
             type="geojson"
             data={venueGeoJSON}
             cluster={true}
-            clusterMaxZoom={14}
-            clusterRadius={40}
+            clusterMaxZoom={10}
+            clusterRadius={30}
           >
             <Layer
               id="venue-clusters"
               type="circle"
               filter={['has', 'point_count']}
               paint={{
-                'circle-color':  '#b45309',
-                'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
-                'circle-opacity': 0.85,
+                'circle-color': '#b45309',
+                'circle-radius': 6,
+                'circle-opacity': 0.45,
+                'circle-stroke-width': 1,
+                'circle-stroke-color': '#78350f',
               }}
-            />
-            <Layer
-              id="venue-cluster-count"
-              type="symbol"
-              filter={['has', 'point_count']}
-              layout={{
-                'text-field': '{point_count_abbreviated}',
-                'text-size':  11,
-                'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-              }}
-              paint={{ 'text-color': '#fff' }}
             />
             <Layer
               id="venues-point"
               type="circle"
               filter={['!', ['has', 'point_count']]}
               paint={{
-                'circle-radius':       10,
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  11, 3,
+                  13, 5,
+                  15, 8,
+                ],
                 'circle-color':        ['match', ['get', 'category'],
                   'museum',           '#b91c1c',
                   'gallery',          '#7c3aed',
@@ -756,7 +766,7 @@ export default function MapView({
                   '#b45309',  // default
                 ],
                 'circle-stroke-color': '#78350f',
-                'circle-stroke-width': 2,
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                 'circle-opacity':      0.9,
               }}
             />
@@ -764,6 +774,7 @@ export default function MapView({
               id="venues-icon"
               type="symbol"
               filter={['!', ['has', 'point_count']]}
+              minzoom={14}
               layout={{
                 'icon-image':           'icon-culture',
                 'icon-size':            0.55,
@@ -786,39 +797,36 @@ export default function MapView({
               type="geojson"
               data={data}
               cluster={true}
-              clusterMaxZoom={14}
-              clusterRadius={40}
+              clusterMaxZoom={10}
+              clusterRadius={30}
             >
               <Layer
                 id={`osm-${key}-clusters`}
                 type="circle"
                 filter={['has', 'point_count']}
                 paint={{
-                  'circle-color':   color,
-                  'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
-                  'circle-opacity': 0.85,
+                  'circle-color': color,
+                  'circle-radius': 6,
+                  'circle-opacity': 0.45,
+                  'circle-stroke-width': 1,
+                  'circle-stroke-color': stroke,
                 }}
-              />
-              <Layer
-                id={`osm-${key}-cluster-count`}
-                type="symbol"
-                filter={['has', 'point_count']}
-                layout={{
-                  'text-field': '{point_count_abbreviated}',
-                  'text-size':  11,
-                  'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-                }}
-                paint={{ 'text-color': '#fff' }}
               />
               <Layer
                 id={`osm-${key}-point`}
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
                 paint={{
-                  'circle-radius':       10,
+                  'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    8, 2,
+                    11, 3,
+                    13, 5,
+                    15, 8,
+                  ],
                   'circle-color':        color,
                   'circle-stroke-color': stroke,
-                  'circle-stroke-width': 2,
+                  'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                   'circle-opacity':      0.9,
                 }}
               />
@@ -826,6 +834,7 @@ export default function MapView({
                 id={`osm-${key}-icon`}
                 type="symbol"
                 filter={['!', ['has', 'point_count']]}
+                minzoom={14}
                 layout={{
                   'icon-image':           'icon-culture',
                   'icon-size':            0.55,
@@ -849,8 +858,8 @@ export default function MapView({
               type="geojson"
               data={data}
               cluster={true}
-              clusterMaxZoom={14}
-              clusterRadius={40}
+              clusterMaxZoom={10}
+              clusterRadius={30}
             >
               <Layer
                 id={`poi-${key}-clusters`}
@@ -858,22 +867,12 @@ export default function MapView({
                 filter={['has', 'point_count']}
                 minzoom={minZoom}
                 paint={{
-                  'circle-color':   color,
-                  'circle-radius':  ['step', ['get', 'point_count'], 14, 10, 18, 30, 22],
-                  'circle-opacity': 0.85,
+                  'circle-color': color,
+                  'circle-radius': 6,
+                  'circle-opacity': 0.45,
+                  'circle-stroke-width': 1,
+                  'circle-stroke-color': stroke,
                 }}
-              />
-              <Layer
-                id={`poi-${key}-cluster-count`}
-                type="symbol"
-                filter={['has', 'point_count']}
-                minzoom={minZoom}
-                layout={{
-                  'text-field': '{point_count_abbreviated}',
-                  'text-size':  11,
-                  'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-                }}
-                paint={{ 'text-color': '#fff' }}
               />
               <Layer
                 id={`poi-${key}-point`}
@@ -881,10 +880,16 @@ export default function MapView({
                 filter={['!', ['has', 'point_count']]}
                 minzoom={minZoom}
                 paint={{
-                  'circle-radius':       10,
+                  'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    8, 2,
+                    11, 3,
+                    13, 5,
+                    15, 8,
+                  ],
                   'circle-color':        color,
                   'circle-stroke-color': stroke,
-                  'circle-stroke-width': 2,
+                  'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                   'circle-opacity':      0.9,
                 }}
               />
@@ -909,29 +914,20 @@ export default function MapView({
           type="geojson"
           data={eventsGeoJSON}
           cluster={true}
-          clusterMaxZoom={13}
-          clusterRadius={50}
+          clusterMaxZoom={10}
+          clusterRadius={30}
         >
           <Layer
             id="event-clusters"
             type="circle"
             filter={['has', 'point_count']}
             paint={{
-              'circle-color':  '#374151',
-              'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 30, 30],
-              'circle-opacity': 0.85,
+              'circle-color': '#374151',
+              'circle-radius': 6,
+              'circle-opacity': 0.45,
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#111827',
             }}
-          />
-          <Layer
-            id="event-cluster-count"
-            type="symbol"
-            filter={['has', 'point_count']}
-            layout={{
-              'text-field': '{point_count_abbreviated}',
-              'text-size':  12,
-              'text-font':  ['Noto Sans Bold', 'Open Sans Bold'],
-            }}
-            paint={{ 'text-color': '#fff' }}
           />
           <Layer
             id="events-point"
@@ -939,7 +935,13 @@ export default function MapView({
             filter={['!', ['has', 'point_count']]}
             paint={{
               'circle-radius': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], 13, 10],
+                ['==', ['get', 'id'], activeId ?? ''], 13,
+                ['interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  11, 3,
+                  13, 5,
+                  15, 8,
+                ]],
               'circle-color': ['get', 'color'],
               'circle-stroke-width': ['case',
                 ['==', ['get', 'id'], activeId ?? ''], 3, 2],
@@ -952,6 +954,7 @@ export default function MapView({
             id="events-icon"
             type="symbol"
             filter={['!', ['has', 'point_count']]}
+            minzoom={14}
             layout={{
               'icon-image':           'icon-events',
               'icon-size':            0.55,
@@ -1017,36 +1020,31 @@ export default function MapView({
 
         {/* ── Listings markers ────────────────────── */}
         {mode === 'listings' && listingsData && (
-          <Source id="listings-source" type="geojson" data={listingsData} cluster clusterMaxZoom={14} clusterRadius={40}>
+          <Source id="listings-source" type="geojson" data={listingsData} cluster clusterMaxZoom={10} clusterRadius={30}>
             <Layer
               id="listings-clusters"
               type="circle"
               filter={['has', 'point_count']}
               paint={{
-                'circle-radius':       ['step', ['get', 'point_count'], 14, 10, 18, 50, 22],
-                'circle-color':        '#2563eb',
+                'circle-color': '#2563eb',
+                'circle-radius': 6,
+                'circle-opacity': 0.45,
+                'circle-stroke-width': 1,
                 'circle-stroke-color': '#1e40af',
-                'circle-stroke-width': 2,
-                'circle-opacity':      0.85,
               }}
-            />
-            <Layer
-              id="listings-cluster-count"
-              type="symbol"
-              filter={['has', 'point_count']}
-              layout={{
-                'text-field':   '{point_count_abbreviated}',
-                'text-size':    11,
-                'text-font':    ['Open Sans Bold'],
-              }}
-              paint={{ 'text-color': '#ffffff' }}
             />
             <Layer
               id="listings-point"
               type="circle"
               filter={['!', ['has', 'point_count']]}
               paint={{
-                'circle-radius':       10,
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 2,
+                  11, 3,
+                  13, 5,
+                  15, 8,
+                ],
                 'circle-color':        [
                   'match', ['get', 'type'],
                   'apartment_rent', '#2563eb',
@@ -1056,7 +1054,7 @@ export default function MapView({
                   '#6b7280',
                 ],
                 'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 2,
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                 'circle-opacity':      0.9,
               }}
             />
@@ -1064,6 +1062,7 @@ export default function MapView({
               id="listings-icon"
               type="symbol"
               filter={['!', ['has', 'point_count']]}
+              minzoom={14}
               layout={{
                 'icon-image':           'icon-listings',
                 'icon-size':            0.55,

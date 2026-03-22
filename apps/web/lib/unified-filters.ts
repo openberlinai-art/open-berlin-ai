@@ -457,3 +457,46 @@ export function countZoomSuppressedFilters(activeFilters: Set<string>, zoom: num
   }
   return count
 }
+
+// ─── Flat chip config for Google Maps-style filter bar ──────────────────────
+
+export interface FilterChip {
+  key:    string
+  label:  string
+  icon:   LucideIcon
+  color:  string       // active chip background
+  groups: string[]     // which FILTER_GROUPS keys this controls
+}
+
+export const CHIP_CONFIG: FilterChip[] = [
+  { key: 'culture',    label: 'Culture',      icon: Palette,         color: '#7c3aed', groups: ['culture'] },
+  { key: 'nightlife',  label: 'Nightlife',    icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
+  { key: 'food_drink', label: 'Food & Drink', icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
+  { key: 'outdoors',   label: 'Outdoors',     icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
+  { key: 'shopping',   label: 'Shopping',     icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
+  { key: 'sports',     label: 'Sports',       icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
+  { key: 'services',   label: 'Services',     icon: Building2,       color: '#2563eb', groups: ['services'] },
+  { key: 'tourism',    label: 'Tourism',      icon: Camera,          color: '#0891b2', groups: ['tourism'] },
+]
+
+export const MORE_CHIPS: FilterChip[] = [
+  { key: 'heritage',      label: 'Heritage',      icon: Castle,        color: '#854d0e', groups: ['heritage'] },
+  { key: 'monuments',     label: 'Monuments',      icon: Milestone,     color: '#b91c1c', groups: ['monuments'] },
+  { key: 'worship',       label: 'Worship',        icon: Church,        color: '#a16207', groups: ['worship'] },
+  { key: 'transport',     label: 'Transport',      icon: Train,         color: '#15803d', groups: ['transport'] },
+  { key: 'accommodation', label: 'Accommodation',  icon: Bed,           color: '#7c3aed', groups: ['accommodation'] },
+  { key: 'wellness',      label: 'Wellness',       icon: Heart,         color: '#0891b2', groups: ['wellness'] },
+  { key: 'education',     label: 'Education',      icon: GraduationCap, color: '#1d4ed8', groups: ['education'] },
+  { key: 'quirky',        label: 'Quirky',         icon: Sparkles,      color: '#d946ef', groups: ['quirky'] },
+]
+
+export function getChipFilterKeys(chip: FilterChip): string[] {
+  return chip.groups.flatMap(gk => {
+    const g = FILTER_GROUPS.find(fg => fg.key === gk)
+    return g ? g.categories.map(c => `${gk}:${c.key}`) : []
+  })
+}
+
+export function isChipActive(chip: FilterChip, active: Set<string>): boolean {
+  return getChipFilterKeys(chip).some(k => active.has(k))
+}

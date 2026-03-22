@@ -15,9 +15,10 @@ import EventCard                from './EventCard'
 import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
-  FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom, countZoomSuppressedFilters, getActiveCountForGroup,
+  FILTER_GROUPS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom,
+  CHIP_CONFIG, MORE_CHIPS, getChipFilterKeys, isChipActive,
 } from '@/lib/unified-filters'
-import { isCategoryVisibleAtZoom } from '@/lib/zoom-tiers'
+import type { FilterChip } from '@/lib/unified-filters'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import TrendingSection          from './TrendingSection'
@@ -37,7 +38,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import OfflineBanner from './OfflineBanner'
 import { readFromURL, syncToURL, filtersToString, filtersFromString } from '@/hooks/useMapState'
 import { useFavorites } from '@/hooks/useFavorites'
-import { MapPin, Heart, Share2, Check, Navigation } from 'lucide-react'
+import { MapPin, Heart, Share2, Check, Navigation, ChevronUp } from 'lucide-react'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -79,7 +80,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // ─── Unified filter state ──────────────────────────────────────────────────
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(CULTURE_DEFAULTS))
-  const [expandedGroup, setExpandedGroup] = useState<string | null>('culture')
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
 
   const [mapZoom, setMapZoom] = useState(11)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
@@ -104,7 +106,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [urlCopied, setUrlCopied] = useState(false)
 
   const resolved = useMemo(() => resolveActiveFiltersForZoom(activeFilters, mapZoom), [activeFilters, mapZoom])
-  const suppressedCount = useMemo(() => countZoomSuppressedFilters(activeFilters, mapZoom), [activeFilters, mapZoom])
 
   // Push a URL history entry after filter changes so back/forward works
   const pushFilterURL = useCallback((nextFilters: Set<string>) => {
@@ -119,40 +120,17 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapCenter, mapZoom, mode, search])
 
-  function toggleFilter(key: string) {
+  function toggleChip(chip: FilterChip) {
+    const keys = getChipFilterKeys(chip)
     setActiveFilters(prev => {
       const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      const active = keys.some(k => next.has(k))
+      if (active) keys.forEach(k => next.delete(k))
+      else keys.forEach(k => next.add(k))
       pushFilterURL(next)
       return next
     })
-  }
-
-  function toggleGroupExpand(groupKey: string) {
-    setExpandedGroup(prev => prev === groupKey ? null : groupKey)
-  }
-
-  function selectAllGroup(groupKey: string) {
-    const group = FILTER_GROUPS.find(g => g.key === groupKey)
-    if (!group) return
-    setActiveFilters(prev => {
-      const next = new Set(prev)
-      group.categories.forEach(c => next.add(`${groupKey}:${c.key}`))
-      pushFilterURL(next)
-      return next
-    })
-  }
-
-  function clearGroup(groupKey: string) {
-    const group = FILTER_GROUPS.find(g => g.key === groupKey)
-    if (!group) return
-    setActiveFilters(prev => {
-      const next = new Set(prev)
-      group.categories.forEach(c => next.delete(`${groupKey}:${c.key}`))
-      pushFilterURL(next)
-      return next
-    })
+    setMode('venues')
   }
 
   function clearAllFilters() {
@@ -427,6 +405,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     function handleClick(e: MouseEvent) {
       if (calRef.current && !calRef.current.contains(e.target as Node)) setCalOpen(false)
       if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -754,165 +733,139 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               </button>
             )}
 
-            {/* Dynamic count */}
-            <span className="ml-auto text-[11px] text-gray-400 shrink-0 self-center">
-              {loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`}
-            </span>
           </div>
         </div>
 
-        {/* Mode toggle + live radar + nearby + favorites + share */}
-        <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2 flex-wrap">
-          <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
-          <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
-          <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
-          <span className="text-[10px] text-gray-300 mx-0.5">|</span>
-          <button
-            onClick={() => setLiveRadar(v => !v)}
-            className={liveRadar ? btnActive : btn}
-            title="Live vehicle radar"
-          >
-            ● Live
-          </button>
-          <button
-            onClick={() => {
-              if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
-              setNearbyLoading(true)
-              navigator.geolocation.getCurrentPosition(
-                pos => {
-                  const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-                  setUserLocation(loc)
-                  setNearbyMode(true)
-                  setFlyTo([loc.lng, loc.lat])
-                  fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
-                    .then(r => r.json())
-                    .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
-                    .catch(() => setNearbyResults([]))
-                    .finally(() => setNearbyLoading(false))
-                },
-                () => { setNearbyLoading(false) },
-                { enableHighAccuracy: true, timeout: 10000 },
-              )
-            }}
-            className={nearbyMode ? btnActive : btn}
-            title="Near Me"
-          >
-            <span className="flex items-center gap-1">
-              <Navigation size={10} />
-              {nearbyLoading ? '...' : 'Near Me'}
-            </span>
-          </button>
-          <button
-            onClick={() => setShowFavoritesOnly(v => !v)}
-            className={showFavoritesOnly ? btnActive : btn}
-            title="Show favorites"
-          >
-            <span className="flex items-center gap-1">
-              <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
-              {favCount > 0 ? favCount : ''}
-            </span>
-          </button>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(window.location.href).catch(() => {})
-              setUrlCopied(true)
-              setTimeout(() => setUrlCopied(false), 2000)
-            }}
-            className={btn}
-            title="Share this view"
-          >
-            <span className="flex items-center gap-1">
-              {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
-            </span>
-          </button>
-          {activeId && mode === 'events' && (
-            <span className="text-[10px] text-gray-500 border border-gray-300 px-2 py-0.5">Transit nearby</span>
-          )}
-        </div>
-
-        {/* ── Unified filter accordion (Places mode) ──────────────────────── */}
-        {mode === 'venues' && (
-          <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
-            {/* Group pills */}
-            <div className="flex items-center gap-1 flex-wrap mb-1">
-              {FILTER_GROUPS.map(group => {
-                const activeCount = getActiveCountForGroup(group.key, activeFilters)
-                const isExpanded = expandedGroup === group.key
-                const Icon = group.icon
-                return (
-                  <button
-                    key={group.key}
-                    onClick={() => toggleGroupExpand(group.key)}
-                    className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border ${isExpanded ? 'border-[var(--border-primary)] bg-[var(--bg-secondary)] font-bold' : 'border-gray-300 hover:border-gray-400'}`}
-                  >
-                    <Icon size={10} className="shrink-0 text-gray-500" />
-                    {group.label}
-                    {activeCount > 0 && (
-                      <span className="text-[8px] bg-[var(--accent)] text-[var(--accent-text)] px-1 py-px font-bold leading-none">{activeCount}</span>
-                    )}
-                  </button>
-                )
-              })}
-              {anyFiltersActive && activeFilters.size !== CULTURE_DEFAULTS.size && (
-                <button
-                  onClick={clearAllFilters}
-                  className="text-[9px] text-gray-400 hover:text-black underline ml-1"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-
-            {/* Expanded subcategories for the one active group */}
-            {expandedGroup && (() => {
-              const group = FILTER_GROUPS.find(g => g.key === expandedGroup)
-              if (!group) return null
-              const allKeys = group.categories.map(c => `${group.key}:${c.key}`)
-              const allOn = allKeys.every(k => activeFilters.has(k))
+        {/* ── Flat chip bar (mode + category chips + utilities) ──────────── */}
+        <div className="px-4 py-2 border-b-2 border-[var(--border-primary)]">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {/* Mode chips */}
+            <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
+            <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
+            <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
+            {/* Category chips */}
+            {CHIP_CONFIG.map(chip => {
+              const Icon = chip.icon
+              const active = isChipActive(chip, activeFilters)
               return (
-                <div className="flex flex-wrap gap-1 pb-1">
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-[9px] text-gray-400">{group.label}</span>
-                    <button
-                      onClick={() => allOn ? clearGroup(group.key) : selectAllGroup(group.key)}
-                      className="text-[9px] text-gray-400 hover:text-black underline"
-                    >
-                      {allOn ? 'Clear all' : 'Select all'}
-                    </button>
-                  </div>
-                  {group.categories.map(cat => {
-                    const filterKey = `${group.key}:${cat.key}`
-                    const isActive = activeFilters.has(filterKey)
-                    const zoomHidden = isActive && !isCategoryVisibleAtZoom(filterKey, mapZoom)
+                <button
+                  key={chip.key}
+                  onClick={() => toggleChip(chip)}
+                  className={`inline-flex items-center gap-1 text-xs whitespace-nowrap px-2.5 py-1 border-2 shrink-0 ${active ? 'text-white font-bold' : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'}`}
+                  style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                >
+                  <Icon size={12} className="shrink-0" />
+                  {chip.label}
+                </button>
+              )
+            })}
+            {/* More dropdown */}
+            <div ref={moreRef} className="relative shrink-0">
+              <button
+                onClick={() => setMoreOpen(v => !v)}
+                className={`inline-flex items-center gap-1 text-xs whitespace-nowrap px-2.5 py-1 border-2 border-[var(--border-primary)] ${moreOpen ? 'bg-[var(--bg-secondary)] font-bold' : 'bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'}`}
+              >
+                More {moreOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              </button>
+              {moreOpen && (
+                <div className="absolute top-full left-0 mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] py-1 w-44">
+                  {MORE_CHIPS.map(chip => {
+                    const Icon = chip.icon
+                    const active = isChipActive(chip, activeFilters)
                     return (
                       <button
-                        key={cat.key}
-                        onClick={() => toggleFilter(filterKey)}
-                        className={isActive ? btnActive : btn}
-                        style={{
-                          ...(isActive ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined),
-                          ...(zoomHidden ? { opacity: 0.4 } : undefined),
-                        }}
-                        title={zoomHidden ? 'Zoom in to see these on the map' : undefined}
+                        key={chip.key}
+                        onClick={() => toggleChip(chip)}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-[var(--bg-secondary)] ${active ? 'font-bold' : ''}`}
                       >
-                        {cat.label}
+                        <span className="w-2.5 h-2.5 shrink-0 rounded-sm" style={{ background: active ? chip.color : 'transparent', border: `2px solid ${chip.color}` }} />
+                        <Icon size={12} className="shrink-0" style={{ color: chip.color }} />
+                        {chip.label}
+                        {active && <span className="ml-auto text-[10px]">✓</span>}
                       </button>
                     )
                   })}
                 </div>
-              )
-            })()}
-
-            <span className="text-[11px] text-gray-400">
-              {allVenueFeatures.length} place{allVenueFeatures.length !== 1 ? 's' : ''}
-              {suppressedCount > 0 && (
-                <span className="text-[10px] text-amber-500 ml-1">
-                  Zoom in for {suppressedCount} more
-                </span>
               )}
-            </span>
+            </div>
+            <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
+            {/* Utility buttons */}
+            <button
+              onClick={() => setLiveRadar(v => !v)}
+              className={`shrink-0 ${liveRadar ? btnActive : btn}`}
+              title="Live vehicle radar"
+            >
+              ● Live
+            </button>
+            <button
+              onClick={() => {
+                if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
+                setNearbyLoading(true)
+                navigator.geolocation.getCurrentPosition(
+                  pos => {
+                    const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                    setUserLocation(loc)
+                    setNearbyMode(true)
+                    setFlyTo([loc.lng, loc.lat])
+                    fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
+                      .then(r => r.json())
+                      .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
+                      .catch(() => setNearbyResults([]))
+                      .finally(() => setNearbyLoading(false))
+                  },
+                  () => { setNearbyLoading(false) },
+                  { enableHighAccuracy: true, timeout: 10000 },
+                )
+              }}
+              className={`shrink-0 ${nearbyMode ? btnActive : btn}`}
+              title="Near Me"
+            >
+              <span className="flex items-center gap-1">
+                <Navigation size={10} />
+                {nearbyLoading ? '...' : 'Near Me'}
+              </span>
+            </button>
+            <button
+              onClick={() => setShowFavoritesOnly(v => !v)}
+              className={`shrink-0 ${showFavoritesOnly ? btnActive : btn}`}
+              title="Show favorites"
+            >
+              <span className="flex items-center gap-1">
+                <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
+                {favCount > 0 ? favCount : ''}
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href).catch(() => {})
+                setUrlCopied(true)
+                setTimeout(() => setUrlCopied(false), 2000)
+              }}
+              className={`shrink-0 ${btn}`}
+              title="Share this view"
+            >
+              <span className="flex items-center gap-1">
+                {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
+              </span>
+            </button>
           </div>
-        )}
+          {/* Count line + reset */}
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[11px] text-gray-400">
+              {mode === 'events' ? (loading ? '…' : `${total} event${total !== 1 ? 's' : ''}`)
+                : mode === 'listings' ? (listingsFetching ? '…' : `${listingsGeo?.features?.length ?? 0} listing${(listingsGeo?.features?.length ?? 0) !== 1 ? 's' : ''}`)
+                : `${allVenueFeatures.length} place${allVenueFeatures.length !== 1 ? 's' : ''}`}
+            </span>
+            {anyFiltersActive && activeFilters.size !== CULTURE_DEFAULTS.size && (
+              <button
+                onClick={clearAllFilters}
+                className="text-[10px] text-gray-400 hover:text-black underline"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* ── Listings filter pills + new listing ──────────────────────── */}
         {mode === 'listings' && (
@@ -1004,9 +957,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </ul>
               )}
             </div>
-            <span className="text-[11px] text-gray-400 mt-1">
-              {listingsFetching ? '…' : `${listingsGeo?.features?.length ?? 0} listing${(listingsGeo?.features?.length ?? 0) !== 1 ? 's' : ''}`}
-            </span>
           </div>
         )}
 
