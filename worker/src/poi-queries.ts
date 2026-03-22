@@ -196,6 +196,38 @@ export const POI_CATEGORIES: POICategoryDef[] = [
   { key: 'tattoo',             group: 'quirky',        label: 'Tattoo Shops' },
   { key: 'repair_cafe',        group: 'quirky',        label: 'Repair Cafés' },
   { key: 'mural',              group: 'quirky',        label: 'Murals' },
+  // Shopping batch 2
+  { key: 'clothes',            group: 'shopping',      label: 'Clothing' },
+  { key: 'electronics',        group: 'shopping',      label: 'Electronics' },
+  { key: 'hardware',           group: 'shopping',      label: 'Hardware' },
+  { key: 'shoes',              group: 'shopping',      label: 'Shoes' },
+  { key: 'jewelry',            group: 'shopping',      label: 'Jewelry' },
+  { key: 'furniture',          group: 'shopping',      label: 'Furniture' },
+  { key: 'deli',               group: 'food_drink',    label: 'Delis' },
+  { key: 'butcher',            group: 'food_drink',    label: 'Butchers' },
+  { key: 'mobile_phone',       group: 'shopping',      label: 'Phone Shops' },
+  { key: 'optician',           group: 'services',      label: 'Opticians' },
+  // Services batch 2
+  { key: 'bank',               group: 'services',      label: 'Banks' },
+  { key: 'fuel',               group: 'services',      label: 'Gas Stations' },
+  { key: 'car_rental',         group: 'transport',     label: 'Car Rental' },
+  { key: 'car_wash',           group: 'services',      label: 'Car Wash' },
+  { key: 'clinic',             group: 'services',      label: 'Clinics' },
+  { key: 'fire_station',       group: 'services',      label: 'Fire Stations' },
+  { key: 'townhall',           group: 'services',      label: 'Town Halls' },
+  { key: 'hairdresser',        group: 'services',      label: 'Hairdressers' },
+  { key: 'beauty_salon',       group: 'services',      label: 'Beauty Salons' },
+  // Entertainment
+  { key: 'yoga',               group: 'sports',        label: 'Yoga' },
+  { key: 'dance_studio',       group: 'sports',        label: 'Dance Studios' },
+  { key: 'amusement_arcade',   group: 'quirky',        label: 'Arcades' },
+  // Education additions
+  { key: 'school',             group: 'education',     label: 'Schools' },
+  { key: 'college',            group: 'education',     label: 'Colleges' },
+  { key: 'driving_school',     group: 'education',     label: 'Driving Schools' },
+  { key: 'music_school',       group: 'education',     label: 'Music Schools' },
+  // Nature additions
+  { key: 'picnic_site',        group: 'nature',        label: 'Picnic Sites' },
 ]
 
 // Map category key → Overpass QL body (use {BBOX} placeholder)
@@ -404,6 +436,43 @@ const OVERPASS_QUERIES: Record<string, string> = {
   tattoo: `[out:json][timeout:30];(node[shop=tattoo]({BBOX});way[shop=tattoo]({BBOX}););out center;`,
   repair_cafe: `[out:json][timeout:30];(node[leisure=hackerspace]({BBOX});way[leisure=hackerspace]({BBOX});node[repair=yes]({BBOX});way[repair=yes]({BBOX}););out center;`,
   mural: `[out:json][timeout:30];(node[artwork_type=mural]({BBOX});way[artwork_type=mural]({BBOX}););out center;`,
+
+  // Shopping additions (batch 2)
+  clothes: `[out:json][timeout:60];(node[shop=clothes]({BBOX});way[shop=clothes]({BBOX}););out center;`,
+  electronics: `[out:json][timeout:30];(node[shop=electronics]({BBOX});way[shop=electronics]({BBOX}););out center;`,
+  hardware: `[out:json][timeout:30];(node[shop=hardware]({BBOX});way[shop=hardware]({BBOX});node[shop=doityourself]({BBOX});way[shop=doityourself]({BBOX}););out center;`,
+  shoes: `[out:json][timeout:30];(node[shop=shoes]({BBOX});way[shop=shoes]({BBOX}););out center;`,
+  jewelry: `[out:json][timeout:30];(node[shop=jewelry]({BBOX});way[shop=jewelry]({BBOX});node[shop=jewellery]({BBOX});way[shop=jewellery]({BBOX}););out center;`,
+  furniture: `[out:json][timeout:30];(node[shop=furniture]({BBOX});way[shop=furniture]({BBOX}););out center;`,
+  deli: `[out:json][timeout:30];(node[shop=deli]({BBOX});way[shop=deli]({BBOX});node[shop=delicatessen]({BBOX});way[shop=delicatessen]({BBOX}););out center;`,
+  butcher: `[out:json][timeout:30];(node[shop=butcher]({BBOX});way[shop=butcher]({BBOX}););out center;`,
+  mobile_phone: `[out:json][timeout:30];(node[shop=mobile_phone]({BBOX});way[shop=mobile_phone]({BBOX}););out center;`,
+  optician: `[out:json][timeout:30];(node[shop=optician]({BBOX});way[shop=optician]({BBOX}););out center;`,
+
+  // Services additions (batch 2)
+  bank: `[out:json][timeout:60];(node[amenity=bank]({BBOX});way[amenity=bank]({BBOX}););out center;`,
+  fuel: `[out:json][timeout:30];(node[amenity=fuel]({BBOX});way[amenity=fuel]({BBOX}););out center;`,
+  car_rental: `[out:json][timeout:30];(node[amenity=car_rental]({BBOX});way[amenity=car_rental]({BBOX}););out center;`,
+  car_wash: `[out:json][timeout:30];(node[amenity=car_wash]({BBOX});way[amenity=car_wash]({BBOX}););out center;`,
+  clinic: `[out:json][timeout:30];(node[amenity=clinic]({BBOX});way[amenity=clinic]({BBOX}););out center;`,
+  fire_station: `[out:json][timeout:30];(node[amenity=fire_station]({BBOX});way[amenity=fire_station]({BBOX}););out center;`,
+  townhall: `[out:json][timeout:30];(node[amenity=townhall]({BBOX});way[amenity=townhall]({BBOX}););out center;`,
+  hairdresser: `[out:json][timeout:60];(node[shop=hairdresser]({BBOX});way[shop=hairdresser]({BBOX}););out center;`,
+  beauty_salon: `[out:json][timeout:30];(node[shop=beauty]({BBOX});way[shop=beauty]({BBOX}););out center;`,
+
+  // Entertainment additions
+  yoga: `[out:json][timeout:30];(node[sport=yoga]({BBOX});way[sport=yoga]({BBOX});node[leisure=yoga]({BBOX}););out center;`,
+  dance_studio: `[out:json][timeout:30];(node[leisure=dance]({BBOX});way[leisure=dance]({BBOX});node[amenity=dance_school]({BBOX});way[amenity=dance_school]({BBOX}););out center;`,
+  amusement_arcade: `[out:json][timeout:30];(node[leisure=amusement_arcade]({BBOX});way[leisure=amusement_arcade]({BBOX}););out center;`,
+
+  // Education additions
+  school: `[out:json][timeout:60];(way[amenity=school]({BBOX});node[amenity=school]({BBOX}););out center;`,
+  college: `[out:json][timeout:30];(node[amenity=college]({BBOX});way[amenity=college]({BBOX}););out center;`,
+  driving_school: `[out:json][timeout:30];(node[amenity=driving_school]({BBOX});way[amenity=driving_school]({BBOX}););out center;`,
+  music_school: `[out:json][timeout:30];(node[amenity=music_school]({BBOX});way[amenity=music_school]({BBOX}););out center;`,
+
+  // Nature additions (batch 2)
+  picnic_site: `[out:json][timeout:30];(node[tourism=picnic_site]({BBOX});way[tourism=picnic_site]({BBOX});node[leisure=picnic_table]({BBOX}););out center;`,
 }
 
 // Group metadata

@@ -105,6 +105,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('vietnamese',  'Vietnamese',   '#059669', '#047857', 'poi', 'vietnamese'),
       vc('vegan',       'Vegan',        '#16a34a', '#15803d', 'poi', 'vegan'),
       vc('wochenmarkt', 'Weekly Markets','#ca8a04', '#a16207', 'poi', 'wochenmarkt'),
+      vc('deli',        'Delis',         '#b45309', '#92400e', 'poi', 'deli'),
+      vc('butcher',     'Butchers',      '#dc2626', '#b91c1c', 'poi', 'butcher'),
     ],
   },
 
@@ -131,6 +133,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('table_tennis',    'Table Tennis',     '#0891b2', '#0e7490', 'poi', 'table_tennis'),
       vc('mini_golf',       'Mini Golf',        '#16a34a', '#15803d', 'poi', 'mini_golf'),
       vc('bbq_area',        'BBQ Areas',        '#ea580c', '#c2410c', 'poi', 'bbq_area'),
+      vc('picnic_site',     'Picnic Sites',     '#65a30d', '#4d7c0f', 'poi', 'picnic_site'),
     ],
   },
 
@@ -195,6 +198,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('taxi',            'Taxi Stands',    '#eab308', '#ca8a04', 'poi', 'taxi'),
       vc('bus_stop',        'Bus Stops',      '#dc2626', '#b91c1c', 'poi', 'bus_stop'),
       vc('bicycle_parking', 'Bike Parking',   '#6b7280', '#4b5563', 'poi', 'bicycle_parking'),
+      vc('car_rental',     'Car Rental',     '#7c3aed', '#6d28d9', 'poi', 'car_rental'),
     ],
   },
 
@@ -215,6 +219,13 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('wine_shop',     'Wine Shops',    '#9f1239', '#881337', 'poi', 'wine_shop'),
       vc('charity_shop',  'Charity Shops', '#0891b2', '#0e7490', 'poi', 'charity_shop'),
       vc('pet_shop',     'Pet Shops',     '#ea580c', '#c2410c', 'poi', 'pet_shop'),
+      vc('clothes',      'Clothing',      '#7c3aed', '#6d28d9', 'poi', 'clothes'),
+      vc('electronics',  'Electronics',   '#2563eb', '#1d4ed8', 'poi', 'electronics'),
+      vc('hardware',     'Hardware',       '#78716c', '#57534e', 'poi', 'hardware'),
+      vc('shoes',        'Shoes',          '#d97706', '#b45309', 'poi', 'shoes'),
+      vc('jewelry',      'Jewelry',        '#e11d48', '#be123c', 'poi', 'jewelry'),
+      vc('furniture',    'Furniture',      '#92400e', '#78350f', 'poi', 'furniture'),
+      vc('mobile_phone', 'Phone Shops',    '#0891b2', '#0e7490', 'poi', 'mobile_phone'),
     ],
   },
 
@@ -230,6 +241,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('stadium',       'Stadiums',       '#7c3aed', '#6d28d9', 'poi', 'stadium'),
       vc('bowling',       'Bowling',        '#7c3aed', '#6d28d9', 'poi', 'bowling'),
       vc('escape_room',   'Escape Rooms',   '#e11d48', '#be123c', 'poi', 'escape_room'),
+      vc('yoga',          'Yoga',           '#7c3aed', '#6d28d9', 'poi', 'yoga'),
+      vc('dance_studio',  'Dance Studios',  '#e11d48', '#be123c', 'poi', 'dance_studio'),
     ],
   },
 
@@ -267,6 +280,15 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('recycling',     'Recycling',    '#4d7c0f', '#365314', 'poi', 'recycling'),
       vc('social_facility','Social Services','#7c3aed', '#6d28d9', 'poi', 'social_facility'),
       vc('nette_toilette', 'Nette Toilette', '#059669', '#047857', 'poi', 'nette_toilette'),
+      vc('optician',       'Opticians',      '#6366f1', '#4f46e5', 'poi', 'optician'),
+      vc('bank',           'Banks',          '#ca8a04', '#a16207', 'poi', 'bank'),
+      vc('fuel',           'Gas Stations',   '#dc2626', '#b91c1c', 'poi', 'fuel'),
+      vc('car_wash',       'Car Wash',       '#6b7280', '#4b5563', 'poi', 'car_wash'),
+      vc('clinic',         'Clinics',        '#e11d48', '#be123c', 'poi', 'clinic'),
+      vc('fire_station',   'Fire Stations',  '#dc2626', '#b91c1c', 'poi', 'fire_station'),
+      vc('townhall',       'Town Halls',     '#1d4ed8', '#1e40af', 'poi', 'townhall'),
+      vc('hairdresser',    'Hairdressers',   '#ec4899', '#db2777', 'poi', 'hairdresser'),
+      vc('beauty_salon',   'Beauty Salons',  '#d946ef', '#a21caf', 'poi', 'beauty_salon'),
     ],
   },
 
@@ -286,6 +308,10 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('university',      'Universities',    '#1d4ed8', '#1e40af', 'poi', 'university'),
       vc('language_school',  'Language Schools', '#059669', '#047857', 'poi', 'language_school'),
       vc('kindergarten',     'Kindergartens',   '#f59e0b', '#d97706', 'poi', 'kindergarten'),
+      vc('school',           'Schools',         '#0891b2', '#0e7490', 'poi', 'school'),
+      vc('college',          'Colleges',        '#0369a1', '#075985', 'poi', 'college'),
+      vc('driving_school',   'Driving Schools', '#6b7280', '#4b5563', 'poi', 'driving_school'),
+      vc('music_school',     'Music Schools',   '#9333ea', '#7e22ce', 'poi', 'music_school'),
     ],
   },
 
@@ -303,6 +329,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('tattoo',          'Tattoo Shops',    '#6366f1', '#4f46e5', 'poi', 'tattoo'),
       vc('repair_cafe',     'Repair Cafés',    '#15803d', '#14532d', 'poi', 'repair_cafe'),
       vc('mural',           'Murals',          '#e879f9', '#d946ef', 'poi', 'mural'),
+      vc('amusement_arcade','Arcades',         '#f59e0b', '#d97706', 'poi', 'amusement_arcade'),
     ],
   },
 
@@ -381,7 +408,7 @@ export function resolveActiveFilters(activeFilters: Set<string>): ResolvedFilter
 // Map POI categories that live in cross-source groups (outdoors) to their API group
 function _poiGroupForCategory(sourceKey: string): string | null {
   // Categories from nature group
-  const natureKeys = ['lake', 'beach', 'forest', 'nature_reserve', 'garden', 'cemetery_park', 'allotment_garden', 'pond', 'community_garden', 'bathing_spot']
+  const natureKeys = ['lake', 'beach', 'forest', 'nature_reserve', 'garden', 'cemetery_park', 'allotment_garden', 'pond', 'community_garden', 'bathing_spot', 'picnic_site']
   if (natureKeys.includes(sourceKey)) return 'nature'
 
   // Categories from sports group moved to outdoors

@@ -86,8 +86,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   useEffect(() => {
     if (window.innerWidth >= 768) setFiltersExpanded(true)
   }, [])
-  const [moreOpen, setMoreOpen] = useState(false)
-  const moreRef = useRef<HTMLDivElement>(null)
 
   const [mapZoom, setMapZoom] = useState(11)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
@@ -411,7 +409,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     function handleClick(e: MouseEvent) {
       if (calRef.current && !calRef.current.contains(e.target as Node)) setCalOpen(false)
       if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -742,153 +739,127 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Flat chip bar (mode + category chips + utilities) ──────────── */}
+        {/* ── Mode + utility row ──────────────────────────────────────── */}
         <div className="px-4 py-2 border-b-2 border-[var(--border-primary)]">
-          {/* Collapsed toggle bar */}
-          {!filtersExpanded && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Mode chips */}
+            <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
+            <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
+            <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
+            {/* Utility buttons */}
             <button
-              onClick={() => setFiltersExpanded(true)}
-              className="flex items-center gap-2 w-full text-xs text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] py-1 px-1 -mx-1"
+              onClick={() => setLiveRadar(v => !v)}
+              className={`shrink-0 ${liveRadar ? btnActive : btn}`}
+              title="Live vehicle radar"
             >
-              <Filter size={12} />
-              <span>Filters ({activeFilters.size} active)</span>
-              <ChevronDown size={12} className="ml-auto" />
+              ● Live
             </button>
-          )}
-          {/* Expanded chip bar */}
-          <div
-            className="overflow-hidden transition-all duration-200"
-            style={{ maxHeight: filtersExpanded ? '500px' : '0', opacity: filtersExpanded ? 1 : 0 }}
-          >
-            {filtersExpanded && (
-              <button
-                onClick={() => setFiltersExpanded(false)}
-                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[var(--text-primary)] mb-1 md:hidden"
-              >
-                <ChevronUp size={10} /> Hide filters
-              </button>
-            )}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {/* Mode chips */}
-              <button onClick={() => setMode('events')} className={mode === 'events' ? btnActive : btn}>Events</button>
-              <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
-              <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
-              {/* Category chips */}
-              {CHIP_CONFIG.map(chip => {
-                const Icon = chip.icon
-                const active = isChipActive(chip, activeFilters)
-                return (
-                  <button
-                    key={chip.key}
-                    onClick={() => toggleChip(chip)}
-                    className={`inline-flex items-center gap-1 text-xs whitespace-nowrap px-2.5 py-1 border-2 shrink-0 ${active ? 'text-white font-bold' : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'}`}
-                    style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
-                  >
-                    <Icon size={12} className="shrink-0" />
-                    {chip.label}
-                  </button>
+            <button
+              onClick={() => {
+                if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
+                setNearbyLoading(true)
+                navigator.geolocation.getCurrentPosition(
+                  pos => {
+                    const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                    setUserLocation(loc)
+                    setNearbyMode(true)
+                    setFlyTo([loc.lng, loc.lat])
+                    fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
+                      .then(r => r.json())
+                      .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
+                      .catch(() => setNearbyResults([]))
+                      .finally(() => setNearbyLoading(false))
+                  },
+                  () => { setNearbyLoading(false) },
+                  { enableHighAccuracy: true, timeout: 10000 },
                 )
-              })}
-              {/* More dropdown */}
-              <div ref={moreRef} className="relative shrink-0">
-                <button
-                  onClick={() => setMoreOpen(v => !v)}
-                  className={`inline-flex items-center gap-1 text-xs whitespace-nowrap px-2.5 py-1 border-2 border-[var(--border-primary)] ${moreOpen ? 'bg-[var(--bg-secondary)] font-bold' : 'bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'}`}
-                >
-                  More {moreOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                </button>
-                {moreOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] py-1 w-44">
-                    {MORE_CHIPS.map(chip => {
-                      const Icon = chip.icon
-                      const active = isChipActive(chip, activeFilters)
-                      return (
-                        <button
-                          key={chip.key}
-                          onClick={() => toggleChip(chip)}
-                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-[var(--bg-secondary)] ${active ? 'font-bold' : ''}`}
-                        >
-                          <span className="w-2.5 h-2.5 shrink-0 rounded-sm" style={{ background: active ? chip.color : 'transparent', border: `2px solid ${chip.color}` }} />
-                          <Icon size={12} className="shrink-0" style={{ color: chip.color }} />
-                          {chip.label}
-                          {active && <span className="ml-auto text-[10px]">✓</span>}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] text-gray-300 mx-0.5 shrink-0">|</span>
-              {/* Utility buttons */}
-              <button
-                onClick={() => setLiveRadar(v => !v)}
-                className={`shrink-0 ${liveRadar ? btnActive : btn}`}
-                title="Live vehicle radar"
-              >
-                ● Live
-              </button>
-              <button
-                onClick={() => {
-                  if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
-                  setNearbyLoading(true)
-                  navigator.geolocation.getCurrentPosition(
-                    pos => {
-                      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-                      setUserLocation(loc)
-                      setNearbyMode(true)
-                      setFlyTo([loc.lng, loc.lat])
-                      fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
-                        .then(r => r.json())
-                        .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
-                        .catch(() => setNearbyResults([]))
-                        .finally(() => setNearbyLoading(false))
-                    },
-                    () => { setNearbyLoading(false) },
-                    { enableHighAccuracy: true, timeout: 10000 },
-                  )
-                }}
-                className={`shrink-0 ${nearbyMode ? btnActive : btn}`}
-                title="Near Me"
-              >
-                <span className="flex items-center gap-1">
-                  <Navigation size={10} />
-                  {nearbyLoading ? '...' : 'Near Me'}
-                </span>
-              </button>
-              <button
-                onClick={() => setShowFavoritesOnly(v => !v)}
-                className={`shrink-0 ${showFavoritesOnly ? btnActive : btn}`}
-                title="Show favorites"
-              >
-                <span className="flex items-center gap-1">
-                  <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
-                  {favCount > 0 ? favCount : ''}
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href).catch(() => {})
-                  setUrlCopied(true)
-                  setTimeout(() => setUrlCopied(false), 2000)
-                }}
-                className={`shrink-0 ${btn}`}
-                title="Share this view"
-              >
-                <span className="flex items-center gap-1">
-                  {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
-                </span>
-              </button>
-              {/* Reset filters chip */}
-              {anyFiltersActive && activeFilters.size !== ALL_DEFAULTS.size && (
-                <button
-                  onClick={clearAllFilters}
-                  className="shrink-0 inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-2 py-0.5 border border-gray-300 text-gray-400 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]"
-                >
-                  <X size={9} /> Reset
-                </button>
-              )}
-            </div>
+              }}
+              className={`shrink-0 ${nearbyMode ? btnActive : btn}`}
+              title="Near Me"
+            >
+              <span className="flex items-center gap-1">
+                <Navigation size={10} />
+                {nearbyLoading ? '...' : 'Near Me'}
+              </span>
+            </button>
+            <button
+              onClick={() => setShowFavoritesOnly(v => !v)}
+              className={`shrink-0 ${showFavoritesOnly ? btnActive : btn}`}
+              title="Show favorites"
+            >
+              <span className="flex items-center gap-1">
+                <Heart size={10} fill={showFavoritesOnly ? '#fff' : 'none'} />
+                {favCount > 0 ? favCount : ''}
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href).catch(() => {})
+                setUrlCopied(true)
+                setTimeout(() => setUrlCopied(false), 2000)
+              }}
+              className={`shrink-0 ${btn}`}
+              title="Share this view"
+            >
+              <span className="flex items-center gap-1">
+                {urlCopied ? <><Check size={10} /> Copied</> : <><Share2 size={10} /> Share</>}
+              </span>
+            </button>
           </div>
+        </div>
+
+        {/* ── Category filter grid (collapsible multi-select) ────────── */}
+        <div className="border-b-2 border-[var(--border-primary)]">
+          <button
+            onClick={() => setFiltersExpanded(v => !v)}
+            className="flex items-center gap-2 w-full px-4 py-1.5 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]"
+          >
+            <Filter size={12} />
+            <span className="font-bold">Filters</span>
+            {activeFilters.size !== ALL_DEFAULTS.size && (
+              <span className="text-[10px] text-gray-400">
+                ({activeFilters.size}/{ALL_DEFAULTS.size})
+              </span>
+            )}
+            {filtersExpanded ? <ChevronUp size={12} className="ml-auto" /> : <ChevronDown size={12} className="ml-auto" />}
+          </button>
+          {filtersExpanded && (
+            <div className="px-4 pb-2">
+              {/* Select all / clear */}
+              <div className="flex items-center gap-2 mb-1.5">
+                <button
+                  onClick={() => { setActiveFilters(new Set(ALL_DEFAULTS)); pushFilterURL(new Set(ALL_DEFAULTS)) }}
+                  className="text-[10px] text-gray-400 hover:text-[var(--text-primary)] underline"
+                >
+                  Select all
+                </button>
+                <button
+                  onClick={() => { setActiveFilters(new Set()); pushFilterURL(new Set()) }}
+                  className="text-[10px] text-gray-400 hover:text-[var(--text-primary)] underline"
+                >
+                  Clear all
+                </button>
+              </div>
+              {/* Category grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                {[...CHIP_CONFIG, ...MORE_CHIPS].map(chip => {
+                  const Icon = chip.icon
+                  const active = isChipActive(chip, activeFilters)
+                  return (
+                    <button
+                      key={chip.key}
+                      onClick={() => toggleChip(chip)}
+                      className={`flex items-center gap-1.5 text-xs px-2 py-1.5 border-2 text-left ${active ? 'text-white font-bold' : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]'}`}
+                      style={active ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                    >
+                      <Icon size={12} className="shrink-0" />
+                      <span className="truncate">{chip.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Listings filter pills + new listing ──────────────────────── */}
