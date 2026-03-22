@@ -313,6 +313,7 @@ export async function fetchJourney(
   fromLng: number,
   toLat:   number,
   toLng:   number,
+  options?: { departure?: string; arrival?: string },
 ): Promise<Journey[]> {
   const params = new URLSearchParams({
     'from.type':      'address',
@@ -328,6 +329,11 @@ export async function fetchJourney(
     remarks:          'false',
     language:         'en',
   })
+  if (options?.arrival) {
+    params.set('arrival', options.arrival)
+  } else if (options?.departure) {
+    params.set('departure', options.departure)
+  }
 
   const path = `/journeys?${params}`
   let res: Response

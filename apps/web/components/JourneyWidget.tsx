@@ -38,6 +38,23 @@ interface AddressSuggestion {
   lng: number
 }
 
+type TimeMode = 'now' | 'depart' | 'arrive'
+
+function getDefaultTime(): string {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() + 30)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function getDefaultDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function buildISO(date: string, time: string): string {
+  return new Date(`${date}T${time}`).toISOString()
+}
+
 export default function JourneyWidget({ toLat, toLng }: Props) {
   const [open,     setOpen]     = useState(false)
   const [loading,  setLoading]  = useState(false)
@@ -50,18 +67,33 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const lastFromRef = useRef<{ lat: number; lng: number } | null>(null)
+
+  // Time controls
+  const [timeMode,  setTimeMode]  = useState<TimeMode>('now')
+  const [showTime,  setShowTime]  = useState(false)
+  const [timeValue, setTimeValue] = useState(getDefaultTime)
+  const [dateValue, setDateValue] = useState(getDefaultDate)
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
 
   const journey = journeys[idx] ?? null
 
+  function getTimeOptions(): { departure?: string; arrival?: string } | undefined {
+    if (timeMode === 'now') return undefined
+    const iso = buildISO(dateValue, timeValue)
+    if (timeMode === 'depart') return { departure: iso }
+    return { arrival: iso }
+  }
+
   async function doFetchJourney(fromLat: number, fromLng: number) {
+    lastFromRef.current = { lat: fromLat, lng: fromLng }
     setLoading(true)
     setError(null)
     setJourneys([])
     setIdx(0)
     try {
-      const results = await fetchJourney(fromLat, fromLng, toLat, toLng)
+      const results = await fetchJourney(fromLat, fromLng, toLat, toLng, getTimeOptions())
       setJourneys(results)
       if (!results.length) setError('No routes found')
     } catch {
@@ -158,6 +190,50 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
 
   return (
     <div className="text-[10px]">
+      {/* Time mode selector */}
+      <div className="flex items-center gap-1 mb-2 flex-wrap">
+        {(['now', 'depart', 'arrive'] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => {
+              setTimeMode(m)
+              setShowTime(m !== 'now')
+              if (m !== 'now' && timeValue === getDefaultTime()) {
+                setTimeValue(getDefaultTime())
+                setDateValue(getDefaultDate())
+              }
+            }}
+            className={`px-2 py-1 border text-[10px] font-bold ${timeMode === m ? 'bg-black text-white border-black' : 'border-gray-300 text-gray-600 hover:border-black'}`}
+          >
+            {m === 'now' ? 'Leave now' : m === 'depart' ? 'Depart at' : 'Arrive by'}
+          </button>
+        ))}
+      </div>
+      {showTime && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <input
+            type="time"
+            value={timeValue}
+            onChange={e => setTimeValue(e.target.value)}
+            className="text-xs border-2 border-black px-2 py-1 outline-none font-mono"
+          />
+          <input
+            type="date"
+            value={dateValue}
+            onChange={e => setDateValue(e.target.value)}
+            className="text-xs border-2 border-black px-2 py-1 outline-none font-mono"
+          />
+          {lastFromRef.current && (
+            <button
+              onClick={() => lastFromRef.current && doFetchJourney(lastFromRef.current.lat, lastFromRef.current.lng)}
+              className="text-[10px] font-bold border-2 border-black px-2 py-1 hover:bg-black hover:text-white shrink-0"
+            >
+              Go
+            </button>
+          )}
+        </div>
+      )}
+
       {loading && <p className="text-gray-400 mt-1">Finding routes…</p>}
 
       {/* Manual address fallback */}
@@ -285,6 +361,42 @@ export default function JourneyWidget({ toLat, toLng }: Props) {
                 </div>
               )
             })}
+          </div>
+
+          {/* Earlier / Later buttons */}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => {
+                if (!lastFromRef.current || !journey) return
+                const firstDep = journey.legs[0]?.departure
+                if (!firstDep) return
+                const earlier = new Date(new Date(firstDep).getTime() - 30 * 60000).toISOString()
+                setLoading(true)
+                fetchJourney(lastFromRef.current.lat, lastFromRef.current.lng, toLat, toLng, { departure: earlier })
+                  .then(r => { setJourneys(r); setIdx(0) })
+                  .catch(() => {})
+                  .finally(() => setLoading(false))
+              }}
+              className="text-[9px] font-bold border border-gray-300 px-2 py-0.5 hover:border-black"
+            >
+              ← Earlier
+            </button>
+            <button
+              onClick={() => {
+                if (!lastFromRef.current || !journey) return
+                const lastArr = journey.legs[journey.legs.length - 1]?.arrival
+                if (!lastArr) return
+                const later = new Date(new Date(lastArr).getTime() + 5 * 60000).toISOString()
+                setLoading(true)
+                fetchJourney(lastFromRef.current.lat, lastFromRef.current.lng, toLat, toLng, { departure: later })
+                  .then(r => { setJourneys(r); setIdx(0) })
+                  .catch(() => {})
+                  .finally(() => setLoading(false))
+              }}
+              className="text-[9px] font-bold border border-gray-300 px-2 py-0.5 hover:border-black"
+            >
+              Later →
+            </button>
           </div>
 
           <button
