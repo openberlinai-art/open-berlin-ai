@@ -2139,6 +2139,22 @@ app.post('/api/ingest', async c => {
   return c.json({ ok: true, message: `Ingest started: offset=${offsetDays} days, window=${days} days` })
 })
 
+// ─── POST /api/ingest-ticketmaster (protected) ────────────────────────────────
+
+app.post('/api/ingest-ticketmaster', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const days = Number(c.req.query('days') ?? 365)
+  c.executionCtx.waitUntil(
+    ingestTicketmaster(c.env, days)
+      .then(n => console.log(`[ingest:ticketmaster:manual] done — ${n} events`))
+      .catch(err => console.error('[ingest:ticketmaster:manual] failed:', err))
+  )
+  return c.json({ ok: true, message: `Ticketmaster ingest started: ${days} days` })
+})
+
 // ─── POST /api/ingest-locations (protected) ───────────────────────────────────
 
 app.post('/api/ingest-locations', async c => {
@@ -2459,6 +2475,23 @@ export default {
           .then(r => r.sent > 0 && console.log(`[push-reminders] sent=${r.sent}`))
           .catch(err => console.error('[push-reminders]', err))
       )
+      // External event sources — run at :30 only (own invocation, avoids subrequest limits)
+      if (new Date().getUTCMinutes() >= 25) {
+        if (env.TICKETMASTER_API_KEY) {
+          ctx.waitUntil(
+            ingestTicketmaster(env, 365)
+              .then(n => console.log(`[ingest:ticketmaster] ${n} events`))
+              .catch(err => console.error('[ingest:ticketmaster]', err))
+          )
+        }
+        if (env.SONGKICK_API_KEY) {
+          ctx.waitUntil(
+            ingestSongkick(env, 365)
+              .then(n => console.log(`[ingest:songkick] ${n} events`))
+              .catch(err => console.error('[ingest:songkick]', err))
+          )
+        }
+      }
     } else if (event.cron === '0 2 * * *') {
       // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin + smart notifications
       ctx.waitUntil(
@@ -2524,20 +2557,6 @@ export default {
           .then(n => console.log(`[ingest:full] done — ${n} events`))
           .catch(err => console.error('[ingest:full] failed:', err))
       )
-      if (env.TICKETMASTER_API_KEY) {
-        ctx.waitUntil(
-          ingestTicketmaster(env, 365)
-            .then(n => console.log(`[ingest:ticketmaster:full] ${n} events`))
-            .catch(err => console.error('[ingest:ticketmaster:full]', err))
-        )
-      }
-      if (env.SONGKICK_API_KEY) {
-        ctx.waitUntil(
-          ingestSongkick(env, 365)
-            .then(n => console.log(`[ingest:songkick:full] ${n} events`))
-            .catch(err => console.error('[ingest:songkick:full]', err))
-        )
-      }
       // Pre-translate titles of events ingested in the last 48h (catches newly added events)
       ctx.waitUntil(
         env.DB.prepare(
@@ -2563,20 +2582,6 @@ export default {
           .then(n => console.log(`[ingest] done — ${n} events`))
           .catch(err => console.error('[ingest] failed:', err))
       )
-      if (env.TICKETMASTER_API_KEY) {
-        ctx.waitUntil(
-          ingestTicketmaster(env, 30)
-            .then(n => console.log(`[ingest:ticketmaster] ${n} events`))
-            .catch(err => console.error('[ingest:ticketmaster]', err))
-        )
-      }
-      if (env.SONGKICK_API_KEY) {
-        ctx.waitUntil(
-          ingestSongkick(env, 30)
-            .then(n => console.log(`[ingest:songkick] ${n} events`))
-            .catch(err => console.error('[ingest:songkick]', err))
-        )
-      }
     }
   },
 }

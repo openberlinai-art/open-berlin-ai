@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [triggers]
 crons = [
   "0 * * * *",      # Ingest next 30 days — hourly
-  "*/30 * * * *",   # Geocode pass every 30 minutes + push reminders
+  "*/30 * * * *",   # Geocode pass every 30 min + push reminders + external sources at :30
   "0 2 * * *",      # Geodata + location refresh + POI Berlin + smart notifications — 2am daily
   "0 3 * * *",      # Full 365-day event sweep + POI Brandenburg (Wed) — 3am daily
   "0 8 * * 1",      # Weekly digest — Monday 8am UTC

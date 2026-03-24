@@ -4,7 +4,7 @@ import type { Env, EventRow } from './types'
 const PAGE_SIZE = 100
 const BERLIN_LAT = 52.52
 const BERLIN_LNG = 13.405
-const RADIUS_KM = 25
+const RADIUS_KM = 50
 
 // Ticketmaster segment → our categories
 const SEGMENT_MAP: Record<string, string> = {
@@ -226,7 +226,14 @@ export async function ingestTicketmaster(env: Env, days = 30): Promise<number> {
       endDateTime,
     })
 
-    const res = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?${params}`)
+    let res: Response
+    try {
+      res = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?${params}`)
+    } catch (err) {
+      // Workers subrequest limit — save what we have so far
+      console.warn(`[ingest:ticketmaster] Fetch error on page ${page + 1} (saved ${total} so far):`, err)
+      break
+    }
     if (!res.ok) {
       console.error(`[ingest:ticketmaster] API error ${res.status}`)
       break
@@ -239,11 +246,22 @@ export async function ingestTicketmaster(env: Env, days = 30): Promise<number> {
     const transformed = events.map(transformTmEvent)
 
     // Dedup against existing Kulturdaten events
-    const existing = await findExistingDateLocPairs(env.DB, transformed)
+    let existing: Set<string>
+    try {
+      existing = await findExistingDateLocPairs(env.DB, transformed)
+    } catch (err) {
+      console.warn(`[ingest:ticketmaster] Dedup query failed on page ${page + 1}, upserting all:`, err)
+      existing = new Set()
+    }
     const filtered = transformed.filter(e => !existing.has(dedupKey(e)))
 
     if (filtered.length) {
-      await upsertEvents(env.DB, filtered)
+      try {
+        await upsertEvents(env.DB, filtered)
+      } catch (err) {
+        console.warn(`[ingest:ticketmaster] Upsert failed on page ${page + 1}:`, err)
+        break
+      }
     }
     total += filtered.length
 
