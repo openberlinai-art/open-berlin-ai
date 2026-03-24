@@ -37,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={franklin.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('citizen_theme');var d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark')}catch(e){}})();if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')` }} />
+        <meta name="impact-site-verification" content="ea3bc18a-81ae-49c3-88f0-ef17f6764dae" />
       </head>
       <body className="bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased font-sans" suppressHydrationWarning>
         <QueryProvider><LanguageProvider><UserProvider><ThemeProvider><ErrorBoundary>{children}</ErrorBoundary></ThemeProvider></UserProvider></LanguageProvider></QueryProvider>

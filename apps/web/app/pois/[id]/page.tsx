@@ -63,6 +63,9 @@ export default async function POIPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-[var(--bg-primary)] font-sans">
+      <p style={{ position: 'absolute', left: '-9999px', fontSize: 0, lineHeight: 0 }} aria-hidden="true">
+        Impact-Site-Verification: ea3bc18a-81ae-49c3-88f0-ef17f6764dae
+      </p>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
