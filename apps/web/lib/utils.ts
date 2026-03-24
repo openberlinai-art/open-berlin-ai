@@ -18,6 +18,17 @@ export function formatDate(dateStr: string): string {
   return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
+const DAYS_LONG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as const
+
+/** "Tuesday, 25 Mar" — used for day group headers */
+export function formatDayHeader(dateStr: string): string {
+  const d = parseLocalDate(dateStr)
+  const today = new Date()
+  const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
+  const prefix = isToday ? 'Today' : DAYS_LONG[d.getDay()]
+  return `${prefix}, ${d.getDate()} ${MONTHS[d.getMonth()]}`
+}
+
 export function formatTime(timeStr: string | null): string {
   if (!timeStr || timeStr === '00:00:00') return ''
   return timeStr.slice(0, 5)

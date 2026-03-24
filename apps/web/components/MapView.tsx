@@ -1069,21 +1069,27 @@ export default function MapView({
             type="circle"
             filter={['!', ['has', 'point_count']]}
             paint={{
-              'circle-radius': [
-                'interpolate', ['linear'], ['zoom'],
-                8, 2,
-                11, 3,
-                13, 5,
-                15, 8,
-              ],
+              'circle-radius': 5,
               'circle-color': ['get', 'color'],
-              'circle-stroke-width': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], 3, 2],
-              'circle-stroke-color': ['case',
-                ['==', ['get', 'id'], activeId ?? ''], '#000', '#fff'],
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#fff',
               'circle-opacity': 0.9,
             }}
           />
+          {activeId && (
+            <Layer
+              id="events-point-active"
+              type="circle"
+              filter={['==', ['get', 'id'], activeId]}
+              paint={{
+                'circle-radius': 8,
+                'circle-color': ['get', 'color'],
+                'circle-stroke-width': 3,
+                'circle-stroke-color': '#000',
+                'circle-opacity': 1,
+              }}
+            />
+          )}
           <Layer
             id="events-icon"
             type="symbol"

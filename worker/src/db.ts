@@ -35,8 +35,13 @@ export async function getEvents(
     params.push(category)
   }
   if (price_type && price_type !== 'all') {
-    conditions.push('price_type = ?')
-    params.push(price_type)
+    if (price_type === 'paid') {
+      // "Paid" includes paid + unknown (events without price info are likely not free)
+      conditions.push("price_type IN ('paid', 'unknown')")
+    } else {
+      conditions.push('price_type = ?')
+      params.push(price_type)
+    }
   }
   if (bbox) {
     const parts = bbox.split(',').map(Number)

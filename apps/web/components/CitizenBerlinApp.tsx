@@ -1,22 +1,20 @@
 'use client'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Calendar as CalendarIcon, Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
+  Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
   List, Map, CalendarDays, MoreHorizontal,
 } from 'lucide-react'
-import { DayPicker } from 'react-day-picker'
-import 'react-day-picker/style.css'
 
 import dynamic from 'next/dynamic'
 import { fetchEvents }          from '@/lib/api'
-import { todayISO, formatDate, getCategoryStyle } from '@/lib/utils'
+import { formatDayHeader, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIs, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
-  FILTER_GROUPS, ALL_DEFAULTS, CULTURE_DEFAULTS, resolveActiveFiltersForZoom,
-  QUICK_CHIPS, getChipFilterKeys, isChipActive, isolateChip, searchCategories,
+  LITE_DEFAULTS, resolveActiveFiltersForZoom,
+  QUICK_CHIPS, getChipFilterKeys, isolateChip, searchCategories,
 } from '@/lib/unified-filters'
 import type { FilterChip } from '@/lib/unified-filters'
 import type { VenuePopupState } from './MapView'
@@ -38,7 +36,8 @@ import { ErrorBoundary } from './ErrorBoundary'
 import OfflineBanner from './OfflineBanner'
 import { readFromURL, syncToURL, filtersToString, filtersFromString } from '@/hooks/useMapState'
 import { useFavorites } from '@/hooks/useFavorites'
-import { MapPin, Heart, Share2, Check, Navigation } from 'lucide-react'
+import { Heart, Share2, Check, Navigation, Sparkles } from 'lucide-react'
+import DayStrip from './DayStrip'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -57,9 +56,9 @@ interface Props {
 }
 
 function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
-  const { user, token, unreadCount, attendance } = useUser()
+  const { user, token, attendance } = useUser()
   const { lang } = useLanguage()
-  const { isFavorite: isFav, count: favCount } = useFavorites()
+  const { isFavorite: isFav } = useFavorites()
 
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
@@ -68,9 +67,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const [dateFrom, setDateFrom] = useState(initialDate)
   const [dateTo,   setDateTo]   = useState(initialDate)
-  const [calOpen,  setCalOpen]  = useState(false)
-  const calRef                  = useRef<HTMLDivElement>(null)
-
   const [price,    setPrice]    = useState<'all' | 'free' | 'paid'>('all')
   const [cats,     setCats]     = useState<string[]>([])
   const [catOpen,  setCatOpen]  = useState(false)
@@ -79,7 +75,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   // ─── Unified filter state ──────────────────────────────────────────────────
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(ALL_DEFAULTS))
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(LITE_DEFAULTS))
 
   const [mapZoom, setMapZoom] = useState(11)
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null)
@@ -89,12 +85,20 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [nearbyResults, setNearbyResults] = useState<Array<{
     type: string; id: string; name: string; category?: string; distance_m: number; lat: number; lng: number
   }> | null>(null)
-  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [_nearbyLoading, setNearbyLoading] = useState(false)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [nearbyRadius, setNearbyRadius] = useState(500)
 
   // ─── Favorites view ─────────────────────────────────────────────────────────
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+
+  // ─── UX: chips expand/collapse, discovery collapse ─────────────────────────
+  const [chipsExpanded, setChipsExpanded] = useState(false)
+  const [discoverExpanded, setDiscoverExpanded] = useState(false)
+  useEffect(() => {
+    const stored = localStorage.getItem('citizen-discover-expanded')
+    if (stored === 'true') setDiscoverExpanded(true)
+  }, [])
 
   // ─── Mode (events / venues / listings) ────────────────────────────────────
   const [mode,      setModeRaw]      = useState<'events' | 'venues' | 'listings'>('events')
@@ -108,7 +112,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // Push a URL history entry after filter changes so back/forward works
   const pushFilterURL = useCallback((nextFilters: Set<string>) => {
     const filterStr = filtersToString(nextFilters)
-    const defaultStr = filtersToString(new Set(ALL_DEFAULTS))
+    const defaultStr = filtersToString(new Set(LITE_DEFAULTS))
     syncToURL({
       lat: mapCenter?.lat, lng: mapCenter?.lng, zoom: mapZoom,
       mode: mode !== 'events' ? mode : undefined,
@@ -120,17 +124,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   function toggleChip(chip: FilterChip) {
     setActiveFilters(prev => {
-      const next = isolateChip(chip, prev, new Set(ALL_DEFAULTS))
+      const next = isolateChip(chip, prev, new Set(LITE_DEFAULTS))
       pushFilterURL(next)
       return next
     })
     setMode('venues')
-  }
-
-  function clearAllFilters() {
-    const defaults = new Set(ALL_DEFAULTS)
-    setActiveFilters(defaults)
-    pushFilterURL(defaults)
   }
 
   // ─── Other state ──────────────────────────────────────────────────────────
@@ -205,7 +203,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         lng: mapCenter?.lng,
         zoom: mapZoom,
         mode: mode !== 'events' ? mode : undefined,
-        filters: activeFilters.size > 0 && filtersToString(activeFilters) !== filtersToString(new Set(ALL_DEFAULTS))
+        filters: activeFilters.size > 0 && filtersToString(activeFilters) !== filtersToString(new Set(LITE_DEFAULTS))
           ? filtersToString(activeFilters) : undefined,
         query: search.trim() || undefined,
       })
@@ -377,16 +375,25 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const load = useCallback(async (from: string, to: string, p: number) => {
     setLoading(true)
     try {
+      // "Paid" filter: fetch all events, then exclude free client-side
+      // (the DB only has 'free'/'unknown'/'paid'; unknown often means paid/untagged)
+      const sendPriceType = price === 'free' ? 'free' : undefined
       const res = await fetchEvents({
         date_from:  from,
         date_to:    to,
         page:       p,
-        limit:      LIMIT,
-        price_type: price !== 'all' ? price : undefined,
+        limit:      price === 'paid' ? 500 : LIMIT,
+        price_type: sendPriceType,
         category:   cats.length === 1 ? cats[0] : undefined,
       })
-      setEvents(res.data)
-      setTotal(res.pagination.total)
+      if (price === 'paid') {
+        const filtered = res.data.filter(ev => ev.price_type !== 'free')
+        setEvents(filtered)
+        setTotal(filtered.length)
+      } else {
+        setEvents(res.data)
+        setTotal(res.pagination.total)
+      }
     } finally {
       setLoading(false)
     }
@@ -399,7 +406,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (calRef.current && !calRef.current.contains(e.target as Node)) setCalOpen(false)
       if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false)
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false)
     }
@@ -460,29 +466,9 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
-  function toISO(d: Date): string {
-    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0')
-    return `${y}-${m}-${day}`
-  }
-
-  const isRange = dateFrom !== dateTo
-
-  // When no range is set yet, pass to:undefined so DayPicker stays in "awaiting second click" mode
-  // (if we pass to:from, DayPicker treats the range as complete and the next click starts fresh)
-  const selectedRange = isRange
-    ? { from: new Date(dateFrom + 'T00:00:00'), to: new Date(dateTo + 'T00:00:00') }
-    : { from: new Date(dateFrom + 'T00:00:00'), to: undefined }
-  const dateLabel = dateFrom === todayISO() && !isRange
-    ? 'Today'
-    : isRange
-      ? `${formatDate(dateFrom)} – ${formatDate(dateTo)}`
-      : formatDate(dateFrom)
-
   // Shared button classes
   const btn = 'text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'
   const btnActive = 'text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--accent)] text-[var(--accent-text)]'
-
-  const anyFiltersActive = activeFilters.size > 0
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
@@ -496,6 +482,57 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-bold tracking-tight">Citizen.Berlin</h1>
             <div className="flex items-center gap-1">
+              {/* Utility icons (moved from chip row) */}
+              <button
+                onClick={() => setLiveRadar(v => !v)}
+                className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${liveRadar ? 'bg-red-500 border-red-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
+                title="Live vehicle radar"
+              >
+                <span className="text-[10px]">●</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
+                  setNearbyLoading(true)
+                  navigator.geolocation.getCurrentPosition(
+                    pos => {
+                      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                      setUserLocation(loc)
+                      setNearbyMode(true)
+                      setFlyTo([loc.lng, loc.lat])
+                      fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
+                        .then(r => r.json())
+                        .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
+                        .catch(() => setNearbyResults([]))
+                        .finally(() => setNearbyLoading(false))
+                    },
+                    () => { setNearbyLoading(false) },
+                    { enableHighAccuracy: true, timeout: 10000 },
+                  )
+                }}
+                className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${nearbyMode ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
+                title="Near Me"
+              >
+                <Navigation size={12} />
+              </button>
+              <button
+                onClick={() => setShowFavoritesOnly(v => !v)}
+                className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${showFavoritesOnly ? 'bg-pink-500 border-pink-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
+                title="Show favorites"
+              >
+                <Heart size={12} fill={showFavoritesOnly ? '#fff' : 'none'} />
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href).catch(() => {})
+                  setUrlCopied(true)
+                  setTimeout(() => setUrlCopied(false), 2000)
+                }}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
+                title="Share this view"
+              >
+                {urlCopied ? <Check size={12} /> : <Share2 size={12} />}
+              </button>
               {user && <NotificationsBell />}
               {/* ⋯ More menu */}
               <div ref={moreMenuRef} className="relative">
@@ -612,73 +649,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             })()}
           </div>
 
-          {/* Filter row — only shown in events mode */}
-          <div className={`flex items-center gap-1.5 mt-3 flex-wrap ${mode !== 'events' ? 'hidden' : ''}`}>
-
-            {/* Date picker */}
-            <div ref={calRef} className="relative">
-              <button
-                onClick={() => setCalOpen(o => !o)}
-                className={`${calOpen || isRange ? btnActive : btn} max-w-[180px] truncate`}
-              >
-                <span className="flex items-center gap-1">
-                  <CalendarIcon size={11} className="shrink-0" />
-                  <span className="truncate">{dateLabel}</span>
-                </span>
-              </button>
-              {isRange && (
-                <button
-                  onClick={() => { setDateFrom(todayISO()); setDateTo(todayISO()); setPage(1) }}
-                  className={btn}
-                  title="Clear date range"
-                >
-                  <X size={10} />
-                </button>
-              )}
-              {calOpen && (
-                <div className="absolute top-full left-0 mt-1 z-[1000] bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)]">
-                  <div className="flex gap-1 px-2 pt-2">
-                    {([
-                      ['Today', 0],
-                      ['3 days', 2],
-                      ['Week', 6],
-                    ] as const).map(([label, offset]) => {
-                      const from = todayISO()
-                      const to = offset === 0 ? from : (() => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })()
-                      const active = dateFrom === from && dateTo === to
-                      return (
-                        <button
-                          key={label}
-                          onClick={() => { setDateFrom(from); setDateTo(to); setPage(1); setCalOpen(false) }}
-                          className={active ? btnActive : btn}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <DayPicker
-                    mode="range"
-                    selected={selectedRange}
-                    onSelect={range => {
-                      if (!range?.from) return
-                      const from = toISO(range.from)
-                      const to   = range.to ? toISO(range.to) : from
-                      setDateFrom(from)
-                      setDateTo(to)
-                      setPage(1)
-                      if (range.to) setCalOpen(false)
-                    }}
-                    className="text-sm p-2"
-                  />
-                  {!isRange && (
-                    <div className="px-3 pb-2 text-[10px] text-gray-400 text-center">
-                      Click a second date to set a range
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* Compact filter row — only shown in events mode */}
+          <div className={`flex items-center gap-1.5 mt-3 ${mode !== 'events' ? 'hidden' : ''}`}>
 
             {/* Category filter */}
             <div ref={catRef} className="relative">
@@ -721,23 +693,28 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               )}
             </div>
 
-            {/* Price filter */}
-            {(['all', 'free', 'paid'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => { setPrice(p); setPage(1) }}
-                className={price === p ? btnActive : btn}
-              >
-                {p === 'all' ? 'Any price' : p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
+            {/* Price filter — segmented control */}
+            <div className="flex">
+              {(['all', 'free', 'paid'] as const).map((p, i) => (
+                <button
+                  key={p}
+                  onClick={() => { setPrice(p); setPage(1) }}
+                  className={`text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 ${i > 0 ? '-ml-0.5' : ''} ${
+                    price === p
+                      ? 'bg-[var(--accent)] text-[var(--accent-text)] z-[1] relative'
+                      : 'bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'
+                  }`}
+                >
+                  {p === 'all' ? 'Any' : p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
 
             {/* Clear all filters */}
-            {(price !== 'all' || cats.length > 0 || dateFrom !== todayISO() || dateTo !== todayISO()) && (
+            {(price !== 'all' || cats.length > 0) && (
               <button
                 onClick={() => {
-                  setPrice('all'); setCats([])
-                  const t = todayISO(); setDateFrom(t); setDateTo(t); setPage(1)
+                  setPrice('all'); setCats([]); setPage(1)
                 }}
                 className={btn}
                 title="Clear all filters"
@@ -749,6 +726,16 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
+        {/* ── Day Navigation Strip ──────────────────────────────── */}
+        {mode === 'events' && (
+          <DayStrip
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onSelectDay={(iso) => { setDateFrom(iso); setDateTo(iso); setPage(1) }}
+            onSelectRange={(from, to) => { setDateFrom(from); setDateTo(to); setPage(1) }}
+          />
+        )}
+
         {/* ── Mode row ──────────────────────────────────────── */}
         <div className="px-4 py-2 border-b-2 border-[var(--border-primary)]">
           <div className="flex items-center gap-1.5">
@@ -759,79 +746,35 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Category chips + utility icons ────────────────────── */}
+        {/* ── Category chips (wrapped grid with expand/collapse) ─── */}
         <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {QUICK_CHIPS.map(chip => {
+          <div className="flex items-center gap-1 flex-wrap">
+            {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 6)).map(chip => {
               const Icon = chip.icon
               const chipKeys = new Set(getChipFilterKeys(chip))
-              const allDefaults = new Set(ALL_DEFAULTS)
-              const allActive = allDefaults.size === activeFilters.size && [...allDefaults].every(k => activeFilters.has(k))
+              const liteDefaults = new Set(LITE_DEFAULTS)
+              const allActive = liteDefaults.size === activeFilters.size && [...liteDefaults].every(k => activeFilters.has(k))
               const isIsolated = !allActive && chipKeys.size === activeFilters.size && [...activeFilters].every(k => chipKeys.has(k))
               return (
                 <button
                   key={chip.key}
                   onClick={() => toggleChip(chip)}
-                  className={`inline-flex items-center gap-1 text-[11px] whitespace-nowrap px-2 py-1 rounded-full border shrink-0 ${isIsolated ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
+                  className={`inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-full border ${isIsolated ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
                   style={isIsolated ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
                 >
-                  <Icon size={11} className="shrink-0" />
+                  <Icon size={10} className="shrink-0" />
                   {chip.label}
                 </button>
               )
             })}
-            {/* Utility icons at the end of chip row */}
-            <span className="text-gray-200 mx-0.5 shrink-0">|</span>
-            <button
-              onClick={() => setLiveRadar(v => !v)}
-              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${liveRadar ? 'bg-red-500 border-red-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-              title="Live vehicle radar"
-            >
-              <span className="text-[10px]">●</span>
-            </button>
-            <button
-              onClick={() => {
-                if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
-                setNearbyLoading(true)
-                navigator.geolocation.getCurrentPosition(
-                  pos => {
-                    const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-                    setUserLocation(loc)
-                    setNearbyMode(true)
-                    setFlyTo([loc.lng, loc.lat])
-                    fetch(`/api/nearby?lat=${loc.lat}&lng=${loc.lng}&radius=${nearbyRadius}&limit=20`)
-                      .then(r => r.json())
-                      .then((data: { results: typeof nearbyResults }) => setNearbyResults(data.results))
-                      .catch(() => setNearbyResults([]))
-                      .finally(() => setNearbyLoading(false))
-                  },
-                  () => { setNearbyLoading(false) },
-                  { enableHighAccuracy: true, timeout: 10000 },
-                )
-              }}
-              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${nearbyMode ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-              title="Near Me"
-            >
-              <Navigation size={12} />
-            </button>
-            <button
-              onClick={() => setShowFavoritesOnly(v => !v)}
-              className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${showFavoritesOnly ? 'bg-pink-500 border-pink-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-              title="Show favorites"
-            >
-              <Heart size={12} fill={showFavoritesOnly ? '#fff' : 'none'} />
-            </button>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href).catch(() => {})
-                setUrlCopied(true)
-                setTimeout(() => setUrlCopied(false), 2000)
-              }}
-              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full border border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"
-              title="Share this view"
-            >
-              {urlCopied ? <Check size={12} /> : <Share2 size={12} />}
-            </button>
+            {QUICK_CHIPS.length > 6 && (
+              <button
+                onClick={() => setChipsExpanded(v => !v)}
+                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full border border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]"
+              >
+                {chipsExpanded ? 'Less' : `+${QUICK_CHIPS.length - 6}`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1188,43 +1131,74 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             />
           ) : mode === 'events' ? (
             <>
-            {/* Surprise Me — moved from header */}
-            <button
-              onClick={() => {
-                const pool = events
-                if (!pool.length) return
-                const ev = pool[Math.floor(Math.random() * pool.length)]
-                if (ev.lat && ev.lng) {
-                  setFlyTo([ev.lng, ev.lat])
-                  setActiveId(ev.id)
-                }
-              }}
-              className="mx-4 mt-2 mb-1 text-xs border-2 border-dashed border-[var(--border-primary)] px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)] hover:border-solid w-[calc(100%-2rem)]"
-            >
-              ✦ Surprise me — random event
-            </button>
-            <ForYouSection />
-            <WeatherPicks date={dateFrom} />
-            <TrendingSection />
+            {/* ── Collapsible Discover bar ──────────────────────── */}
+            <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--border-secondary)]">
+              <button
+                onClick={() => {
+                  const next = !discoverExpanded
+                  setDiscoverExpanded(next)
+                  try { localStorage.setItem('citizen-discover-expanded', String(next)) } catch {}
+                }}
+                className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] flex items-center gap-1"
+              >
+                <Sparkles size={10} /> Discover
+                <ChevronDown size={10} className={`transition-transform ${discoverExpanded ? 'rotate-180' : ''}`} />
+              </button>
+              <button
+                onClick={() => {
+                  const pool = events
+                  if (!pool.length) return
+                  const ev = pool[Math.floor(Math.random() * pool.length)]
+                  if (ev.lat && ev.lng) {
+                    setFlyTo([ev.lng, ev.lat])
+                    setActiveId(ev.id)
+                  }
+                }}
+                className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                ✦ Surprise me
+              </button>
+            </div>
+            {discoverExpanded && (
+              <>
+                <ForYouSection />
+                <WeatherPicks date={dateFrom} />
+                <TrendingSection />
+              </>
+            )}
+            {/* ── Day-grouped event list ──────────────────────── */}
             {loading && events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">Loading…</div>
             ) : events.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-sm text-gray-400">No events found</div>
             ) : (() => {
               const filtered = showFavoritesOnly ? events.filter(ev => isFav('event', ev.id)) : events
-              return filtered.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-sm text-gray-400">No favorited events</div>
-              ) : (
-                filtered.map(ev => (
-                  <EventCard
-                    key={ev.id}
-                    event={ev}
-                    active={ev.id === activeId}
-                    onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
-                    onNeedAuth={() => setShowAuth(true)}
-                  />
-                ))
-              )
+              if (filtered.length === 0) {
+                return <div className="flex items-center justify-center h-32 text-sm text-gray-400">No favorited events</div>
+              }
+              // Group events by day
+              const groups: Record<string, Event[]> = {}
+              for (const ev of filtered) {
+                const key = ev.date_start;
+                (groups[key] ??= []).push(ev)
+              }
+              return Object.entries(groups).map(([date, dayEvents]) => (
+                <div key={date}>
+                  <div className="sticky top-0 z-10 px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)]">
+                    <span className="text-[11px] font-bold">{formatDayHeader(date)}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] ml-2">{dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {dayEvents.map((ev: Event) => (
+                    <EventCard
+                      key={ev.id}
+                      event={ev}
+                      active={ev.id === activeId}
+                      onClick={() => setActiveId(id => id === ev.id ? null : ev.id)}
+                      onNeedAuth={() => setShowAuth(true)}
+                    />
+                  ))}
+                </div>
+              ))
             })()}
             </>
           ) : (

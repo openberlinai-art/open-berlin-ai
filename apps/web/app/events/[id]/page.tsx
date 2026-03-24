@@ -77,11 +77,14 @@ export default async function EventPage({ params }: Props) {
         ? `€${ev.price_min}${ev.price_max != null && ev.price_max !== ev.price_min ? `–€${ev.price_max}` : ''}`
         : ev.price_type === 'paid'
           ? 'Paid'
-          : null
+          : ev.admission_link
+            ? 'Ticketed'
+            : null
 
   const langs: string[] = (() => { try { return ev.languages ? JSON.parse(ev.languages) : [] } catch { return [] } })()
   const nonDeLangs = langs.filter(l => l !== 'de')
   const imageUrls: string[] = (() => { try { return ev.image_urls ? [...new Set(JSON.parse(ev.image_urls) as string[])] : [] } catch { return [] } })()
+  const tags: string[] = (() => { try { return ev.tags ? JSON.parse(ev.tags) : [] } catch { return [] } })()
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -145,6 +148,11 @@ export default async function EventPage({ params }: Props) {
             {nonDeLangs.map(l => (
               <span key={l} className="inline-block px-1.5 py-0.5 border-2 border-blue-600 text-blue-700 text-[10px] font-bold bg-blue-50 uppercase">
                 {l}
+              </span>
+            ))}
+            {tags.filter(t => t !== ev.category).map(t => (
+              <span key={t} className="inline-block px-1.5 py-0.5 border border-gray-300 text-[10px] text-gray-500">
+                {t}
               </span>
             ))}
           </div>

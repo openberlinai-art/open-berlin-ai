@@ -439,12 +439,24 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
   },
 ]
 
-// ─── Default active filters: all subcategories ──────────────────────────────
+// ─── Default active filters ─────────────────────────────────────────────────
 
+/** Every subcategory (used as reference for "all on" state) */
 export const ALL_DEFAULTS: Set<string> = new Set(
   FILTER_GROUPS.flatMap(g => g.categories.map(c => `${g.key}:${c.key}`))
 )
-export const CULTURE_DEFAULTS = ALL_DEFAULTS // backward compat
+
+/** Lean defaults: only D1 venues, OSM layers, and geodata (parks/playgrounds).
+ *  POI-sourced categories are OFF so the map isn't cluttered on first load. */
+export const LITE_DEFAULTS: Set<string> = new Set(
+  FILTER_GROUPS.flatMap(g =>
+    g.categories
+      .filter(c => c.source !== 'poi')
+      .map(c => `${g.key}:${c.key}`)
+  )
+)
+
+export const CULTURE_DEFAULTS = LITE_DEFAULTS // backward compat
 
 // ─── Lookup maps (built once) ────────────────────────────────────────────────
 
