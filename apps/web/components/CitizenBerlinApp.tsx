@@ -13,10 +13,9 @@ import EventCard                from './EventCard'
 import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
-  LITE_DEFAULTS, resolveActiveFiltersForZoom,
-  QUICK_CHIPS, getChipFilterKeys, isolateChip, searchCategories,
+  FILTER_GROUPS, LITE_DEFAULTS, resolveActiveFiltersForZoom,
+  QUICK_CHIPS, getChipFilterKeys, searchCategories,
 } from '@/lib/unified-filters'
-import type { FilterChip } from '@/lib/unified-filters'
 import type { VenuePopupState } from './MapView'
 import ChatPanel                from './ChatPanel'
 import TrendingSection          from './TrendingSection'
@@ -94,6 +93,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // ─── UX: chips expand/collapse, discovery collapse ─────────────────────────
   const [chipsExpanded, setChipsExpanded] = useState(false)
+  const [expandedChip, setExpandedChip] = useState<string | null>(null)
   const [discoverExpanded, setDiscoverExpanded] = useState(false)
   useEffect(() => {
     const stored = localStorage.getItem('citizen-discover-expanded')
@@ -122,14 +122,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapCenter, mapZoom, mode, search])
 
-  function toggleChip(chip: FilterChip) {
-    setActiveFilters(prev => {
-      const next = isolateChip(chip, prev, new Set(LITE_DEFAULTS))
-      pushFilterURL(next)
-      return next
-    })
-    setMode('venues')
-  }
 
   // ─── Other state ──────────────────────────────────────────────────────────
 
@@ -746,24 +738,35 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Category chips (wrapped grid with expand/collapse) ─── */}
+        {/* ── Category chips with collapsible subcategories ─── */}
         <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
           <div className="flex items-center gap-1 flex-wrap">
             {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 6)).map(chip => {
               const Icon = chip.icon
-              const chipKeys = new Set(getChipFilterKeys(chip))
-              const liteDefaults = new Set(LITE_DEFAULTS)
-              const allActive = liteDefaults.size === activeFilters.size && [...liteDefaults].every(k => activeFilters.has(k))
-              const isIsolated = !allActive && chipKeys.size === activeFilters.size && [...activeFilters].every(k => chipKeys.has(k))
+              const chipKeys = getChipFilterKeys(chip)
+              const hasAnyActive = chipKeys.some(k => activeFilters.has(k))
+              const hasAllActive = chipKeys.every(k => activeFilters.has(k))
+              const isOpen = expandedChip === chip.key
               return (
                 <button
                   key={chip.key}
-                  onClick={() => toggleChip(chip)}
-                  className={`inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-full border ${isIsolated ? 'text-white font-semibold' : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-                  style={isIsolated ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                  className={`inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-full border transition-colors ${
+                    hasAnyActive
+                      ? 'text-white font-semibold'
+                      : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+                  }`}
+                  style={hasAnyActive ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                  onClick={() => {
+                    // Toggle subcategory panel
+                    setExpandedChip(isOpen ? null : chip.key)
+                  }}
                 >
                   <Icon size={10} className="shrink-0" />
                   {chip.label}
+                  {!hasAllActive && hasAnyActive && (
+                    <span className="text-[8px] opacity-75">partial</span>
+                  )}
+                  <ChevronDown size={8} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
               )
             })}
@@ -776,6 +779,71 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               </button>
             )}
           </div>
+
+          {/* ── Expanded subcategories for selected chip ─── */}
+          {expandedChip && (() => {
+            const chip = QUICK_CHIPS.find(c => c.key === expandedChip)
+            if (!chip) return null
+            const groups = chip.groups.map(gk => FILTER_GROUPS.find(fg => fg.key === gk)).filter(Boolean)
+            const allKeys = getChipFilterKeys(chip)
+            const allActive = allKeys.every(k => activeFilters.has(k))
+            const noneActive = !allKeys.some(k => activeFilters.has(k))
+            return (
+              <div className="mt-1.5 pt-1.5 border-t border-[var(--border-secondary)]">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                    {chip.label} subcategories
+                  </span>
+                  <button
+                    onClick={() => {
+                      setActiveFilters(prev => {
+                        const next = new Set(prev)
+                        if (allActive) {
+                          for (const k of allKeys) next.delete(k)
+                        } else {
+                          for (const k of allKeys) next.add(k)
+                        }
+                        return next
+                      })
+                      setMode('venues')
+                    }}
+                    className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
+                  >
+                    {allActive ? 'Deselect all' : noneActive ? 'Select all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {groups.map(group => group!.categories.map(cat => {
+                    const filterKey = `${group!.key}:${cat.key}`
+                    const isOn = activeFilters.has(filterKey)
+                    return (
+                      <button
+                        key={filterKey}
+                        onClick={() => {
+                          setActiveFilters(prev => {
+                            const next = new Set(prev)
+                            if (isOn) next.delete(filterKey)
+                            else next.add(filterKey)
+                            return next
+                          })
+                          setMode('venues')
+                        }}
+                        className={`inline-flex items-center gap-1 text-[9px] whitespace-nowrap px-1.5 py-0.5 rounded border transition-colors ${
+                          isOn
+                            ? 'text-white font-medium'
+                            : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]'
+                        }`}
+                        style={isOn ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        {cat.label}
+                      </button>
+                    )
+                  }))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Listings filter pills + new listing ──────────────────────── */}
