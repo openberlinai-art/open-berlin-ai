@@ -740,79 +740,108 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* ── Category chips with collapsible subcategories ─── */}
         <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
+          {/* Chip row + reset */}
           <div className="flex items-center gap-1 flex-wrap">
             {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 6)).map(chip => {
               const Icon = chip.icon
               const chipKeys = getChipFilterKeys(chip)
-              const hasAnyActive = chipKeys.some(k => activeFilters.has(k))
-              const hasAllActive = chipKeys.every(k => activeFilters.has(k))
+              const activeCount = chipKeys.filter(k => activeFilters.has(k)).length
+              const hasAny = activeCount > 0
+              const hasAll = activeCount === chipKeys.length
               const isOpen = expandedChip === chip.key
               return (
                 <button
                   key={chip.key}
-                  className={`inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-full border transition-colors ${
-                    hasAnyActive
+                  className={`inline-flex items-center gap-1 text-[11px] whitespace-nowrap px-2 py-1 rounded-full border transition-colors min-h-[28px] ${
+                    hasAny
                       ? 'text-white font-semibold'
                       : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
-                  }`}
-                  style={hasAnyActive ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
-                  onClick={() => {
-                    // Toggle subcategory panel
-                    setExpandedChip(isOpen ? null : chip.key)
-                  }}
+                  } ${isOpen ? 'ring-2 ring-offset-1 ring-[var(--border-primary)]' : ''}`}
+                  style={hasAny ? { backgroundColor: chip.color, borderColor: chip.color } : undefined}
+                  onClick={() => setExpandedChip(isOpen ? null : chip.key)}
                 >
-                  <Icon size={10} className="shrink-0" />
+                  <Icon size={12} className="shrink-0" />
                   {chip.label}
-                  {!hasAllActive && hasAnyActive && (
-                    <span className="text-[8px] opacity-75">partial</span>
+                  {hasAny && !hasAll && (
+                    <span className="bg-white/30 text-[8px] px-1 rounded-full">{activeCount}</span>
                   )}
-                  <ChevronDown size={8} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={9} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
               )
             })}
             {QUICK_CHIPS.length > 6 && (
               <button
                 onClick={() => setChipsExpanded(v => !v)}
-                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full border border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]"
+                className="inline-flex items-center text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] min-h-[28px]"
               >
                 {chipsExpanded ? 'Less' : `+${QUICK_CHIPS.length - 6}`}
               </button>
             )}
+            {/* Reset all map filters */}
+            {(() => {
+              const liteDefaults = new Set(LITE_DEFAULTS)
+              const isDefault = liteDefaults.size === activeFilters.size && [...liteDefaults].every(k => activeFilters.has(k))
+              if (isDefault) return null
+              return (
+                <button
+                  onClick={() => {
+                    setActiveFilters(new Set(LITE_DEFAULTS))
+                    setExpandedChip(null)
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full border border-red-300 text-red-500 hover:bg-red-50 min-h-[28px]"
+                  title="Reset all map filters to defaults"
+                >
+                  <X size={10} /> Reset
+                </button>
+              )
+            })()}
           </div>
 
-          {/* ── Expanded subcategories for selected chip ─── */}
+          {/* ── Expanded subcategories panel ─── */}
           {expandedChip && (() => {
             const chip = QUICK_CHIPS.find(c => c.key === expandedChip)
             if (!chip) return null
             const groups = chip.groups.map(gk => FILTER_GROUPS.find(fg => fg.key === gk)).filter(Boolean)
             const allKeys = getChipFilterKeys(chip)
-            const allActive = allKeys.every(k => activeFilters.has(k))
-            const noneActive = !allKeys.some(k => activeFilters.has(k))
+            const activeCount = allKeys.filter(k => activeFilters.has(k)).length
+            const allActive = activeCount === allKeys.length
             return (
-              <div className="mt-1.5 pt-1.5 border-t border-[var(--border-secondary)]">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                    {chip.label} subcategories
-                  </span>
-                  <button
-                    onClick={() => {
-                      setActiveFilters(prev => {
-                        const next = new Set(prev)
-                        if (allActive) {
-                          for (const k of allKeys) next.delete(k)
-                        } else {
-                          for (const k of allKeys) next.add(k)
-                        }
-                        return next
-                      })
-                      setMode('venues')
-                    }}
-                    className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
-                  >
-                    {allActive ? 'Deselect all' : noneActive ? 'Select all' : 'Select all'}
-                  </button>
+              <div className="mt-2 pt-2 border-t border-[var(--border-secondary)]">
+                {/* Header: label + toggle all + close */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[var(--text-primary)]">
+                      {chip.label}
+                    </span>
+                    <span className="text-[9px] text-[var(--text-muted)]">
+                      {activeCount}/{allKeys.length} active
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setActiveFilters(prev => {
+                          const next = new Set(prev)
+                          if (allActive) { for (const k of allKeys) next.delete(k) }
+                          else { for (const k of allKeys) next.add(k) }
+                          return next
+                        })
+                        setMode('venues')
+                      }}
+                      className="text-[10px] text-[var(--accent)] hover:underline font-medium"
+                    >
+                      {allActive ? 'Clear all' : 'Select all'}
+                    </button>
+                    <button
+                      onClick={() => setExpandedChip(null)}
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1">
+                {/* Subcategory chips — larger touch targets for mobile */}
+                <div className="flex flex-wrap gap-1.5">
                   {groups.map(group => group!.categories.map(cat => {
                     const filterKey = `${group!.key}:${cat.key}`
                     const isOn = activeFilters.has(filterKey)
@@ -828,14 +857,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                           })
                           setMode('venues')
                         }}
-                        className={`inline-flex items-center gap-1 text-[9px] whitespace-nowrap px-1.5 py-0.5 rounded border transition-colors ${
+                        className={`inline-flex items-center gap-1 text-[10px] whitespace-nowrap px-2 py-1 rounded-full border min-h-[26px] transition-colors ${
                           isOn
                             ? 'text-white font-medium'
                             : 'border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)]'
                         }`}
                         style={isOn ? { backgroundColor: cat.color, borderColor: cat.stroke } : undefined}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="w-2 h-2 rounded-full shrink-0 border border-white/30" style={{ backgroundColor: cat.color }} />
                         {cat.label}
                       </button>
                     )
