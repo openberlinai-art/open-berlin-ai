@@ -14,6 +14,8 @@ export interface Env {
   FRONTEND_URL:        string
   VAPID_PUBLIC_KEY?:   string
   VAPID_PRIVATE_KEY?:  string
+  TICKETMASTER_API_KEY?: string
+  SONGKICK_API_KEY?:     string
 }
 
 // ─── D1 Row ───────────────────────────────────────────────────────────────────

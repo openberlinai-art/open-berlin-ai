@@ -2,6 +2,8 @@ import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
 import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
+import { ingestTicketmaster } from './ingest-ticketmaster'
+import { ingestSongkick } from './ingest-songkick'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
@@ -2522,6 +2524,20 @@ export default {
           .then(n => console.log(`[ingest:full] done — ${n} events`))
           .catch(err => console.error('[ingest:full] failed:', err))
       )
+      if (env.TICKETMASTER_API_KEY) {
+        ctx.waitUntil(
+          ingestTicketmaster(env, 365)
+            .then(n => console.log(`[ingest:ticketmaster:full] ${n} events`))
+            .catch(err => console.error('[ingest:ticketmaster:full]', err))
+        )
+      }
+      if (env.SONGKICK_API_KEY) {
+        ctx.waitUntil(
+          ingestSongkick(env, 365)
+            .then(n => console.log(`[ingest:songkick:full] ${n} events`))
+            .catch(err => console.error('[ingest:songkick:full]', err))
+        )
+      }
       // Pre-translate titles of events ingested in the last 48h (catches newly added events)
       ctx.waitUntil(
         env.DB.prepare(
@@ -2547,6 +2563,20 @@ export default {
           .then(n => console.log(`[ingest] done — ${n} events`))
           .catch(err => console.error('[ingest] failed:', err))
       )
+      if (env.TICKETMASTER_API_KEY) {
+        ctx.waitUntil(
+          ingestTicketmaster(env, 30)
+            .then(n => console.log(`[ingest:ticketmaster] ${n} events`))
+            .catch(err => console.error('[ingest:ticketmaster]', err))
+        )
+      }
+      if (env.SONGKICK_API_KEY) {
+        ctx.waitUntil(
+          ingestSongkick(env, 30)
+            .then(n => console.log(`[ingest:songkick] ${n} events`))
+            .catch(err => console.error('[ingest:songkick]', err))
+        )
+      }
     }
   },
 }

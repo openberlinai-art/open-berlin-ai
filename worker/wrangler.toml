@@ -37,5 +37,7 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 # RESEND_API_KEY   — Resend API key for magic-link emails
 # JWT_SECRET       — random 32+ char string for signing session JWTs
 # FRONTEND_URL     — full URL of the Next.js app (e.g. https://citizen-berlin.vercel.app)
-# VAPID_PUBLIC_KEY  — VAPID public key for web push notifications
-# VAPID_PRIVATE_KEY — VAPID private key for web push notifications
+# VAPID_PUBLIC_KEY      — VAPID public key for web push notifications
+# VAPID_PRIVATE_KEY     — VAPID private key for web push notifications
+# TICKETMASTER_API_KEY  — Ticketmaster Discovery API key
+# SONGKICK_API_KEY      — Songkick API key
