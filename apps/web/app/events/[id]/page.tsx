@@ -81,7 +81,7 @@ export default async function EventPage({ params }: Props) {
 
   const langs: string[] = (() => { try { return ev.languages ? JSON.parse(ev.languages) : [] } catch { return [] } })()
   const nonDeLangs = langs.filter(l => l !== 'de')
-  const imageUrls: string[] = (() => { try { return ev.image_urls ? JSON.parse(ev.image_urls) : [] } catch { return [] } })()
+  const imageUrls: string[] = (() => { try { return ev.image_urls ? [...new Set(JSON.parse(ev.image_urls) as string[])] : [] } catch { return [] } })()
 
   const jsonLd = {
     '@context': 'https://schema.org',

@@ -102,16 +102,26 @@ function transformTmEvent(ev: TmEvent): Omit<EventRow, 'created_at' | 'updated_a
   const hasPricing = ev.priceRanges && ev.priceRanges.length > 0
   const price_type: 'free' | 'paid' | 'unknown' = hasPricing ? 'paid' : 'unknown'
 
-  // Pick best images: prefer 16_9 ratio, sort by width desc, take top 6
-  const images = (ev.images ?? [])
-    .sort((a, b) => {
-      if (a.ratio === '16_9' && b.ratio !== '16_9') return -1
-      if (b.ratio === '16_9' && a.ratio !== '16_9') return 1
-      return (b.width ?? 0) - (a.width ?? 0)
-    })
-    .map(i => i.url)
-    .filter((u): u is string => !!u)
-    .slice(0, 6)
+  // Ticketmaster returns the same image in many sizes — deduplicate by base path
+  // and pick one large (for detail page) + one small (for thumbnail)
+  const allImages = (ev.images ?? []).filter((i): i is typeof i & { url: string } => !!i.url)
+  const byBase = new Map<string, typeof allImages>()
+  for (const img of allImages) {
+    // Strip size suffix to group same image: ".../_SOURCE" and "..._TABLET_LANDSCAPE_16_9.jpg" share same base
+    const base = img.url.replace(/_[A-Z0-9_]+(\.\w+)?$/, '')
+    if (!byBase.has(base)) byBase.set(base, [])
+    byBase.get(base)!.push(img)
+  }
+  // For each unique image, pick the best 16:9 version (medium-large ~1024px)
+  const images: string[] = []
+  for (const [, variants] of byBase) {
+    const best = variants
+      .filter(v => v.ratio === '16_9')
+      .sort((a, b) => Math.abs((a.width ?? 0) - 1024) - Math.abs((b.width ?? 0) - 1024))[0]
+      ?? variants.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0]
+    if (best?.url) images.push(best.url)
+  }
+  images.splice(3) // max 3 unique images
 
   // Map status
   const statusCode = ev.dates?.status?.code?.toLowerCase()

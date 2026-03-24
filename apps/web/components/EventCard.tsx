@@ -37,6 +37,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
   const needsRegistration = event.registration_type === 'required'
   const langs: string[] = (() => { try { return event.languages ? JSON.parse(event.languages) : [] } catch { return [] } })()
   const nonDeLangs = langs.filter(l => l !== 'de')
+  const thumbUrl: string | null = (() => { try { const urls = event.image_urls ? JSON.parse(event.image_urls) : []; return urls[0] ?? null } catch { return null } })()
 
   return (
     <div
@@ -108,6 +109,19 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
       )}>
         {displayTitle}
       </p>
+
+      {/* Thumbnail */}
+      {thumbUrl && (
+        <div className="mb-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbUrl}
+            alt=""
+            loading="lazy"
+            className="w-full h-24 object-cover border border-[var(--border-primary)]"
+          />
+        </div>
+      )}
 
       {/* Description */}
       {hasDesc && (

@@ -56,7 +56,7 @@ export async function getEvents(
       .first<{ n: number }>(),
     db.prepare(
       `SELECT * FROM events ${where}
-       ORDER BY date_start ASC, time_start ASC NULLS LAST, title ASC
+       ORDER BY date_start ASC, (CASE WHEN admission_link IS NOT NULL THEN 0 ELSE 1 END) ASC, time_start ASC NULLS LAST, title ASC
        LIMIT ? OFFSET ?`
     ).bind(...params, limit, offset).all<EventRow>(),
   ])
