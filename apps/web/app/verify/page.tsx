@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 
 const TOKEN_KEY = 'kp_token'
 
@@ -47,12 +48,12 @@ function VerifyInner() {
           <div>
             <p className="text-sm text-red-600 font-semibold mb-2">Link invalid or expired.</p>
             <p className="text-xs text-gray-500 mb-4">{error}</p>
-            <a
+            <Link
               href="/"
               className="text-xs border-2 border-black px-3 py-1.5 font-bold hover:bg-black hover:text-white"
             >
               Back to map
-            </a>
+            </Link>
           </div>
         )}
       </div>

@@ -162,7 +162,7 @@ function PublicListContent() {
                         <p className="text-[10px] text-gray-500 mt-0.5">{item.subtitle}</p>
                       )}
                       {item.notes && (
-                        <p className="text-xs text-gray-400 italic mt-1">"{item.notes}"</p>
+                        <p className="text-xs text-gray-400 italic mt-1">&quot;{item.notes}&quot;</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 mt-0.5">
@@ -203,7 +203,7 @@ function PublicListContent() {
                         <p className="text-[10px] text-gray-500 mt-0.5">{item.subtitle}</p>
                       )}
                       {item.notes && (
-                        <p className="text-xs text-gray-400 italic mt-1">"{item.notes}"</p>
+                        <p className="text-xs text-gray-400 italic mt-1">&quot;{item.notes}&quot;</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 mt-0.5">

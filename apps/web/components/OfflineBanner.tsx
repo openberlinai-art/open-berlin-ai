@@ -22,7 +22,7 @@ export default function OfflineBanner() {
   return (
     <div className="bg-yellow-100 border-b-2 border-yellow-400 px-4 py-1.5 flex items-center gap-2 text-yellow-800">
       <WifiOff size={14} />
-      <span className="text-xs font-bold">You're offline — showing cached data</span>
+      <span className="text-xs font-bold">You&apos;re offline — showing cached data</span>
     </div>
   )
 }

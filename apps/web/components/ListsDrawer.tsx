@@ -237,7 +237,7 @@ export default function ListsDrawer({ onClose }: Props) {
                               {det?.subtitle && (
                                 <p className="text-[10px] text-gray-500 mt-0.5">{det.subtitle}</p>
                               )}
-                              {item.notes && <p className="text-[10px] text-gray-400 italic mt-0.5 truncate">"{item.notes}"</p>}
+                              {item.notes && <p className="text-[10px] text-gray-400 italic mt-0.5 truncate">&quot;{item.notes}&quot;</p>}
                             </div>
                             <button
                               onClick={() => handleRemoveItem(list.id, item.id)}

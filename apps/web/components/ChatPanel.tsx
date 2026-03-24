@@ -133,7 +133,7 @@ export default function ChatPanel({ date, viewport, token }: Props) {
         <div className="fixed bottom-20 right-5 sm:bottom-5 z-50 w-80 max-h-[480px] flex flex-col bg-[var(--bg-primary)] border-2 border-[var(--border-primary)] shadow-[4px_4px_0_var(--border-primary)] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--border-primary)] bg-[var(--accent)] text-[var(--accent-text)]">
-            <span className="text-sm font-bold">Ask about today's events</span>
+            <span className="text-sm font-bold">Ask about today&apos;s events</span>
             <button onClick={() => setOpen(false)} className="hover:opacity-70">
               <X size={16} />
             </button>
