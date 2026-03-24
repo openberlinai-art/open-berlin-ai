@@ -38,21 +38,38 @@ interface TmEvent {
   name: string
   description?: string
   info?: string
+  pleaseNote?: string
   url?: string
+  locale?: string
   dates?: {
-    start?: { localDate?: string; localTime?: string }
+    start?: { localDate?: string; localTime?: string; dateTime?: string }
+    end?: { localDate?: string; localTime?: string; dateTime?: string }
+    access?: { startDateTime?: string }
     status?: { code?: string }
+    spanMultipleDays?: boolean
   }
-  classifications?: Array<{ segment?: { name?: string } }>
-  priceRanges?: Array<{ min?: number; max?: number }>
+  classifications?: Array<{
+    segment?: { name?: string }
+    genre?: { name?: string }
+    subGenre?: { name?: string }
+  }>
+  priceRanges?: Array<{ min?: number; max?: number; currency?: string }>
+  sales?: { public?: { startDateTime?: string; endDateTime?: string } }
   images?: Array<{ url?: string; width?: number; height?: number; ratio?: string }>
+  promoter?: { name?: string }
   _embedded?: {
     venues?: Array<{
       name?: string
+      url?: string
       address?: { line1?: string }
       city?: { name?: string }
       postalCode?: string
       location?: { latitude?: string; longitude?: string }
+    }>
+    attractions?: Array<{
+      name?: string
+      url?: string
+      description?: string
     }>
   }
 }
@@ -60,6 +77,15 @@ interface TmEvent {
 interface TmResponse {
   _embedded?: { events?: TmEvent[] }
   page?: { totalPages?: number; number?: number; totalElements?: number }
+}
+
+function extractTags(ev: TmEvent): string | null {
+  const c = ev.classifications?.[0]
+  const tags: string[] = []
+  if (c?.segment?.name) tags.push(c.segment.name)
+  if (c?.genre?.name)   tags.push(c.genre.name)
+  if (c?.subGenre?.name && c.subGenre.name !== c.genre?.name) tags.push(c.subGenre.name)
+  return tags.length ? JSON.stringify(tags) : null
 }
 
 function transformTmEvent(ev: TmEvent): Omit<EventRow, 'created_at' | 'updated_at'> {
@@ -94,22 +120,42 @@ function transformTmEvent(ev: TmEvent): Omit<EventRow, 'created_at' | 'updated_a
     : statusCode === 'rescheduled' ? 'rescheduled'
     : null
 
+  // End time from dates.end
+  const time_end = ev.dates?.end?.localTime ?? null
+  const date_end = ev.dates?.spanMultipleDays ? (ev.dates?.end?.localDate ?? null) : null
+
+  // Ticketmaster's access.startDateTime is ticket sale access, not physical door time
+  // No reliable door time available from the API
+  const door_time: string | null = null
+
+  // Collect external links (venue + attraction URLs)
+  const links: Array<{ url: string; displayName?: string }> = []
+  if (venue?.url) links.push({ url: venue.url, displayName: venue.name ?? 'Venue' })
+  const attraction = ev._embedded?.attractions?.[0]
+  if (attraction?.url) links.push({ url: attraction.url, displayName: attraction.name ?? 'Artist' })
+
+  // Price note with currency
+  const priceRange = ev.priceRanges?.[0]
+  const admission_note = priceRange
+    ? `${priceRange.currency ?? 'EUR'} ${priceRange.min ?? '?'}–${priceRange.max ?? '?'}`
+    : null
+
   return {
     id:               `tm:${ev.id}`,
     title:            ev.name,
-    description:      ev.description ?? ev.info ?? null,
+    description:      ev.description ?? ev.info ?? attraction?.description ?? null,
     date_start:       ev.dates?.start?.localDate ?? fmtDate(new Date()),
-    date_end:         null,
+    date_end,
     time_start:       ev.dates?.start?.localTime ?? null,
-    time_end:         null,
-    door_time:        null,
+    time_end,
+    door_time,
     category:         mapCategory(ev.classifications),
-    tags:             null,
+    tags:             extractTags(ev),
     price_type,
-    price_min:        ev.priceRanges?.[0]?.min ?? null,
-    price_max:        ev.priceRanges?.[0]?.max ?? null,
+    price_min:        priceRange?.min ?? null,
+    price_max:        priceRange?.max ?? null,
     admission_link:   ev.url ?? null,
-    location_name:    venue?.name ?? null,
+    location_name:    venue?.name ?? (addressParts.length ? addressParts[0]! : null),
     address:          addressParts.length ? addressParts.join(', ') : null,
     borough:          null,
     lat,
@@ -118,11 +164,11 @@ function transformTmEvent(ev: TmEvent): Omit<EventRow, 'created_at' | 'updated_a
     attraction_id:    null,
     location_id:      null,
     schedule_status,
-    please_note:      null,
-    admission_note:   null,
-    source_links:     null,
+    please_note:      ev.pleaseNote ?? null,
+    admission_note,
+    source_links:     links.length ? JSON.stringify(links) : null,
     registration_type: null,
-    languages:        null,
+    languages:        ev.locale ? JSON.stringify([ev.locale.split('-')[0]]) : null,
     image_urls:       images.length ? JSON.stringify(images) : null,
   }
 }
