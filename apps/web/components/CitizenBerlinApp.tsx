@@ -788,8 +788,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Category chips with collapsible subcategories ─── */}
-        <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
+        {/* ── Category chips with collapsible subcategories (Places/Listings only) ─── */}
+        {mode !== 'events' && <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
           {/* Chip row + reset */}
           <div className="flex items-center gap-1 flex-wrap">
             {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 8)).map(chip => {
@@ -923,7 +923,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               </div>
             )
           })()}
-        </div>
+        </div>}
 
         {/* ── Listings filter pills + new listing ──────────────────────── */}
         {mode === 'listings' && (
