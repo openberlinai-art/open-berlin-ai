@@ -2534,17 +2534,34 @@ app.delete('/api/community-events/:id', async c => {
 })
 
 app.post('/api/community-events/:id/image', async c => {
-  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const authHeader = c.req.header('Authorization') ?? ''
+  const isAdmin = authHeader === `Bearer ${c.env.INGEST_SECRET}`
+  const auth = isAdmin ? null : await getUserFromHeader(authHeader, c.env.JWT_SECRET)
+  if (!isAdmin && !auth) return c.json({ error: 'Unauthorized' }, 401)
   const body = await c.req.parseBody()
   const file = body['file']
   if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400)
   const buf = await file.arrayBuffer()
-  const result = await uploadCommunityEventImage(
-    c.req.param('id'), auth.sub,
-    buf, file.name || `${Date.now()}.jpg`, file.type || 'image/jpeg',
-    c.env.DB, c.env.GEODATA,
-  )
+
+  let result: { ok: true; key: string } | { ok: false; error: string }
+  if (isAdmin) {
+    // Admin upload — bypass ownership, write directly
+    const eventId = c.req.param('id')
+    const existing = await c.env.DB.prepare('SELECT id, image_key FROM community_events WHERE id = ?').bind(eventId).first<{ id: string; image_key: string | null }>()
+    if (!existing) { result = { ok: false, error: 'Not found' } } else {
+      if (existing.image_key) { try { await c.env.GEODATA.delete(existing.image_key) } catch { /* ignore */ } }
+      const key = `community-events/${eventId}/${file.name || `${Date.now()}.jpg`}`
+      await c.env.GEODATA.put(key, buf, { httpMetadata: { contentType: file.type || 'image/jpeg' } })
+      await c.env.DB.prepare('UPDATE community_events SET image_key = ? WHERE id = ?').bind(key, eventId).run()
+      result = { ok: true, key }
+    }
+  } else {
+    result = await uploadCommunityEventImage(
+      c.req.param('id'), auth!.sub,
+      buf, file.name || `${Date.now()}.jpg`, file.type || 'image/jpeg',
+      c.env.DB, c.env.GEODATA,
+    )
+  }
   if (!result.ok) return c.json({ error: result.error }, 400)
   return c.json({ key: result.key })
 })

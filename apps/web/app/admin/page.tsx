@@ -56,6 +56,8 @@ function EventCard({
   const [isFree, setIsFree] = useState(!!ev.is_free)
   const [submitterName, setSubmitterName] = useState(ev.submitter_name ?? '')
   const [saving, setSaving] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(ev.image_key ? `/api/listings/images/${ev.image_key}` : null)
 
   const tags: string[] = (() => { try { return ev.tags ? JSON.parse(ev.tags) : [] } catch { return [] } })()
 
@@ -78,7 +80,23 @@ function EventCard({
         }),
       })
       if (res.ok) {
-        onUpdate(ev.id, { title, description, date_start: dateStart, time_start: timeStart, time_end: timeEnd, location_name: locationName, address, category, ticket_url: ticketUrl, is_free: isFree ? 1 : 0, submitter_name: submitterName })
+        // Upload image if selected
+        if (imageFile) {
+          const form = new FormData()
+          form.append('file', imageFile)
+          const imgRes = await fetch(`/api/community-events/${ev.id}/image`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${secret}` },
+            body: form,
+          })
+          if (imgRes.ok) {
+            const { key } = await imgRes.json() as { key: string }
+            onUpdate(ev.id, { ...{ title, description, date_start: dateStart, time_start: timeStart, time_end: timeEnd, location_name: locationName, address, category, ticket_url: ticketUrl, is_free: isFree ? 1 : 0, submitter_name: submitterName }, image_key: key })
+            setImagePreview(`/api/listings/images/${key}`)
+          }
+        } else {
+          onUpdate(ev.id, { title, description, date_start: dateStart, time_start: timeStart, time_end: timeEnd, location_name: locationName, address, category, ticket_url: ticketUrl, is_free: isFree ? 1 : 0, submitter_name: submitterName })
+        }
         setEditing(false)
       }
     } finally {
@@ -136,6 +154,27 @@ function EventCard({
           <div className="col-span-2">
             <label className="text-[9px] text-[var(--text-muted)] uppercase">Description</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} className={`${input} min-h-[60px]`} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[9px] text-[var(--text-muted)] uppercase">Photo</label>
+            <div className="flex items-center gap-2 mt-1">
+              {(imagePreview || imageFile) && (
+                <div className="relative w-20 h-14 border border-[var(--border-secondary)] overflow-hidden shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageFile ? URL.createObjectURL(imageFile) : imagePreview!} alt="" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  const f = e.target.files?.[0] ?? null
+                  setImageFile(f)
+                  if (f) setImagePreview(URL.createObjectURL(f))
+                }}
+                className="text-[10px] text-[var(--text-secondary)]"
+              />
+            </div>
           </div>
           <div className="col-span-2 flex items-center gap-3">
             <label className="flex items-center gap-1 text-xs text-[var(--text-secondary)]">
