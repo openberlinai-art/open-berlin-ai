@@ -116,9 +116,14 @@ export default function JourneyWidget({ toLat, toLng, onRouteChange }: Props) {
   // Emit route geometry whenever the selected journey changes
   useEffect(() => {
     if (!onRouteChange) return
+    let cancelled = false
     const j = journeys[idx]
-    onRouteChange(j ? buildRouteDisplay(j) : null)
-    return () => onRouteChange(null)
+    if (j) {
+      buildRouteDisplay(j).then(route => { if (!cancelled) onRouteChange(route) })
+    } else {
+      onRouteChange(null)
+    }
+    return () => { cancelled = true; onRouteChange(null) }
   }, [journeys, idx, onRouteChange])
 
   const journey = journeys[idx] ?? null

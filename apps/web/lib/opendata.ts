@@ -410,7 +410,26 @@ export interface RouteDisplayData {
   destination: [number, number]  // [lng, lat]
 }
 
-export function buildRouteDisplay(journey: Journey): RouteDisplayData | null {
+/** Fetch a proper pedestrian route from OSRM (free, no API key) */
+async function fetchWalkingRoute(
+  from: [number, number],
+  to: [number, number],
+): Promise<[number, number][] | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}?overview=full&geometries=geojson`
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json() as {
+      routes?: Array<{ geometry?: { coordinates?: [number, number][] } }>
+    }
+    const coords = data.routes?.[0]?.geometry?.coordinates
+    return coords && coords.length >= 2 ? coords : null
+  } catch {
+    return null
+  }
+}
+
+export async function buildRouteDisplay(journey: Journey): Promise<RouteDisplayData | null> {
   const displayLegs: RouteDisplayData['legs'] = []
 
   for (const leg of journey.legs) {
@@ -424,7 +443,7 @@ export function buildRouteDisplay(journey: Journey): RouteDisplayData | null {
 
     let geometry: GeoJSON.Feature<GeoJSON.LineString> | null = null
 
-    if (!leg.walking && leg.polyline) {
+    if (leg.polyline) {
       // BVG API returns polyline as a FeatureCollection of Point features
       // — collect all coordinates into a single LineString
       const coords: [number, number][] = []
@@ -446,8 +465,20 @@ export function buildRouteDisplay(journey: Journey): RouteDisplayData | null {
       }
     }
 
+    // Walking leg without polyline: use OSRM for a proper street-following route
+    if (!geometry && leg.walking && leg.originCoords && leg.destinationCoords) {
+      const walkCoords = await fetchWalkingRoute(leg.originCoords, leg.destinationCoords)
+      if (walkCoords) {
+        geometry = {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: walkCoords },
+        }
+      }
+    }
+
+    // Final fallback: straight line (transit leg without any polyline data)
     if (!geometry && leg.originCoords && leg.destinationCoords) {
-      // Walking leg or transit leg without polyline: straight line
       geometry = {
         type: 'Feature',
         properties: {},
