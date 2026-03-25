@@ -63,10 +63,11 @@ function getWeatherNudge(code: number, temp: number): string {
   if (code >= 71 && code <= 77) return 'Snowy — cozy indoor picks today'
   if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'Rainy — indoor events recommended'
   if (code >= 45 && code <= 48) return 'Foggy — explore indoor venues'
+  if (temp < 5) return 'Freezing — stay cozy inside'
+  if (temp < 12) return 'Chilly — indoor events recommended'
   if (temp >= 22) return 'Perfect weather for outdoor events'
   if (temp >= 15) return 'Great day to explore outdoors'
-  if (temp < 5) return 'Bundle up — or stay cozy inside'
-  return 'Nice day — check out what\'s on'
+  return 'Mild — check out what\'s on'
 }
 
 function WeatherNudge({ onExpand }: { onExpand: () => void }) {

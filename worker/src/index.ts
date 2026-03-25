@@ -217,10 +217,14 @@ app.get('/api/events/weather-picks', async c => {
   const tempMax = daily?.temperature_2m_max?.[dayIndex] ?? 20
   const precipProb = daily?.precipitation_probability_max?.[dayIndex] ?? 0
 
-  // Classify weather
+  // Classify weather — indoor if rainy, snowy, foggy, or cold (<12°C)
   const RAINY_CODES = new Set([51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99])
-  const isRainy = RAINY_CODES.has(weatherCode) || precipProb > 60
-  const recommendation = isRainy ? 'indoor' : 'outdoor'
+  const SNOW_CODES = new Set([71,73,75,77,85,86])
+  const FOG_CODES = new Set([45,48])
+  const isBadWeather = RAINY_CODES.has(weatherCode) || SNOW_CODES.has(weatherCode) || FOG_CODES.has(weatherCode) || precipProb > 60
+  const isCold = tempMax < 12
+  const isRainy = isBadWeather
+  const recommendation = (isBadWeather || isCold) ? 'indoor' : 'outdoor'
 
   const WMO_LABELS: Record<number, string> = {
     0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',

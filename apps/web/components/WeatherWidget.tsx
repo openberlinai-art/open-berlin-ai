@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useWeather } from '@/hooks/useCulturalData'
 
 const WMO_EMOJI: Record<number, string> = {
@@ -24,17 +25,34 @@ function weatherEmoji(code: number): string {
   return '🌤'
 }
 
+function useBerlinClock() {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    function tick() {
+      setTime(new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  return time
+}
+
 export default function WeatherWidget() {
   const { data } = useWeather()
+  const clock = useBerlinClock()
   const current = data?.current as Record<string, number> | undefined
-  if (!current) return null
+
+  if (!current) return (
+    <span className="text-xs text-gray-400 ml-1.5 font-mono">{clock}</span>
+  )
 
   const temp  = Math.round(current.temperature_2m)
   const emoji = weatherEmoji(current.weather_code)
 
   return (
     <span className="text-xs text-gray-400 ml-1.5">
-      {emoji} {temp}°C
+      {emoji} {temp}°C <span className="font-mono">{clock}</span>
     </span>
   )
 }

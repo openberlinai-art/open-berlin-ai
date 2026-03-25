@@ -25,6 +25,7 @@ export default function WeatherPicks({ date }: { date: string }) {
 
   if (!data?.picks?.length) return null
 
+  const isIndoor = data.recommendation === 'indoor'
   const WeatherIcon = data.weather.isRainy ? CloudRain : data.weather.code <= 1 ? Sun : Cloud
 
   return (
@@ -33,7 +34,9 @@ export default function WeatherPicks({ date }: { date: string }) {
         <div className="flex items-center gap-1.5">
           <WeatherIcon size={12} className="text-[var(--text-muted)]" />
           <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-            {data.weather.isRainy ? 'Rainy today — indoor picks' : 'Nice weather — outdoor picks'}
+            {isIndoor
+              ? data.weather.tempMax < 12 ? `Cold (${data.weather.tempMax}°C) — indoor picks` : 'Rainy today — indoor picks'
+              : 'Nice weather — outdoor picks'}
           </p>
           <span className="text-[10px] text-[var(--text-muted)] ml-auto">
             {data.weather.tempMax}°C · {data.weather.label}
