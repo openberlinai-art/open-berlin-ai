@@ -5,9 +5,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     const workerUrl = process.env.WORKER_API_URL ?? 'https://citizen-berlin-worker.openberlinai.workers.dev'
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const auth = req.headers.get('Authorization')
+    if (auth) headers['Authorization'] = auth
+
     const res = await fetch(`${workerUrl}/api/chat`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body:    JSON.stringify(body),
       signal:  AbortSignal.timeout(30_000),
     })
