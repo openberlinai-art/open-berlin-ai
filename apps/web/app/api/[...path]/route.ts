@@ -17,10 +17,23 @@ async function proxy(req: NextRequest) {
     body: req.method !== 'GET' && req.method !== 'HEAD' ? await req.text() : undefined,
   })
 
+  const contentType = res.headers.get('Content-Type') ?? 'application/json'
+
+  // Binary responses (images, etc.) — stream as-is
+  if (contentType.startsWith('image/') || contentType.startsWith('audio/') || contentType.startsWith('video/')) {
+    return new NextResponse(res.body, {
+      status: res.status,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': res.headers.get('Cache-Control') ?? 'public, max-age=86400',
+      },
+    })
+  }
+
   const body = await res.text()
   return new NextResponse(body, {
     status: res.status,
-    headers: { 'Content-Type': res.headers.get('Content-Type') ?? 'application/json' },
+    headers: { 'Content-Type': contentType },
   })
 }
 

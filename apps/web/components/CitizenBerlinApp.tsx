@@ -525,14 +525,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-bold tracking-tight">Citizen.Berlin</h1>
             <div className="flex items-center gap-1">
-              {/* Utility icons (moved from chip row) */}
-              <button
-                onClick={() => setLiveRadar(v => !v)}
-                className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-full border ${liveRadar ? 'bg-red-500 border-red-500 text-white' : 'border-gray-200 text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'}`}
-                title="Live vehicle radar"
-              >
-                <span className="text-[10px]">●</span>
-              </button>
+              {/* Utility icons */}
               <button
                 onClick={() => {
                   if (nearbyMode) { setNearbyMode(false); setNearbyResults(null); return }
