@@ -215,3 +215,74 @@ export async function upsertEvents(
     await db.batch(stmts)
   }
 }
+
+/**
+ * Auto-create location records for events that have venue info but no location_id.
+ * Generates a stable ID from the venue name, creates a minimal location record,
+ * and backfills location_id on matching events.
+ */
+export async function ensureLocationsForEvents(db: D1Database): Promise<number> {
+  // Find distinct venues from events that have no location_id but have location_name + coords
+  const rows = await db.prepare(`
+    SELECT DISTINCT location_name, address, borough, lat, lng
+    FROM events
+    WHERE location_id IS NULL
+      AND location_name IS NOT NULL
+      AND lat IS NOT NULL AND lng IS NOT NULL
+    LIMIT 200
+  `).all<{ location_name: string; address: string | null; borough: string | null; lat: number; lng: number }>()
+
+  if (!rows.results.length) return 0
+
+  let created = 0
+  const CHUNK = 25
+  for (let i = 0; i < rows.results.length; i += CHUNK) {
+    const chunk = rows.results.slice(i, i + CHUNK)
+    const stmts: D1PreparedStatement[] = []
+
+    for (const v of chunk) {
+      // Generate stable ID from venue name (slugified)
+      const slug = v.location_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 80)
+      const locId = `venue:${slug}`
+
+      // Infer category from venue name
+      const name = v.location_name.toLowerCase()
+      const category = /theater|theatre|bühne|schaubühne/.test(name) ? 'theatre'
+        : /kino|cinema|filmtheater/.test(name) ? 'cinema'
+        : /museum/.test(name) ? 'museum'
+        : /galerie|gallery/.test(name) ? 'gallery'
+        : /bibliothek|bücherei/.test(name) ? 'library'
+        : /club|lounge/.test(name) ? 'club'
+        : /konzerthaus|philharmonie|arena|halle|stadion/.test(name) ? 'concert_hall'
+        : 'other'
+
+      // Upsert location (don't overwrite existing enriched data)
+      stmts.push(db.prepare(`
+        INSERT INTO locations (id, name, lat, lng, category, address, borough, is_virtual, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+        ON CONFLICT(id) DO UPDATE SET
+          lat = COALESCE(locations.lat, excluded.lat),
+          lng = COALESCE(locations.lng, excluded.lng),
+          address = COALESCE(locations.address, excluded.address),
+          borough = COALESCE(locations.borough, excluded.borough),
+          updated_at = datetime('now')
+      `).bind(locId, v.location_name, v.lat, v.lng, category, v.address, v.borough))
+
+      // Backfill location_id on matching events
+      stmts.push(db.prepare(`
+        UPDATE events SET location_id = ?
+        WHERE location_id IS NULL AND location_name = ? AND lat = ? AND lng = ?
+      `).bind(locId, v.location_name, v.lat, v.lng))
+
+      created++
+    }
+
+    await db.batch(stmts)
+  }
+
+  return created
+}

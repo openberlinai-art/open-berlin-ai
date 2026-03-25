@@ -1,6 +1,6 @@
 import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
-import { getEvents, getEvent } from './db'
+import { getEvents, getEvent, ensureLocationsForEvents } from './db'
 import { ingestEvents } from './ingest'
 import { ingestTicketmaster } from './ingest-ticketmaster'
 import { ingestSongkick } from './ingest-songkick'
@@ -2168,6 +2168,21 @@ app.post('/api/ingest-ticketmaster', async c => {
   return c.json({ ok: true, message: `Ticketmaster ingest started: ${days} days` })
 })
 
+// ─── POST /api/ensure-locations (protected) ───────────────────────────────────
+
+app.post('/api/ensure-locations', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  c.executionCtx.waitUntil(
+    ensureLocationsForEvents(c.env.DB)
+      .then(n => console.log(`[ensure-locations:manual] done — ${n} venues`))
+      .catch(err => console.error('[ensure-locations:manual] failed:', err))
+  )
+  return c.json({ ok: true, message: 'Ensure locations started' })
+})
+
 // ─── POST /api/ingest-openligadb (protected) ──────────────────────────────────
 
 app.post('/api/ingest-openligadb', async c => {
@@ -2524,6 +2539,12 @@ export default {
           ingestOpenLigaDB(env)
             .then(n => console.log(`[ingest:openligadb] ${n} events`))
             .catch(err => console.error('[ingest:openligadb]', err))
+        )
+        // Auto-create venue pages for events without location records
+        ctx.waitUntil(
+          ensureLocationsForEvents(env.DB)
+            .then(n => n > 0 && console.log(`[ensure-locations] created ${n} venue records`))
+            .catch(err => console.error('[ensure-locations]', err))
         )
       }
     } else if (event.cron === '0 2 * * *') {

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
-  List, Map, CalendarDays, MoreHorizontal, Clock,
+  List, Map, CalendarDays, MoreHorizontal,
 } from 'lucide-react'
 
 import dynamic from 'next/dynamic'
@@ -46,8 +46,8 @@ const ListsDrawer   = dynamic(() => import('./ListsDrawer'),   { ssr: false })
 const CalendarPanel = dynamic(() => import('./CalendarPanel'), { ssr: false })
 
 const CATEGORIES = [
-  'Exhibition','Music','Dance','Recreation','Kids','Sports',
-  'Tours','Film','Theater','Talks','Literature','Other',
+  'Exhibitions','Music','Art','Theater','Education','Recreation',
+  'Kids','Sports','Dance','Talks','Tours','Film','Other',
 ]
 
 const WMO_EMOJI: Record<number, string> = {
@@ -145,7 +145,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [chipsExpanded, setChipsExpanded] = useState(false)
   const [expandedChip, setExpandedChip] = useState<string | null>(null)
   const [discoverExpanded, setDiscoverExpanded] = useState(false)
-  const [happeningSoon, setHappeningSoon] = useState(false)
   useEffect(() => {
     const stored = localStorage.getItem('citizen-discover-expanded')
     if (stored === 'true') setDiscoverExpanded(true)
@@ -422,11 +421,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       // (the DB only has 'free'/'unknown'/'paid'; unknown often means paid/untagged)
       const sendPriceType = price === 'free' ? 'free' : undefined
       const res = await fetchEvents({
-        date_from:  happeningSoon ? undefined : from,
-        date_to:    happeningSoon ? undefined : to,
-        happening_soon: happeningSoon || undefined,
-        sort_lat:   happeningSoon && userLocation ? userLocation.lat : undefined,
-        sort_lng:   happeningSoon && userLocation ? userLocation.lng : undefined,
+        date_from:  from,
+        date_to:    to,
         page:       p,
         limit:      price === 'paid' ? 500 : LIMIT,
         price_type: sendPriceType,
@@ -443,7 +439,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [price, cats, happeningSoon, userLocation])
+  }, [price, cats])
 
   // Always fetch fresh data from Worker (initialEvents are for first-paint only)
   useEffect(() => {
@@ -772,29 +768,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Day Navigation Strip + Happening Soon ──────────────── */}
+        {/* ── Day Navigation Strip ──────────────────────────────── */}
         {mode === 'events' && (
-          <div className="flex items-center">
-            <div className="flex-1 min-w-0">
-              <DayStrip
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onSelectDay={(iso) => { setHappeningSoon(false); setDateFrom(iso); setDateTo(iso); setPage(1) }}
-                onSelectRange={(from, to) => { setHappeningSoon(false); setDateFrom(from); setDateTo(to); setPage(1) }}
-              />
-            </div>
-            <button
-              onClick={() => { setHappeningSoon(h => !h); setPage(1) }}
-              className={`shrink-0 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 mr-2 rounded-full border-2 transition-colors ${
-                happeningSoon
-                  ? 'bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]'
-                  : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
-              }`}
-              title="Events starting within 2 hours"
-            >
-              <Clock size={10} /> Soon
-            </button>
-          </div>
+          <DayStrip
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onSelectDay={(iso) => { setDateFrom(iso); setDateTo(iso); setPage(1) }}
+            onSelectRange={(from, to) => { setDateFrom(from); setDateTo(to); setPage(1) }}
+          />
         )}
 
         {/* ── Mode row ──────────────────────────────────────── */}
