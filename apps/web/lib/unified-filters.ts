@@ -65,10 +65,9 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('poi_music_venue',  'Music Venues',  '#b45309', '#78350f', 'poi',   'music_venue'),
       vc('poi_community_centre','Community (POI)','#15803d','#14532d','poi', 'community_centre'),
       vc('culture_other',    'Other',         '#6b7280', '#4b5563', 'venue', 'other'),
-      vc('outdoor_cinema',   'Outdoor Cinemas','#0891b2', '#0e7490', 'poi',  'outdoor_cinema'),
       vc('events_venue',     'Event Venues',   '#e11d48', '#be123c', 'poi',  'events_venue'),
       vc('studio',           'Studios',        '#6366f1', '#4f46e5', 'poi',  'studio'),
-      vc('osm_cinema',       'Cinemas (OSM)',  '#0891b2', '#164e63', 'poi',  'osm_cinema'),
+      vc('osm_cinema',       'Cinemas & Outdoor Cinemas', '#0891b2', '#164e63', 'poi', 'osm_cinema'),
       vc('osm_museum',       'Museums (OSM)',  '#b91c1c', '#7f1d1d', 'poi',  'osm_museum'),
     ],
   },
@@ -447,7 +446,7 @@ function _poiGroupForCategory(sourceKey: string): string | null {
   if (sportsKeys.includes(sourceKey)) return 'sports'
 
   // Culture POI categories shown in the Culture filter group
-  const cultureKeys = ['theatre', 'arts_centre', 'music_venue', 'community_centre', 'outdoor_cinema', 'events_venue', 'studio']
+  const cultureKeys = ['theatre', 'arts_centre', 'music_venue', 'community_centre', 'events_venue', 'studio']
   if (cultureKeys.includes(sourceKey)) return 'culture'
 
   // OSM-sourced POIs in tourism group shown in Culture
