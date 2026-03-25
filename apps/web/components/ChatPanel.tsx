@@ -168,18 +168,15 @@ export default function ChatPanel({ date, viewport, token }: Props) {
           }
         }
 
-        // Save full conversation with assistant response
+        // Save full conversation (with assistant response) via dedicated save endpoint
         if (token) {
           const fullMessages = [...next, { role: 'assistant' as const, content: assistantContent }]
-          fetch('/api/chat', {
+          setMessages(fullMessages)
+          fetch('/api/chat/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ messages: fullMessages, date, conversation_id: convoId }),
+            body: JSON.stringify({ conversation_id: convoId, messages: fullMessages }),
           }).catch(() => {})
-          // Nope — this would trigger another AI call. Save via a dedicated endpoint instead.
-          // Actually the backend saves in waitUntil when conversation_id is set.
-          // But it saves the messages BEFORE the AI response. Let me just save client-side.
-          setMessages(fullMessages)
         }
       } else {
         const data = await res.json()

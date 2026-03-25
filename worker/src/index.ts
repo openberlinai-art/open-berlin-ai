@@ -1525,24 +1525,6 @@ ${venuesList}${viewportSection}
     stream: true,
   })
 
-  // Save conversation if user is authenticated
-  if (chatAuth && body.conversation_id) {
-    c.executionCtx.waitUntil(
-      (async () => {
-        try {
-          const convoId = body.conversation_id!
-          const title = body.messages[0]?.content?.slice(0, 60) ?? 'Chat'
-          const msgJson = JSON.stringify(body.messages.map(m => ({ role: m.role, content: m.content, ts: new Date().toISOString() })))
-          await c.env.DB.prepare(`
-            INSERT INTO chat_conversations (id, user_id, messages, title, updated_at)
-            VALUES (?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, updated_at = datetime('now')
-          `).bind(convoId, chatAuth.sub, msgJson, title).run()
-        } catch { /* ignore save failures */ }
-      })()
-    )
-  }
-
   // CF AI streaming returns a ReadableStream of SSE
   if (aiResponse instanceof ReadableStream) {
     return new Response(aiResponse as ReadableStream, {
@@ -1562,7 +1544,22 @@ ${venuesList}${viewportSection}
   })
 })
 
-// ─── Chat history endpoints ──────────────────────────────────────────────────
+// ─── Chat save + history endpoints ───────────────────────────────────────────
+
+app.post('/api/chat/save', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json<{ conversation_id: string; messages: { role: string; content: string }[] }>()
+  if (!body.conversation_id || !body.messages?.length) return c.json({ error: 'conversation_id and messages required' }, 400)
+  const title = body.messages.find(m => m.role === 'user')?.content?.slice(0, 60) ?? 'Chat'
+  const msgJson = JSON.stringify(body.messages.map(m => ({ role: m.role, content: m.content, ts: new Date().toISOString() })))
+  await c.env.DB.prepare(`
+    INSERT INTO chat_conversations (id, user_id, messages, title, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, updated_at = datetime('now')
+  `).bind(body.conversation_id, auth.sub, msgJson, title).run()
+  return c.json({ ok: true })
+})
 
 app.get('/api/chat/history', async c => {
   const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
