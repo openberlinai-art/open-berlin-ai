@@ -117,7 +117,7 @@ const CATEGORY_MAP: Record<string, string> = {
   wellness:          'Recreation',
 }
 
-function normalizeCategory(tags: string[], title?: string): string {
+function normalizeCategory(tags: string[], title?: string, locationName?: string): string {
   // First try tag-based mapping
   for (const tag of tags) {
     const clean = tag
@@ -138,11 +138,24 @@ function normalizeCategory(tags: string[], title?: string): string {
     if (/\b(film|kino|cinema)\b/.test(t)) return 'Film'
     if (/\b(lesung|vortrag|diskussion|lecture|podium|gespräch)\b/.test(t)) return 'Talks'
     if (/\b(workshop|seminar|kurs|fortbildung|course)\b/.test(t)) return 'Education'
-    if (/\b(kinder|kids|family|familie|jugend)\b/.test(t)) return 'Kids'
-    if (/\b(sport|fitness|gymnastik|yoga|turnier|volleyball)\b/.test(t)) return 'Sports'
+    if (/\b(kinder|kids|family|familie|jugend|krabbelgruppe)\b/.test(t)) return 'Kids'
+    if (/\b(sport|fitness|gymnastik|yoga|turnier|volleyball|tischtennis|fußball)\b/.test(t)) return 'Sports'
     if (/\b(führung|rundgang|tour|stadtführung)\b/.test(t)) return 'Tours'
     if (/\b(fest|festival|markt|market|flohmarkt)\b/.test(t)) return 'Recreation'
     if (/\b(malerei|painting|skulptur|fotografie|kunst|art)\b/.test(t)) return 'Art'
+  }
+  // Fallback: infer from venue name
+  if (locationName) {
+    const loc = locationName.toLowerCase()
+    if (/bibliothek|bücherei/.test(loc)) return 'Education'
+    if (/galerie|gallery|haus am waldsee/.test(loc)) return 'Art'
+    if (/museum/.test(loc)) return 'Exhibitions'
+    if (/theater|theatre|bühne|schaubühne|volksbühne/.test(loc)) return 'Theater'
+    if (/kino|cinema|filmtheater/.test(loc)) return 'Film'
+    if (/zitadelle|schloss|schlosspark/.test(loc)) return 'Exhibitions'
+    if (/stadtteilzentrum|nachbarschaftshaus|begegnungsstätte|kompass/.test(loc)) return 'Recreation'
+    if (/kindercafé|spielplatz|familienzentrum/.test(loc)) return 'Kids'
+    if (/konzerthaus|philharmonie|lido|so36|festsaal/.test(loc)) return 'Music'
   }
   return 'Other'
 }
@@ -202,7 +215,8 @@ function transformEvent(
     'Untitled'
 
   const tags = attraction?.tags ?? []
-  const category = normalizeCategory(tags, title)
+  const locName = location?.title?.de ?? location?.title?.en ?? raw.locations[0]?.referenceLabel?.de ?? null
+  const category = normalizeCategory(tags, title, locName ?? undefined)
 
   const description =
     attraction?.description?.de ??
