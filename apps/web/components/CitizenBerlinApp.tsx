@@ -1523,7 +1523,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             activeId={activeId}
             onEventSelect={setActiveId}
             resolvedFilters={resolved}
-            venueGeoJSON={venueGeoJSON}
+            venueGeoJSON={mode === 'events' ? { type: 'FeatureCollection' as const, features: [] } : venueGeoJSON}
             mode={mode}
             onBboxChange={useCallback((bbox: string, zoom: number) => {
               setMapBbox(bbox)
@@ -1535,10 +1535,10 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             flyTo={flyTo}
             openVenuePopup={surpriseVenuePopup}
             liveRadar={liveRadar}
-            poiData={poiData}
-            osmData={osmData}
-            parksData={parksData}
-            playgroundsData={playgroundsData}
+            poiData={mode === 'events' ? {} : poiData}
+            osmData={mode === 'events' ? {} : osmData}
+            parksData={mode === 'events' ? undefined : parksData}
+            playgroundsData={mode === 'events' ? undefined : playgroundsData}
             listingsData={listingsGeo}
             onMobilePopup={setMobileSheetPopup}
           />
