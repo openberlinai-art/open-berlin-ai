@@ -519,16 +519,22 @@ export interface FilterChip {
 
 /** Single scrollable row of quick-access chips (replaces CHIP_CONFIG + MORE_CHIPS) */
 export const QUICK_CHIPS: FilterChip[] = [
-  { key: 'food_drink', label: 'Restaurants', icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
-  { key: 'nightlife',  label: 'Nightlife',   icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
-  { key: 'shopping',   label: 'Shopping',    icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
-  { key: 'culture',    label: 'Culture',     icon: Palette,         color: '#7c3aed', groups: ['culture'] },
-  { key: 'outdoors',   label: 'Outdoors',    icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
-  { key: 'transport',  label: 'Transport',   icon: Train,           color: '#15803d', groups: ['transport'] },
-  { key: 'wellness',   label: 'Wellness',    icon: HeartPulse,      color: '#0891b2', groups: ['wellness'] },
-  { key: 'sports',     label: 'Sports',      icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
-  { key: 'services',   label: 'Services',    icon: Building2,       color: '#2563eb', groups: ['services'] },
-  { key: 'tourism',    label: 'Tourism',     icon: Camera,          color: '#0891b2', groups: ['tourism'] },
+  { key: 'culture',       label: 'Culture',     icon: Palette,         color: '#7c3aed', groups: ['culture'] },
+  { key: 'food_drink',    label: 'Restaurants',  icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
+  { key: 'nightlife',     label: 'Nightlife',   icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
+  { key: 'outdoors',      label: 'Outdoors',    icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
+  { key: 'shopping',      label: 'Shopping',    icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
+  { key: 'tourism',       label: 'Tourism',     icon: Camera,          color: '#0891b2', groups: ['tourism'] },
+  { key: 'sports',        label: 'Sports',      icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
+  { key: 'education',     label: 'Education',   icon: GraduationCap,   color: '#1d4ed8', groups: ['education'] },
+  { key: 'heritage',      label: 'Heritage',    icon: Castle,          color: '#854d0e', groups: ['heritage'] },
+  { key: 'monuments',     label: 'Monuments',   icon: Milestone,       color: '#b91c1c', groups: ['monuments'] },
+  { key: 'transport',     label: 'Transport',   icon: Train,           color: '#15803d', groups: ['transport'] },
+  { key: 'services',      label: 'Services',    icon: Building2,       color: '#2563eb', groups: ['services'] },
+  { key: 'worship',       label: 'Worship',     icon: Church,          color: '#a16207', groups: ['worship'] },
+  { key: 'quirky',        label: 'Quirky',      icon: Sparkles,        color: '#f59e0b', groups: ['quirky'] },
+  { key: 'accommodation', label: 'Hotels',      icon: Bed,             color: '#7c3aed', groups: ['accommodation'] },
+  { key: 'wellness',      label: 'Wellness',    icon: HeartPulse,      color: '#0891b2', groups: ['wellness'] },
 ]
 
 /** @deprecated Use QUICK_CHIPS instead */

@@ -811,7 +811,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
         <div className="px-4 py-1.5 border-b-2 border-[var(--border-primary)]">
           {/* Chip row + reset */}
           <div className="flex items-center gap-1 flex-wrap">
-            {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 6)).map(chip => {
+            {(chipsExpanded ? QUICK_CHIPS : QUICK_CHIPS.slice(0, 8)).map(chip => {
               const Icon = chip.icon
               const chipKeys = getChipFilterKeys(chip)
               const activeCount = chipKeys.filter(k => activeFilters.has(k)).length
@@ -838,12 +838,12 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                 </button>
               )
             })}
-            {QUICK_CHIPS.length > 6 && (
+            {QUICK_CHIPS.length > 8 && (
               <button
                 onClick={() => setChipsExpanded(v => !v)}
                 className="inline-flex items-center text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-[var(--bg-primary)] text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] min-h-[28px]"
               >
-                {chipsExpanded ? 'Less' : `+${QUICK_CHIPS.length - 6}`}
+                {chipsExpanded ? 'Less' : `+${QUICK_CHIPS.length - 8}`}
               </button>
             )}
             {/* Reset all map filters */}
