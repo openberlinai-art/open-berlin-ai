@@ -4,7 +4,6 @@ import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
 import { ingestTicketmaster } from './ingest-ticketmaster'
 import { ingestSongkick } from './ingest-songkick'
-import { ingestEventbrite } from './ingest-eventbrite'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
@@ -2168,21 +2167,6 @@ app.post('/api/ingest-ticketmaster', async c => {
   return c.json({ ok: true, message: `Ticketmaster ingest started: ${days} days` })
 })
 
-// ─── POST /api/ingest-eventbrite (protected) ──────────────────────────────────
-
-app.post('/api/ingest-eventbrite', async c => {
-  const auth = c.req.header('Authorization')
-  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-  c.executionCtx.waitUntil(
-    ingestEventbrite(c.env)
-      .then(n => console.log(`[ingest:eventbrite:manual] done — ${n} events`))
-      .catch(err => console.error('[ingest:eventbrite:manual] failed:', err))
-  )
-  return c.json({ ok: true, message: 'Eventbrite ingest started' })
-})
-
 // ─── POST /api/ingest-locations (protected) ───────────────────────────────────
 
 app.post('/api/ingest-locations', async c => {
@@ -2517,13 +2501,6 @@ export default {
             ingestSongkick(env, 365)
               .then(n => console.log(`[ingest:songkick] ${n} events`))
               .catch(err => console.error('[ingest:songkick]', err))
-          )
-        }
-        if (env.EVENTBRITE_TOKEN) {
-          ctx.waitUntil(
-            ingestEventbrite(env)
-              .then(n => console.log(`[ingest:eventbrite] ${n} events`))
-              .catch(err => console.error('[ingest:eventbrite]', err))
           )
         }
       }

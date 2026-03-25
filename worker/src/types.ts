@@ -16,7 +16,6 @@ export interface Env {
   VAPID_PRIVATE_KEY?:  string
   TICKETMASTER_API_KEY?: string
   SONGKICK_API_KEY?:     string
-  EVENTBRITE_TOKEN?:     string
 }
 
 // ─── D1 Row ───────────────────────────────────────────────────────────────────
