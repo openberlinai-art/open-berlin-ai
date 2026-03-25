@@ -340,6 +340,48 @@ CREATE TABLE IF NOT EXISTS osm_suggestions (
 CREATE INDEX IF NOT EXISTS idx_osm_suggestions_status ON osm_suggestions(status);
 CREATE INDEX IF NOT EXISTS idx_osm_suggestions_user   ON osm_suggestions(user_id);
 
+-- ─── Community-submitted events ───────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS community_events (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL,
+  description     TEXT,
+  date_start      TEXT NOT NULL,
+  date_end        TEXT,
+  time_start      TEXT,
+  time_end        TEXT,
+  is_recurring    INTEGER NOT NULL DEFAULT 0,
+  recurrence_day  TEXT,
+  location_name   TEXT,
+  address         TEXT,
+  borough         TEXT,
+  lat             REAL,
+  lng             REAL,
+  category        TEXT,
+  tags            TEXT,
+  is_free         INTEGER NOT NULL DEFAULT 0,
+  ticket_url      TEXT,
+  image_key       TEXT,
+  submitter_name  TEXT,
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+  votes_up        INTEGER NOT NULL DEFAULT 0,
+  votes_down      INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT DEFAULT (datetime('now')),
+  approved_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_community_events_status ON community_events(status);
+CREATE INDEX IF NOT EXISTS idx_community_events_date   ON community_events(date_start);
+CREATE INDEX IF NOT EXISTS idx_community_events_user   ON community_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_events_geo    ON community_events(lat, lng);
+
+CREATE TABLE IF NOT EXISTS community_votes (
+  user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id  TEXT NOT NULL REFERENCES community_events(id) ON DELETE CASCADE,
+  vote      INTEGER NOT NULL CHECK(vote IN (-1, 1)),
+  PRIMARY KEY (user_id, event_id)
+);
+
 -- ─── Migration log (columns / indexes added after initial deploy) ─────────────
 -- events:     registration_type, languages, image_urls (already in live DB)
 -- locations:  description, phone, accessibility, opening_hours, opening_status,

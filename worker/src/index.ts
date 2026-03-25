@@ -1,6 +1,11 @@
 import { Hono }         from 'hono'
 import { cors }         from 'hono/cors'
 import { getEvents, getEvent, ensureLocationsForEvents } from './db'
+import {
+  createCommunityEvent, getCommunityEvents, getCommunityEvent,
+  updateCommunityEvent, deleteCommunityEvent, uploadCommunityEventImage,
+  voteCommunityEvent, moderateCommunityEvent,
+} from './community-events'
 import { ingestEvents } from './ingest'
 import { ingestTicketmaster } from './ingest-ticketmaster'
 import { ingestSongkick } from './ingest-songkick'
@@ -2438,6 +2443,106 @@ app.post('/api/seed-listings', async c => {
   }
 
   return c.json({ ok: true, inserted, total: listings.length })
+})
+
+// ─── Community Events ─────────────────────────────────────────────────────────
+
+app.post('/api/community-events', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  try {
+    const body = await c.req.json<Record<string, unknown>>()
+    if (!body.title || !body.date_start) return c.json({ error: 'title and date_start required' }, 400)
+    const event = await createCommunityEvent(auth.sub, body, c.env.DB)
+    return c.json({ data: event }, 201)
+  } catch (err) {
+    const msg = (err as Error).message
+    if (msg === 'RATE_LIMIT') return c.json({ error: 'Max 5 pending events per day' }, 429)
+    if (msg.startsWith('DUPLICATE:')) return c.json({ error: 'Duplicate event', duplicate_id: msg.split(':')[1] }, 409)
+    throw err
+  }
+})
+
+app.get('/api/community-events', async c => {
+  const { status, date_from, date_to, bbox, page = '1', limit = '50' } = c.req.query()
+  const result = await getCommunityEvents(c.env.DB, {
+    status: status || 'approved',
+    date_from: date_from || undefined,
+    date_to: date_to || undefined,
+    bbox: bbox || undefined,
+    page: Math.max(1, parseInt(page, 10)),
+    limit: Math.min(100, Math.max(1, parseInt(limit, 10))),
+  })
+  return c.json({ data: result.events, pagination: { total: result.total } })
+})
+
+app.get('/api/community-events/pending', async c => {
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader || authHeader !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const result = await getCommunityEvents(c.env.DB, { status: 'pending', limit: 100 })
+  return c.json({ data: result.events, total: result.total })
+})
+
+app.get('/api/community-events/:id', async c => {
+  const event = await getCommunityEvent(c.env.DB, c.req.param('id'))
+  if (!event) return c.json({ error: 'Not found' }, 404)
+  return c.json({ data: event })
+})
+
+app.patch('/api/community-events/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const fields = await c.req.json<Record<string, unknown>>()
+  const ok = await updateCommunityEvent(c.req.param('id'), auth.sub, fields, c.env.DB)
+  if (!ok) return c.json({ error: 'Not found or not owner' }, 404)
+  return c.json({ ok: true })
+})
+
+app.delete('/api/community-events/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const ok = await deleteCommunityEvent(c.req.param('id'), auth.sub, c.env.DB, c.env.GEODATA)
+  if (!ok) return c.json({ error: 'Not found or not owner' }, 404)
+  return c.json({ ok: true })
+})
+
+app.post('/api/community-events/:id/image', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.parseBody()
+  const file = body['file']
+  if (!file || typeof file === 'string') return c.json({ error: 'file required' }, 400)
+  const buf = await file.arrayBuffer()
+  const result = await uploadCommunityEventImage(
+    c.req.param('id'), auth.sub,
+    buf, file.name || `${Date.now()}.jpg`, file.type || 'image/jpeg',
+    c.env.DB, c.env.GEODATA,
+  )
+  if (!result.ok) return c.json({ error: result.error }, 400)
+  return c.json({ key: result.key })
+})
+
+app.post('/api/community-events/:id/vote', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const { vote } = await c.req.json<{ vote: number }>()
+  if (vote !== 1 && vote !== -1) return c.json({ error: 'vote must be 1 or -1' }, 400)
+  await voteCommunityEvent(c.req.param('id'), auth.sub, vote, c.env.DB)
+  return c.json({ ok: true })
+})
+
+app.patch('/api/community-events/:id/moderate', async c => {
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader || authHeader !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const { status } = await c.req.json<{ status: string }>()
+  if (status !== 'approved' && status !== 'rejected') return c.json({ error: 'status must be approved or rejected' }, 400)
+  const ok = await moderateCommunityEvent(c.req.param('id'), status, c.env.DB)
+  if (!ok) return c.json({ error: 'Not found' }, 404)
+  return c.json({ ok: true })
 })
 
 // ─── OSM Suggestions ──────────────────────────────────────────────────────────

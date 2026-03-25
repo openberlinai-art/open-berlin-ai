@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { fetchEvents }          from '@/lib/api'
 import { formatDayHeader, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
@@ -785,6 +786,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             <button onClick={() => setMode('venues')} className={mode === 'venues' ? btnActive : btn}>Places</button>
             <button onClick={() => setMode('listings')} className={mode === 'listings' ? btnActive : btn}>Listings</button>
             <WeatherWidget />
+            {user && (
+              <Link
+                href="/events/new"
+                className="ml-auto text-[10px] font-bold border-2 border-[var(--border-primary)] px-2 py-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
+              >
+                + Add
+              </Link>
+            )}
           </div>
         </div>
 
