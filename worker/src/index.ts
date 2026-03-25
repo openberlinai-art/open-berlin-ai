@@ -2492,10 +2492,35 @@ app.get('/api/community-events/:id', async c => {
 })
 
 app.patch('/api/community-events/:id', async c => {
-  const auth = await getUserFromHeader(c.req.header('Authorization') ?? '', c.env.JWT_SECRET)
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const authHeader = c.req.header('Authorization') ?? ''
+  const isAdmin = authHeader === `Bearer ${c.env.INGEST_SECRET}`
+  const auth = isAdmin ? null : await getUserFromHeader(authHeader, c.env.JWT_SECRET)
+  if (!isAdmin && !auth) return c.json({ error: 'Unauthorized' }, 401)
+
   const fields = await c.req.json<Record<string, unknown>>()
-  const ok = await updateCommunityEvent(c.req.param('id'), auth.sub, fields, c.env.DB)
+
+  if (isAdmin) {
+    // Admin can edit any event — bypass ownership check
+    const existing = await c.env.DB.prepare('SELECT id FROM community_events WHERE id = ?').bind(c.req.param('id')).first()
+    if (!existing) return c.json({ error: 'Not found' }, 404)
+    const allowed = ['title', 'description', 'date_start', 'date_end', 'time_start', 'time_end',
+      'is_recurring', 'recurrence_day', 'location_name', 'address', 'borough', 'lat', 'lng',
+      'category', 'tags', 'is_free', 'ticket_url', 'submitter_name']
+    const sets: string[] = []
+    const vals: unknown[] = []
+    for (const key of allowed) {
+      if (key in fields) {
+        if (key === 'tags' && Array.isArray(fields[key])) { sets.push(`${key} = ?`); vals.push(JSON.stringify(fields[key])) }
+        else { sets.push(`${key} = ?`); vals.push(fields[key] as string | number | null) }
+      }
+    }
+    if (sets.length) {
+      await c.env.DB.prepare(`UPDATE community_events SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, c.req.param('id')).run()
+    }
+    return c.json({ ok: true })
+  }
+
+  const ok = await updateCommunityEvent(c.req.param('id'), auth!.sub, fields, c.env.DB)
   if (!ok) return c.json({ error: 'Not found or not owner' }, 404)
   return c.json({ ok: true })
 })
