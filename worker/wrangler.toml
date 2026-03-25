@@ -41,3 +41,4 @@ KULTURDATEN_API_URL = "https://api-v2.kulturdaten.berlin/api"
 # VAPID_PRIVATE_KEY     — VAPID private key for web push notifications
 # TICKETMASTER_API_KEY  — Ticketmaster Discovery API key
 # SONGKICK_API_KEY      — Songkick API key
+# EVENTBRITE_TOKEN      — Eventbrite OAuth token (from eventbrite.com/platform)
