@@ -111,23 +111,27 @@ export async function ingestOpenLigaDB(env: Env): Promise<number> {
       const matches = await res.json() as OlMatch[]
       if (!Array.isArray(matches)) continue
 
+      let added = 0
       for (const m of matches) {
         if (m.matchIsFinished) continue
         const row = transformMatch(m, league)
-        if (row) allEvents.push(row)
+        if (row) { allEvents.push(row); added++ }
       }
+      console.log(`[ingest:openligadb] ${league}: ${matches.length} matches, ${added} Berlin home games`)
 
       // Also fetch next matchday for this league
       try {
-        const nextRes = await fetch(`https://api.openligadb.de/getmatchdata/${league}/${new Date().getFullYear()}/${getNextMatchday(matches)}`)
+        const nextMatchday = getNextMatchday(matches)
+        const nextRes = await fetch(`https://api.openligadb.de/getmatchdata/${league}/${new Date().getFullYear()}/${nextMatchday}`)
         if (nextRes.ok) {
           const nextMatches = await nextRes.json() as OlMatch[]
           if (Array.isArray(nextMatches)) {
             for (const m of nextMatches) {
               if (m.matchIsFinished) continue
               const row = transformMatch(m, league)
-              if (row && !allEvents.some(e => e.id === row.id)) allEvents.push(row)
+              if (row && !allEvents.some(e => e.id === row.id)) { allEvents.push(row); added++ }
             }
+            console.log(`[ingest:openligadb] ${league} next matchday ${nextMatchday}: checked ${nextMatches.length} matches`)
           }
         }
       } catch { /* next matchday fetch is best-effort */ }

@@ -12,39 +12,113 @@ const PAGE_SIZE = 500
 
 // Maps kulturdaten category tags → display names
 const CATEGORY_MAP: Record<string, string> = {
-  exhibitions:   'Exhibitions',
-  ausstellung:   'Exhibitions',
-  music:         'Music',
-  musik:         'Music',
-  konzert:       'Music',
-  dance:         'Dance',
-  tanz:          'Dance',
-  recreation:    'Recreation',
-  freizeit:      'Recreation',
-  kids:          'Kids',
-  kinder:        'Kids',
-  jugend:        'Kids',
-  sports:        'Sports',
-  sport:         'Sports',
-  tours:         'Tours',
-  fuehrung:      'Tours',
-  führung:       'Tours',
-  film:          'Film',
-  kino:          'Film',
-  theater:       'Theater',
-  theatre:       'Theater',
-  talks:         'Talks',
-  vortrag:       'Talks',
-  lesung:        'Talks',
-  literature:    'Talks',
-  education:     'Education',
-  bildung:       'Education',
-  workshop:      'Education',
-  art:           'Art',
-  kunst:         'Art',
+  // Exhibitions & Art
+  exhibitions:       'Exhibitions',
+  ausstellung:       'Exhibitions',
+  ausstellungen:     'Exhibitions',
+  art:               'Art',
+  kunst:             'Art',
+  galerie:           'Art',
+  gallery:           'Art',
+  malerei:           'Art',
+  painting:          'Art',
+  skulptur:          'Art',
+  sculpture:         'Art',
+  fotografie:        'Art',
+  photography:       'Art',
+  installation:      'Art',
+  // Music
+  music:             'Music',
+  musik:             'Music',
+  konzert:           'Music',
+  concert:           'Music',
+  choir:             'Music',
+  chor:              'Music',
+  oper:              'Music',
+  opera:             'Music',
+  singen:            'Music',
+  // Dance
+  dance:             'Dance',
+  tanz:              'Dance',
+  ballett:           'Dance',
+  ballet:            'Dance',
+  // Theater
+  theater:           'Theater',
+  theatre:           'Theater',
+  schauspiel:        'Theater',
+  performance:       'Theater',
+  kabarett:          'Theater',
+  cabaret:           'Theater',
+  comedy:            'Theater',
+  puppentheater:     'Theater',
+  varieté:           'Theater',
+  // Film
+  film:              'Film',
+  kino:              'Film',
+  cinema:            'Film',
+  // Talks & Literature
+  talks:             'Talks',
+  vortrag:           'Talks',
+  vortrage:          'Talks',
+  lesung:            'Talks',
+  literature:        'Talks',
+  literatur:         'Talks',
+  lectures:          'Talks',
+  diskussion:        'Talks',
+  discussion:        'Talks',
+  conferences:       'Talks',
+  konferenz:         'Talks',
+  podium:            'Talks',
+  informationevents: 'Talks',
+  // Education
+  education:         'Education',
+  bildung:           'Education',
+  workshop:          'Education',
+  seminar:           'Education',
+  kurs:              'Education',
+  course:            'Education',
+  fortbildung:       'Education',
+  training:          'Education',
+  // Kids & Family
+  kids:              'Kids',
+  kinder:            'Kids',
+  jugend:            'Kids',
+  children:          'Kids',
+  family:            'Kids',
+  familie:           'Kids',
+  // Sports & Fitness
+  sports:            'Sports',
+  sport:             'Sports',
+  fitness:           'Sports',
+  gymnastik:         'Sports',
+  yoga:              'Sports',
+  volleyball:        'Sports',
+  // Recreation
+  recreation:        'Recreation',
+  freizeit:          'Recreation',
+  walks:             'Recreation',
+  spaziergang:       'Recreation',
+  wanderung:         'Recreation',
+  festivals:         'Recreation',
+  fest:              'Recreation',
+  markt:             'Recreation',
+  market:            'Recreation',
+  flohmarkt:         'Recreation',
+  // Tours
+  tours:             'Tours',
+  fuehrung:          'Tours',
+  führung:           'Tours',
+  stadtfuehrung:     'Tours',
+  rundgang:          'Tours',
+  tour:              'Tours',
+  // Health & Wellness (map to Recreation)
+  health:            'Recreation',
+  gesundheit:        'Recreation',
+  wellness:          'Recreation',
 }
 
-function normalizeCategory(tags: string[]): string {
+function normalizeCategory(tags: string[], title?: string): string {
+  // First try tag-based mapping
   for (const tag of tags) {
     const clean = tag
       .replace(/^attraction\.category\./i, '')
@@ -53,6 +127,22 @@ function normalizeCategory(tags: string[]): string {
       .trim()
     const mapped = CATEGORY_MAP[clean]
     if (mapped) return mapped
+  }
+  // Fallback: keyword match on title
+  if (title) {
+    const t = title.toLowerCase()
+    if (/\b(ausstellung|exhibition|galerie|gallery)\b/.test(t)) return 'Exhibitions'
+    if (/\b(konzert|concert|musik|music|singen|chor|choir|oper|opera)\b/.test(t)) return 'Music'
+    if (/\b(theater|theatre|schauspiel|kabarett|comedy|komödie)\b/.test(t)) return 'Theater'
+    if (/\b(tanz|dance|ballett|ballet)\b/.test(t)) return 'Dance'
+    if (/\b(film|kino|cinema)\b/.test(t)) return 'Film'
+    if (/\b(lesung|vortrag|diskussion|lecture|podium|gespräch)\b/.test(t)) return 'Talks'
+    if (/\b(workshop|seminar|kurs|fortbildung|course)\b/.test(t)) return 'Education'
+    if (/\b(kinder|kids|family|familie|jugend)\b/.test(t)) return 'Kids'
+    if (/\b(sport|fitness|gymnastik|yoga|turnier|volleyball)\b/.test(t)) return 'Sports'
+    if (/\b(führung|rundgang|tour|stadtführung)\b/.test(t)) return 'Tours'
+    if (/\b(fest|festival|markt|market|flohmarkt)\b/.test(t)) return 'Recreation'
+    if (/\b(malerei|painting|skulptur|fotografie|kunst|art)\b/.test(t)) return 'Art'
   }
   return 'Other'
 }
@@ -105,14 +195,14 @@ function transformEvent(
   location: KulturdatenLocation | undefined,
   coords: { lat: number; lng: number } | null
 ): Omit<EventRow, 'created_at' | 'updated_at'> {
-  const tags = attraction?.tags ?? []
-  const category = normalizeCategory(tags)
-
   const title =
     attraction?.title?.de ??
     attraction?.title?.en ??
     raw.attractions[0]?.referenceLabel?.de ??
     'Untitled'
+
+  const tags = attraction?.tags ?? []
+  const category = normalizeCategory(tags, title)
 
   const description =
     attraction?.description?.de ??
