@@ -382,6 +382,17 @@ CREATE TABLE IF NOT EXISTS community_votes (
   PRIMARY KEY (user_id, event_id)
 );
 
+-- ─── Chat conversations (persistent history) ─────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS chat_conversations (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  messages   TEXT NOT NULL DEFAULT '[]',   -- JSON array of {role, content, ts}
+  title      TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_convos_user ON chat_conversations(user_id);
+
 -- ─── Migration log (columns / indexes added after initial deploy) ─────────────
 -- events:     registration_type, languages, image_urls (already in live DB)
 -- locations:  description, phone, accessibility, opening_hours, opening_status,

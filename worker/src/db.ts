@@ -12,7 +12,7 @@ export async function getEvents(
   db: D1Database,
   filters: EventFilters = {}
 ): Promise<EventsResult> {
-  const { date, date_from, date_to, category, price_type, bbox, happening_soon, sort_lat, sort_lng, page = 1, limit = 50 } = filters
+  const { date, date_from, date_to, category, price_type, bbox, happening_soon, time_after, sort_lat, sort_lng, page = 1, limit = 50 } = filters
   const offset = (page - 1) * limit
 
   const conditions: string[] = []
@@ -50,6 +50,11 @@ export async function getEvents(
   } else if (date) {
     conditions.push('date_start = ?')
     params.push(date)
+  }
+  // Hide past events when viewing today — show all-day (null time) + future events
+  if (time_after) {
+    conditions.push('(time_start IS NULL OR time_start >= ?)')
+    params.push(time_after)
   }
   if (category && category !== 'all') {
     conditions.push('LOWER(category) = LOWER(?)')

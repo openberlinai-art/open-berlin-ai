@@ -93,6 +93,18 @@ async function checkRateLimit(
 app.get('/api/events', async c => {
   const { date, date_from, date_to, category, price_type, bbox, happening_soon, sort_lat, sort_lng, page = '1', limit = '50' } = c.req.query()
 
+  // Auto-filter past events when viewing today (Berlin timezone)
+  let timeAfter: string | undefined
+  const berlinNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Berlin' }))
+  const berlinDate = `${berlinNow.getFullYear()}-${String(berlinNow.getMonth() + 1).padStart(2, '0')}-${String(berlinNow.getDate()).padStart(2, '0')}`
+  const berlinTime = `${String(berlinNow.getHours()).padStart(2, '0')}:${String(berlinNow.getMinutes()).padStart(2, '0')}`
+
+  // Only filter by time when the query includes today as single day or range start
+  const queryDate = date_from || date
+  if (queryDate === berlinDate && (!date_to || date_to === berlinDate)) {
+    timeAfter = berlinTime
+  }
+
   const result = await getEvents(c.env.DB, {
     date:       date       || undefined,
     date_from:  date_from  || undefined,
@@ -101,6 +113,7 @@ app.get('/api/events', async c => {
     price_type: price_type || undefined,
     bbox:       bbox       || undefined,
     happening_soon: happening_soon === 'true',
+    time_after: timeAfter,
     sort_lat:   sort_lat ? parseFloat(sort_lat) : undefined,
     sort_lng:   sort_lng ? parseFloat(sort_lng) : undefined,
     page:       Math.max(1, parseInt(page, 10)),
@@ -1295,12 +1308,17 @@ app.post('/api/chat', async c => {
     messages: { role: string; content: string }[]
     date?: string
     viewport?: { lat: number; lng: number; zoom: number }
+    conversation_id?: string
   }>().catch(() => null)
   if (!body?.messages?.length) {
     return c.json({ error: 'messages is required' }, 400)
   }
 
-  const date = body.date ?? new Date().toISOString().split('T')[0]
+  // Use Berlin timezone for date reference
+  const berlinNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Berlin' }))
+  const date = body.date ?? `${berlinNow.getFullYear()}-${String(berlinNow.getMonth() + 1).padStart(2, '0')}-${String(berlinNow.getDate()).padStart(2, '0')}`
+  const berlinTime = `${String(berlinNow.getHours()).padStart(2, '0')}:${String(berlinNow.getMinutes()).padStart(2, '0')}`
+  const weekEnd = (() => { const d = new Date(date); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })()
   const viewport = body.viewport
 
   // Optionally load user preferences for personalization
@@ -1363,12 +1381,12 @@ app.post('/api/chat', async c => {
 
   // Fetch rich context in parallel (vector-retrieve venues, fall back to keyword D1 search)
   const [eventsRes, catRes, venuesRes, locationCountRes, parkCountRes, viewportEventsRes] = await Promise.all([
-    // Up to 50 events for the date
-    getEvents(c.env.DB, { date_from: date, date_to: date, limit: 50 }),
-    // Category breakdown
+    // Events for the next 7 days (multi-day context for "this weekend" etc.)
+    getEvents(c.env.DB, { date_from: date, date_to: weekEnd, limit: 150 }),
+    // Category breakdown for the week
     c.env.DB
-      .prepare(`SELECT category, COUNT(*) as n FROM events WHERE date_start = ? GROUP BY category ORDER BY n DESC`)
-      .bind(date)
+      .prepare(`SELECT category, COUNT(*) as n FROM events WHERE date_start >= ? AND date_start <= ? GROUP BY category ORDER BY n DESC`)
+      .bind(date, weekEnd)
       .all<{ category: string | null; n: number }>(),
     // Vector-retrieve relevant POIs based on user's message, fall back to keyword search
     (c.env.VECTORIZE && latestUserMsg.length >= 3
@@ -1420,9 +1438,20 @@ app.post('/api/chat', async c => {
 
   const { events, total } = eventsRes
 
-  const eventsList = events.slice(0, 40).map(e =>
-    `- [${e.title}](/events/${encodeURIComponent(e.id)}) | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'} | ${e.price_type}`
-  ).join('\n')
+  // Group events by date for multi-day context
+  const eventsByDate: Record<string, typeof events> = {}
+  for (const e of events) {
+    (eventsByDate[e.date_start] ??= []).push(e)
+  }
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const eventsList = Object.entries(eventsByDate).slice(0, 7).map(([d, dayEvents]) => {
+    const dt = new Date(d + 'T00:00:00')
+    const label = d === date ? `Today (${dayNames[dt.getDay()]} ${d})` : `${dayNames[dt.getDay()]} ${d}`
+    const listed = dayEvents.slice(0, 20).map(e =>
+      `- [${e.title}](/events/${encodeURIComponent(e.id)}) | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'} | ${e.price_type}`
+    ).join('\n')
+    return `### ${label} (${dayEvents.length} events)\n${listed}`
+  }).join('\n\n')
 
   const categoryBreakdown = catRes.results
     .map(r => `${r.category ?? 'Other'}: ${r.n}`)
@@ -1458,15 +1487,14 @@ app.post('/api/chat', async c => {
     : ''
 
   const systemPrompt = `You are Citizen.Berlin, a Berlin culture events assistant with access to a live database.
-Today is ${date}.${viewportContext}
+Today is ${date}, current Berlin time is ${berlinTime}.${viewportContext}
 
 Available place types: heritage, monuments, nightlife, food_drink, culture, worship, tourism, nature, transport, sports, services, shopping, accommodation, wellness, education, quirky.
 
-## EVENTS ON ${date} (${total} total)
+## EVENTS THIS WEEK (${total} total, ${date} to ${weekEnd})
 Categories: ${categoryBreakdown}
 
-Events (up to 40 listed):
-${eventsList || 'No events found for this date.'}
+${eventsList || 'No events found for this period.'}
 
 ## VENUES & PLACES (${totalLocations} total in database, 25 shown)
 ${venuesList}${viewportSection}
@@ -1474,10 +1502,10 @@ ${venuesList}${viewportSection}
 ## OTHER DATA
 - Parks: hundreds of Berlin parks are mapped (Grünanlagen from Berlin GDI). Users can enable the Parks layer on the map.
 - Playgrounds: hundreds of Spielplätze are mapped. Enable the Playgrounds layer.
-- Upcoming events (next 7 days): ~${weekEvents}
 
 ## INSTRUCTIONS
 - Answer questions about events, venues, parks, and playgrounds in Berlin.
+- You have events for the next 7 days. When asked about "this weekend", "tomorrow", "next Thursday" etc., use the relevant day's events.
 - When mentioning events or venues, ALWAYS use the markdown link format from the lists above, e.g. [Event Name](/events/id) or [Venue Name](/pois/id). This creates clickable links for the user.
 - For parks/playgrounds, explain users can see them on the map by enabling the Parks or Playgrounds toggle.
 - Keep answers concise (2-4 sentences). Use bullet points with linked names when listing multiple suggestions.
@@ -1497,6 +1525,24 @@ ${venuesList}${viewportSection}
     stream: true,
   })
 
+  // Save conversation if user is authenticated
+  if (chatAuth && body.conversation_id) {
+    c.executionCtx.waitUntil(
+      (async () => {
+        try {
+          const convoId = body.conversation_id!
+          const title = body.messages[0]?.content?.slice(0, 60) ?? 'Chat'
+          const msgJson = JSON.stringify(body.messages.map(m => ({ role: m.role, content: m.content, ts: new Date().toISOString() })))
+          await c.env.DB.prepare(`
+            INSERT INTO chat_conversations (id, user_id, messages, title, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, updated_at = datetime('now')
+          `).bind(convoId, chatAuth.sub, msgJson, title).run()
+        } catch { /* ignore save failures */ }
+      })()
+    )
+  }
+
   // CF AI streaming returns a ReadableStream of SSE
   if (aiResponse instanceof ReadableStream) {
     return new Response(aiResponse as ReadableStream, {
@@ -1514,6 +1560,36 @@ ${venuesList}${viewportSection}
   return c.json({
     response: resp.response ?? 'Sorry, I could not generate a response.',
   })
+})
+
+// ─── Chat history endpoints ──────────────────────────────────────────────────
+
+app.get('/api/chat/history', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const rows = await c.env.DB.prepare(
+    `SELECT id, title, updated_at FROM chat_conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 20`
+  ).bind(auth.sub).all<{ id: string; title: string | null; updated_at: string }>()
+  return c.json({ data: rows.results })
+})
+
+app.get('/api/chat/history/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM chat_conversations WHERE id = ? AND user_id = ?`
+  ).bind(c.req.param('id'), auth.sub).first<{ id: string; messages: string; title: string | null }>()
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  return c.json({ data: { ...row, messages: JSON.parse(row.messages) } })
+})
+
+app.delete('/api/chat/history/:id', async c => {
+  const auth = await getUserFromHeader(c.req.header('Authorization'), c.env.JWT_SECRET).catch(() => null)
+  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
+  await c.env.DB.prepare(
+    `DELETE FROM chat_conversations WHERE id = ? AND user_id = ?`
+  ).bind(c.req.param('id'), auth.sub).run()
+  return c.json({ ok: true })
 })
 
 // ─── POST /api/views (view tracking) ─────────────────────────────────────────

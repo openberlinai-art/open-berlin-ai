@@ -35,7 +35,8 @@ export function formatTime(timeStr: string | null): string {
 }
 
 export function todayISO(): string {
-  const d = new Date()
+  // Always use Berlin timezone as the reference
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Berlin' }))
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
