@@ -68,6 +68,8 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('outdoor_cinema',   'Outdoor Cinemas','#0891b2', '#0e7490', 'poi',  'outdoor_cinema'),
       vc('events_venue',     'Event Venues',   '#e11d48', '#be123c', 'poi',  'events_venue'),
       vc('studio',           'Studios',        '#6366f1', '#4f46e5', 'poi',  'studio'),
+      vc('osm_cinema',       'Cinemas (OSM)',  '#0891b2', '#164e63', 'poi',  'osm_cinema'),
+      vc('osm_museum',       'Museums (OSM)',  '#b91c1c', '#7f1d1d', 'poi',  'osm_museum'),
     ],
   },
 
@@ -105,12 +107,21 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
     ],
   },
 
-  // 4. Outdoors — geodata parks/playgrounds
+  // 4. Nature & Outdoors — geodata + POI nature
   {
-    key: 'outdoors', label: 'Outdoors', icon: TreePine,
+    key: 'outdoors', label: 'Nature & Outdoors', icon: TreePine,
     categories: [
-      vc('parks',            'Parks',         '#16a34a', '#14532d', 'geodata', 'parks'),
-      vc('playgrounds',      'Playgrounds',   '#e879f9', '#86198f', 'geodata', 'playgrounds'),
+      vc('parks',            'Parks',              '#16a34a', '#14532d', 'geodata', 'parks'),
+      vc('playgrounds',      'Playgrounds',        '#e879f9', '#86198f', 'geodata', 'playgrounds'),
+      vc('lake',             'Lakes',              '#0284c7', '#0369a1', 'poi', 'lake'),
+      vc('garden',           'Gardens',            '#16a34a', '#15803d', 'poi', 'garden'),
+      vc('forest',           'Forests',            '#15803d', '#14532d', 'poi', 'forest'),
+      vc('beach',            'Beaches',            '#f59e0b', '#d97706', 'poi', 'beach'),
+      vc('picnic_site',      'Picnic Sites',       '#65a30d', '#4d7c0f', 'poi', 'picnic_site'),
+      vc('nature_reserve',   'Nature Reserves',    '#059669', '#047857', 'poi', 'nature_reserve'),
+      vc('allotment_garden', 'Allotment Gardens',  '#16a34a', '#15803d', 'poi', 'allotment_garden'),
+      vc('dog_park',         'Dog Parks',          '#ea580c', '#c2410c', 'poi', 'dog_park'),
+      vc('skatepark',        'Skateparks',         '#7c3aed', '#6d28d9', 'poi', 'skatepark'),
     ],
   },
 
@@ -284,15 +295,29 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
       vc('childcare',      'Childcare',       '#f59e0b', '#d97706', 'poi', 'childcare'),
       vc('internet_cafe',  'Internet Cafés',  '#2563eb', '#1d4ed8', 'poi', 'internet_cafe'),
       vc('social_centre',  'Social Centres',  '#7c3aed', '#6d28d9', 'poi', 'social_centre'),
+      vc('locksmith',      'Locksmiths',      '#78716c', '#57534e', 'poi', 'locksmith'),
+      vc('electrician',    'Electricians',     '#f59e0b', '#d97706', 'poi', 'electrician'),
+      vc('plumber',        'Plumbers',         '#0284c7', '#0369a1', 'poi', 'plumber'),
+      vc('carpenter',      'Carpenters',       '#92400e', '#78350f', 'poi', 'carpenter'),
+      vc('tailor',         'Tailors',          '#9333ea', '#7e22ce', 'poi', 'tailor'),
+      vc('shoemaker',      'Shoemakers',       '#78716c', '#57534e', 'poi', 'shoemaker'),
+      vc('photographer_studio','Photo Studios','#6366f1', '#4f46e5', 'poi', 'photographer_studio'),
+      vc('printer',        'Print Shops',      '#2563eb', '#1d4ed8', 'poi', 'printer'),
     ],
   },
 
-  // 13. Wellness — POI wellness
+  // 13. Health & Wellness — POI wellness + health
   {
-    key: 'wellness', label: 'Wellness', icon: Heart, poiGroup: 'wellness',
+    key: 'wellness', label: 'Health & Wellness', icon: HeartPulse, poiGroup: 'wellness',
     categories: [
-      vc('sauna',  'Saunas',  '#ea580c', '#c2410c', 'poi', 'sauna'),
-      vc('spa',    'Spas',    '#0891b2', '#0e7490', 'poi', 'spa'),
+      vc('sauna',               'Saunas',             '#ea580c', '#c2410c', 'poi', 'sauna'),
+      vc('spa',                 'Spas',               '#0891b2', '#0e7490', 'poi', 'spa'),
+      vc('physiotherapist',     'Physiotherapy',      '#059669', '#047857', 'poi', 'physiotherapist'),
+      vc('psychologist',        'Psychologists',      '#7c3aed', '#6d28d9', 'poi', 'psychologist'),
+      vc('massage',             'Massage',            '#ec4899', '#db2777', 'poi', 'massage'),
+      vc('alternative_medicine','Alternative Medicine','#15803d', '#14532d', 'poi', 'alternative_medicine'),
+      vc('hearing_aids',        'Hearing Aids',       '#6b7280', '#4b5563', 'poi', 'hearing_aids'),
+      vc('podiatrist',          'Podiatrists',        '#0891b2', '#0e7490', 'poi', 'podiatrist'),
     ],
   },
 
@@ -413,11 +438,11 @@ export function resolveActiveFilters(activeFilters: Set<string>): ResolvedFilter
 
 // Map POI categories that live in cross-source groups (outdoors) to their API group
 function _poiGroupForCategory(sourceKey: string): string | null {
-  // Categories from nature group
+  // Categories from nature group (shown in Outdoors)
   const natureKeys = ['lake', 'beach', 'forest', 'nature_reserve', 'garden', 'cemetery_park', 'allotment_garden', 'pond', 'community_garden', 'bathing_spot', 'picnic_site', 'waterfall', 'spring', 'water_tower', 'pier', 'wetland']
   if (natureKeys.includes(sourceKey)) return 'nature'
 
-  // Categories from sports group moved to outdoors
+  // Categories from sports group shown in Outdoors
   const sportsKeys = ['dog_park', 'skatepark', 'playground', 'table_tennis', 'outdoor_gym', 'mini_golf']
   if (sportsKeys.includes(sourceKey)) return 'sports'
 
@@ -425,7 +450,19 @@ function _poiGroupForCategory(sourceKey: string): string | null {
   const cultureKeys = ['theatre', 'arts_centre', 'music_venue', 'community_centre', 'outdoor_cinema', 'events_venue', 'studio']
   if (cultureKeys.includes(sourceKey)) return 'culture'
 
-  // Quirky POI categories shown in outdoors too
+  // OSM-sourced POIs in tourism group shown in Culture
+  const tourismInCulture = ['osm_cinema', 'osm_museum']
+  if (tourismInCulture.includes(sourceKey)) return 'tourism'
+
+  // Health POIs shown in Wellness group
+  const healthKeys = ['physiotherapist', 'psychologist', 'massage', 'alternative_medicine', 'hearing_aids', 'podiatrist', 'midwife', 'speech_therapist']
+  if (healthKeys.includes(sourceKey)) return 'health'
+
+  // Craft POIs shown in Services group
+  const craftKeys = ['locksmith', 'electrician', 'plumber', 'carpenter', 'tailor', 'shoemaker', 'photographer_studio', 'printer']
+  if (craftKeys.includes(sourceKey)) return 'craft'
+
+  // Quirky POI categories
   const quirkyInOutdoors = ['bbq_area']
   if (quirkyInOutdoors.includes(sourceKey)) return 'quirky'
 
@@ -522,7 +559,7 @@ export const QUICK_CHIPS: FilterChip[] = [
   { key: 'culture',       label: 'Culture',     icon: Palette,         color: '#7c3aed', groups: ['culture'] },
   { key: 'food_drink',    label: 'Restaurants',  icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
   { key: 'nightlife',     label: 'Nightlife',   icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
-  { key: 'outdoors',      label: 'Outdoors',    icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
+  { key: 'outdoors',      label: 'Nature',      icon: TreePine,        color: '#16a34a', groups: ['outdoors'] },
   { key: 'shopping',      label: 'Shopping',    icon: ShoppingBag,     color: '#d97706', groups: ['shopping'] },
   { key: 'tourism',       label: 'Tourism',     icon: Camera,          color: '#0891b2', groups: ['tourism'] },
   { key: 'sports',        label: 'Sports',      icon: Dumbbell,        color: '#ea580c', groups: ['sports'] },
@@ -534,7 +571,7 @@ export const QUICK_CHIPS: FilterChip[] = [
   { key: 'worship',       label: 'Worship',     icon: Church,          color: '#a16207', groups: ['worship'] },
   { key: 'quirky',        label: 'Quirky',      icon: Sparkles,        color: '#f59e0b', groups: ['quirky'] },
   { key: 'accommodation', label: 'Hotels',      icon: Bed,             color: '#7c3aed', groups: ['accommodation'] },
-  { key: 'wellness',      label: 'Wellness',    icon: HeartPulse,      color: '#0891b2', groups: ['wellness'] },
+  { key: 'wellness',      label: 'Health',      icon: HeartPulse,      color: '#0891b2', groups: ['wellness'] },
 ]
 
 /** @deprecated Use QUICK_CHIPS instead */
