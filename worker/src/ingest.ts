@@ -314,6 +314,10 @@ export async function ingestEvents(env: Env, days = 30, offsetDays = 0): Promise
   let page  = 1
   let total = 0
 
+  // Cross-page caches to avoid refetching the same attractions/locations
+  const attractionCache = new Map<string, KulturdatenAttraction>()
+  const locationCache   = new Map<string, KulturdatenLocation>()
+
   console.log(`[ingest] Starting — range ${start} → ${end}`)
 
   while (true) {
@@ -324,51 +328,71 @@ export async function ingestEvents(env: Env, days = 30, offsetDays = 0): Promise
       endDate:   end,
     })
 
-    const apiData = await fetchJson<{
-      data: { events: KulturdatenEvent[]; totalCount: number }
-    }>(`${apiBase}/events?${params}`)
+    let apiData: { data: { events: KulturdatenEvent[]; totalCount: number } } | null
+    try {
+      apiData = await fetchJson<{
+        data: { events: KulturdatenEvent[]; totalCount: number }
+      }>(`${apiBase}/events?${params}`)
+    } catch (err) {
+      console.warn(`[ingest] Fetch error on page ${page}, continuing:`, err)
+      break
+    }
 
     if (!apiData?.data?.events?.length) break
 
     const rawEvents     = apiData.data.events
     const totalCount    = apiData.data.totalCount
 
-    // Collect unique IDs for this page
+    // Only fetch attractions/locations we haven't cached yet
     const attractionIds = [
-      ...new Set(rawEvents.flatMap(e => e.attractions.map(a => a.referenceId)).filter(Boolean)),
+      ...new Set(rawEvents.flatMap(e => e.attractions.map(a => a.referenceId)).filter(id => id && !attractionCache.has(id))),
     ]
     const locationIds = [
-      ...new Set(rawEvents.flatMap(e => e.locations.map(l => l.referenceId)).filter(Boolean)),
+      ...new Set(rawEvents.flatMap(e => e.locations.map(l => l.referenceId)).filter(id => id && !locationCache.has(id))),
     ]
 
-    // Batch fetch details
-    const [attractions, locations] = await Promise.all([
-      batchFetch<KulturdatenAttraction>(apiBase, attractionIds, 'attractions'),
-      batchFetch<KulturdatenLocation>(apiBase, locationIds,   'locations'),
-    ])
+    // Batch fetch only uncached details
+    try {
+      const [newAttractions, newLocations] = await Promise.all([
+        attractionIds.length ? batchFetch<KulturdatenAttraction>(apiBase, attractionIds, 'attractions') : new Map(),
+        locationIds.length   ? batchFetch<KulturdatenLocation>(apiBase, locationIds,   'locations')    : new Map(),
+      ])
+      for (const [k, v] of newAttractions) attractionCache.set(k, v)
+      for (const [k, v] of newLocations)   locationCache.set(k, v)
+    } catch (err) {
+      // Subrequest limit hit — transform events without enrichment data
+      console.warn(`[ingest] Detail fetch failed on page ${page} (subrequest limit?), using cached data:`, err)
+    }
 
     // Transform + geocode
     const toUpsert: Omit<EventRow, 'created_at' | 'updated_at'>[] = []
 
     for (const raw of rawEvents) {
-      const attraction = attractions.get(raw.attractions[0]?.referenceId ?? '')
-      const location   = locations.get(raw.locations[0]?.referenceId   ?? '')
+      const attraction = attractionCache.get(raw.attractions[0]?.referenceId ?? '')
+      const location   = locationCache.get(raw.locations[0]?.referenceId   ?? '')
 
       let coords: { lat: number; lng: number } | null = null
       if (location && !location.geo?.latitude) {
         const addr = location.address
           ? [location.address.streetAddress, location.address.postalCode].filter(Boolean).join(', ')
           : ''
-        if (addr) coords = await geocode(env.DB, addr)
+        if (addr) {
+          try { coords = await geocode(env.DB, addr) } catch { /* geocode limit */ }
+        }
       }
 
       toUpsert.push(transformEvent(raw, attraction, location, coords))
     }
 
-    await upsertEvents(env.DB, toUpsert)
+    try {
+      await upsertEvents(env.DB, toUpsert)
+    } catch (err) {
+      console.warn(`[ingest] Upsert failed on page ${page}:`, err)
+      break
+    }
     total += toUpsert.length
 
-    console.log(`[ingest] Page ${page}: upserted ${toUpsert.length} (${total}/${totalCount})`)
+    console.log(`[ingest] Page ${page}: ${toUpsert.length} events (${total}/${totalCount}), cache: ${attractionCache.size} attractions, ${locationCache.size} locations`)
 
     if (total >= totalCount || rawEvents.length < PAGE_SIZE) break
     page++
