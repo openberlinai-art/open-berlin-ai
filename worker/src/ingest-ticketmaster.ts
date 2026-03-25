@@ -2,9 +2,9 @@ import { upsertEvents } from './db'
 import type { Env, EventRow } from './types'
 
 const PAGE_SIZE = 100
-const BERLIN_LAT = 52.52
-const BERLIN_LNG = 13.405
+const BERLIN_GEOPOINT = 'u33dc0' // geohash for 52.52, 13.405
 const RADIUS_KM = 50
+const MAX_DEEP_PAGE = Math.floor(1000 / PAGE_SIZE) // API limit: size × page < 1000
 
 // Ticketmaster segment → our categories
 const SEGMENT_MAP: Record<string, string> = {
@@ -226,7 +226,7 @@ export async function ingestTicketmaster(env: Env, days = 30): Promise<number> {
   while (true) {
     const params = new URLSearchParams({
       apikey:        apiKey,
-      latlong:       `${BERLIN_LAT},${BERLIN_LNG}`,
+      geoPoint:      BERLIN_GEOPOINT,
       radius:        String(RADIUS_KM),
       unit:          'km',
       countryCode:   'DE',
@@ -279,7 +279,7 @@ export async function ingestTicketmaster(env: Env, days = 30): Promise<number> {
     console.log(`[ingest:ticketmaster] Page ${page + 1}/${totalPages}: ${filtered.length} new (${events.length - filtered.length} deduped)`)
 
     page++
-    if (page >= totalPages) break
+    if (page >= totalPages || page >= MAX_DEEP_PAGE) break
 
     // Respect 5 req/sec rate limit
     await new Promise(r => setTimeout(r, 220))
