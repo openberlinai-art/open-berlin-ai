@@ -86,21 +86,51 @@ export default async function EventPage({ params }: Props) {
   const imageUrls: string[] = (() => { try { return ev.image_urls ? [...new Set(JSON.parse(ev.image_urls) as string[])] : [] } catch { return [] } })()
   const tags: string[] = (() => { try { return ev.tags ? JSON.parse(ev.tags) : [] } catch { return [] } })()
 
+  const eventStatusMap: Record<string, string> = {
+    cancelled: 'https://schema.org/EventCancelled',
+    postponed: 'https://schema.org/EventPostponed',
+    rescheduled: 'https://schema.org/EventRescheduled',
+  }
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: ev.title,
     startDate: ev.time_start ? `${ev.date_start}T${ev.time_start}` : ev.date_start,
     ...(ev.date_end && { endDate: ev.time_end ? `${ev.date_end}T${ev.time_end}` : ev.date_end }),
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    ...(ev.schedule_status && eventStatusMap[ev.schedule_status] && {
+      eventStatus: eventStatusMap[ev.schedule_status],
+    }),
     location: ev.location_name ? {
       '@type': 'Place',
       name: ev.location_name,
-      ...(ev.address && { address: ev.address }),
+      ...(ev.address && {
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: ev.address,
+          addressLocality: 'Berlin',
+          addressCountry: 'DE',
+        },
+      }),
+      ...(ev.lat && ev.lng && {
+        geo: { '@type': 'GeoCoordinates', latitude: ev.lat, longitude: ev.lng },
+      }),
     } : undefined,
     ...(ev.description && { description: ev.description }),
     ...(ev.price_type === 'free' && { isAccessibleForFree: true }),
+    ...(ev.price_type === 'paid' && ev.price_min != null && {
+      offers: {
+        '@type': 'Offer',
+        price: ev.price_min,
+        ...(ev.price_max != null && ev.price_max !== ev.price_min && { highPrice: ev.price_max }),
+        priceCurrency: 'EUR',
+        availability: 'https://schema.org/InStock',
+        ...(ev.admission_link && { url: ev.admission_link }),
+      },
+    }),
     url: `https://citizen.berlin/events/${id}`,
-    image: `/api/og?type=event&id=${id}`,
+    ...(imageUrls.length > 0 ? { image: imageUrls } : { image: `/api/og?type=event&id=${id}` }),
   }
 
   return (

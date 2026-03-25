@@ -85,7 +85,7 @@ async function checkRateLimit(
 // ─── GET /api/events ──────────────────────────────────────────────────────────
 
 app.get('/api/events', async c => {
-  const { date, date_from, date_to, category, price_type, bbox, page = '1', limit = '50' } = c.req.query()
+  const { date, date_from, date_to, category, price_type, bbox, happening_soon, sort_lat, sort_lng, page = '1', limit = '50' } = c.req.query()
 
   const result = await getEvents(c.env.DB, {
     date:       date       || undefined,
@@ -94,6 +94,9 @@ app.get('/api/events', async c => {
     category:   category   || undefined,
     price_type: price_type || undefined,
     bbox:       bbox       || undefined,
+    happening_soon: happening_soon === 'true',
+    sort_lat:   sort_lat ? parseFloat(sort_lat) : undefined,
+    sort_lng:   sort_lng ? parseFloat(sort_lng) : undefined,
     page:       Math.max(1, parseInt(page, 10)),
     limit:      Math.min(500, Math.max(1, parseInt(limit, 10))),
   })

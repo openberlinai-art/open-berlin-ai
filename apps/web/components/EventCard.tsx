@@ -1,13 +1,14 @@
 'use client'
 import { useState }          from 'react'
 import Link                  from 'next/link'
-import { MapPin, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { MapPin, ExternalLink, ChevronDown, ChevronUp, CalendarPlus } from 'lucide-react'
 import { cn, formatDate, formatTime } from '@/lib/utils'
 import type { Event } from '@/lib/types'
 import AddToListButton from './AddToListButton'
 import AttendButton from './AttendButton'
 import { useLanguage } from '@/providers/LanguageProvider'
 import { useTranslation } from '@/hooks/useTranslation'
+import { generateICS } from '@/lib/ics'
 
 interface Props {
   event:      Event
@@ -189,6 +190,34 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
           >
             More info
           </Link>
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              const ics = generateICS({
+                title: event.title,
+                dateStart: event.date_start,
+                dateEnd: event.date_end,
+                timeStart: event.time_start,
+                timeEnd: event.time_end,
+                locationName: event.location_name,
+                address: event.address,
+                description: event.description,
+              })
+              const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${event.title.slice(0, 50).replace(/[^a-zA-Z0-9]/g, '_')}.ics`
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
+            }}
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5"
+            title="Add to calendar"
+          >
+            <CalendarPlus size={12} />
+          </button>
           <AttendButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
           <AddToListButton itemType="event" itemId={event.id} onNeedAuth={onNeedAuth} />
         </div>

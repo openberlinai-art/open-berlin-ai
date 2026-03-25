@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
-  List, Map, CalendarDays, MoreHorizontal,
+  List, Map, CalendarDays, MoreHorizontal, Clock,
 } from 'lucide-react'
 
 import dynamic from 'next/dynamic'
@@ -37,6 +37,8 @@ import { readFromURL, syncToURL, filtersToString, filtersFromString } from '@/ho
 import { useFavorites } from '@/hooks/useFavorites'
 import { Heart, Share2, Check, Navigation, Sparkles } from 'lucide-react'
 import DayStrip from './DayStrip'
+import { isOpenNow } from '@/lib/opening-hours'
+import { useWeather } from '@/hooks/useCulturalData'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -47,6 +49,54 @@ const CATEGORIES = [
   'Exhibition','Music','Dance','Recreation','Kids','Sports',
   'Tours','Film','Theater','Talks','Literature','Other',
 ]
+
+const WMO_EMOJI: Record<number, string> = {
+  0: '☀️', 1: '🌤', 2: '🌤', 3: '☁️', 45: '🌫', 48: '🌫',
+  51: '🌧', 53: '🌧', 55: '🌧', 61: '🌧', 63: '🌧', 65: '🌧',
+  66: '🌧', 67: '🌧', 71: '❄️', 73: '❄️', 75: '❄️', 77: '❄️',
+  80: '🌦', 81: '🌦', 82: '🌦', 95: '⛈', 96: '⛈', 99: '⛈',
+}
+
+function getWeatherNudge(code: number, temp: number): string {
+  if (code >= 95) return 'Stormy — great for indoor events'
+  if (code >= 71 && code <= 77) return 'Snowy — cozy indoor picks today'
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'Rainy — indoor events recommended'
+  if (code >= 45 && code <= 48) return 'Foggy — explore indoor venues'
+  if (temp >= 22) return 'Perfect weather for outdoor events'
+  if (temp >= 15) return 'Great day to explore outdoors'
+  if (temp < 5) return 'Bundle up — or stay cozy inside'
+  return 'Nice day — check out what\'s on'
+}
+
+function WeatherNudge({ onExpand }: { onExpand: () => void }) {
+  const { data } = useWeather()
+  const [dismissed, setDismissed] = useState(false)
+  const current = data?.current as Record<string, number> | undefined
+  if (!current || dismissed) return null
+
+  const temp = Math.round(current.temperature_2m)
+  const code = current.weather_code
+  const emoji = WMO_EMOJI[code] ?? '🌤'
+  const nudge = getWeatherNudge(code, temp)
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)]">
+      <button
+        onClick={onExpand}
+        className="flex-1 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-left"
+      >
+        <span>{emoji}</span>
+        <span>{temp}°C — {nudge}</span>
+      </button>
+      <button
+        onClick={() => setDismissed(true)}
+        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5"
+      >
+        <X size={10} />
+      </button>
+    </div>
+  )
+}
 
 interface Props {
   initialEvents: Event[]
@@ -95,6 +145,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   const [chipsExpanded, setChipsExpanded] = useState(false)
   const [expandedChip, setExpandedChip] = useState<string | null>(null)
   const [discoverExpanded, setDiscoverExpanded] = useState(false)
+  const [happeningSoon, setHappeningSoon] = useState(false)
   useEffect(() => {
     const stored = localStorage.getItem('citizen-discover-expanded')
     if (stored === 'true') setDiscoverExpanded(true)
@@ -371,8 +422,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
       // (the DB only has 'free'/'unknown'/'paid'; unknown often means paid/untagged)
       const sendPriceType = price === 'free' ? 'free' : undefined
       const res = await fetchEvents({
-        date_from:  from,
-        date_to:    to,
+        date_from:  happeningSoon ? undefined : from,
+        date_to:    happeningSoon ? undefined : to,
+        happening_soon: happeningSoon || undefined,
+        sort_lat:   happeningSoon && userLocation ? userLocation.lat : undefined,
+        sort_lng:   happeningSoon && userLocation ? userLocation.lng : undefined,
         page:       p,
         limit:      price === 'paid' ? 500 : LIMIT,
         price_type: sendPriceType,
@@ -389,7 +443,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [price, cats])
+  }, [price, cats, happeningSoon, userLocation])
 
   // Always fetch fresh data from Worker (initialEvents are for first-paint only)
   useEffect(() => {
@@ -718,14 +772,29 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           </div>
         </div>
 
-        {/* ── Day Navigation Strip ──────────────────────────────── */}
+        {/* ── Day Navigation Strip + Happening Soon ──────────────── */}
         {mode === 'events' && (
-          <DayStrip
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onSelectDay={(iso) => { setDateFrom(iso); setDateTo(iso); setPage(1) }}
-            onSelectRange={(from, to) => { setDateFrom(from); setDateTo(to); setPage(1) }}
-          />
+          <div className="flex items-center border-b-2 border-[var(--border-primary)]">
+            <div className="flex-1 min-w-0">
+              <DayStrip
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onSelectDay={(iso) => { setHappeningSoon(false); setDateFrom(iso); setDateTo(iso); setPage(1) }}
+                onSelectRange={(from, to) => { setHappeningSoon(false); setDateFrom(from); setDateTo(to); setPage(1) }}
+              />
+            </div>
+            <button
+              onClick={() => { setHappeningSoon(h => !h); setPage(1) }}
+              className={`shrink-0 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 mr-2 rounded-full border-2 transition-colors ${
+                happeningSoon
+                  ? 'bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]'
+                  : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
+              }`}
+              title="Events starting within 2 hours"
+            >
+              <Clock size={10} /> Soon
+            </button>
+          </div>
         )}
 
         {/* ── Mode row ──────────────────────────────────────── */}
@@ -1228,6 +1297,11 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             />
           ) : mode === 'events' ? (
             <>
+            {/* ── Weather nudge bar ───────────────────────────────── */}
+            <WeatherNudge onExpand={() => {
+              setDiscoverExpanded(true)
+              try { localStorage.setItem('citizen-discover-expanded', 'true') } catch {}
+            }} />
             {/* ── Collapsible Discover bar ──────────────────────── */}
             <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--border-secondary)]">
               <button
@@ -1368,7 +1442,16 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
                           </p>
                           {displayAddress && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{displayAddress}</p>}
                           {displayBorough && <p className="text-[10px] text-gray-400">{displayBorough}</p>}
-                          {p.opening_hours && <p className="text-[10px] text-gray-400 mt-0.5 truncate">🕐 {p.opening_hours}</p>}
+                          {p.opening_hours && (() => {
+                            const status = isOpenNow(p.opening_hours)
+                            return (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {status === 'open' && <span className="text-[9px] font-bold text-green-600 bg-green-50 px-1 py-0.5 rounded">Open</span>}
+                                {status === 'closed' && <span className="text-[9px] font-bold text-red-500 bg-red-50 px-1 py-0.5 rounded">Closed</span>}
+                                <p className="text-[10px] text-gray-400 truncate">🕐 {p.opening_hours}</p>
+                              </div>
+                            )
+                          })()}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           {catLabel && catLabel !== 'other' && (

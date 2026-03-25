@@ -111,15 +111,49 @@ export default async function LocationPage({ params }: Props) {
       ? 'bg-black text-white border-black'
       : 'bg-white text-black border-black'
 
+  // Build openingHoursSpecification for Schema.org
+  const openingHoursSpec = (() => {
+    if (!loc.opening_hours) return undefined
+    try {
+      const hours: OpeningHour[] = JSON.parse(loc.opening_hours)
+      if (!hours.length) return undefined
+      const dayMap: Record<string, string> = {
+        Monday: 'https://schema.org/Monday', Tuesday: 'https://schema.org/Tuesday',
+        Wednesday: 'https://schema.org/Wednesday', Thursday: 'https://schema.org/Thursday',
+        Friday: 'https://schema.org/Friday', Saturday: 'https://schema.org/Saturday',
+        Sunday: 'https://schema.org/Sunday',
+      }
+      return hours.map(h => ({
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: dayMap[h.dayOfWeek] ?? h.dayOfWeek,
+        opens: h.opens,
+        closes: h.closes,
+      }))
+    } catch { return undefined }
+  })()
+
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Place',
+    '@type': loc.category?.toLowerCase().includes('museum') ? 'Museum'
+      : loc.category?.toLowerCase().includes('theater') || loc.category?.toLowerCase().includes('theatre') ? 'PerformingArtsTheater'
+      : 'Place',
     name: loc.name,
-    ...(loc.address && { address: loc.address }),
+    ...(loc.address && {
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: loc.address,
+        ...(loc.borough && { addressRegion: loc.borough }),
+        addressLocality: 'Berlin',
+        addressCountry: 'DE',
+      },
+    }),
     ...(loc.description && { description: loc.description }),
     ...(loc.lat && loc.lng && { geo: { '@type': 'GeoCoordinates', latitude: loc.lat, longitude: loc.lng } }),
+    ...(loc.phone && { telephone: loc.phone }),
+    ...(loc.website && { url: loc.website }),
+    ...(openingHoursSpec && { openingHoursSpecification: openingHoursSpec }),
+    ...(imageUrls.length > 0 ? { image: imageUrls } : { image: `/api/og?type=location&id=${id}` }),
     url: `https://citizen.berlin/locations/${id}`,
-    image: `/api/og?type=location&id=${id}`,
   }
 
   return (

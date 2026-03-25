@@ -11,13 +11,33 @@ export async function getEvents(
   db: D1Database,
   filters: EventFilters = {}
 ): Promise<EventsResult> {
-  const { date, date_from, date_to, category, price_type, bbox, page = 1, limit = 50 } = filters
+  const { date, date_from, date_to, category, price_type, bbox, happening_soon, sort_lat, sort_lng, page = 1, limit = 50 } = filters
   const offset = (page - 1) * limit
 
   const conditions: string[] = []
   const params: (string | number)[] = []
 
-  if (date_from && date_to) {
+  if (happening_soon) {
+    // Events starting within the next 2 hours (Berlin timezone)
+    const now = new Date()
+    const berlinNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }))
+    const y = berlinNow.getFullYear()
+    const m = String(berlinNow.getMonth() + 1).padStart(2, '0')
+    const d = String(berlinNow.getDate()).padStart(2, '0')
+    const today = `${y}-${m}-${d}`
+    const hh = String(berlinNow.getHours()).padStart(2, '0')
+    const mm = String(berlinNow.getMinutes()).padStart(2, '0')
+    const nowTime = `${hh}:${mm}`
+    const later = new Date(berlinNow.getTime() + 2 * 3600_000)
+    const lhh = String(later.getHours()).padStart(2, '0')
+    const lmm = String(later.getMinutes()).padStart(2, '0')
+    const laterTime = `${lhh}:${lmm}`
+
+    conditions.push('date_start = ?')
+    params.push(today)
+    conditions.push('time_start IS NOT NULL AND time_start >= ? AND time_start <= ?')
+    params.push(nowTime, laterTime)
+  } else if (date_from && date_to) {
     conditions.push('date_start >= ? AND date_start <= ?')
     params.push(date_from, date_to)
   } else if (date_from) {
@@ -55,13 +75,18 @@ export async function getEvents(
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
+  // Distance-based sort when coordinates provided
+  const orderBy = sort_lat != null && sort_lng != null
+    ? `ORDER BY ((lat - ${sort_lat}) * (lat - ${sort_lat}) + (lng - ${sort_lng}) * (lng - ${sort_lng})) ASC`
+    : 'ORDER BY date_start ASC, (CASE WHEN admission_link IS NOT NULL THEN 0 ELSE 1 END) ASC, time_start ASC NULLS LAST, title ASC'
+
   const [countRow, rows] = await Promise.all([
     db.prepare(`SELECT COUNT(*) as n FROM events ${where}`)
       .bind(...params)
       .first<{ n: number }>(),
     db.prepare(
       `SELECT * FROM events ${where}
-       ORDER BY date_start ASC, (CASE WHEN admission_link IS NOT NULL THEN 0 ELSE 1 END) ASC, time_start ASC NULLS LAST, title ASC
+       ${orderBy}
        LIMIT ? OFFSET ?`
     ).bind(...params, limit, offset).all<EventRow>(),
   ])

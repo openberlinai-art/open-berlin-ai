@@ -21,6 +21,9 @@ export async function fetchEvents(
     params.set('category',   filters.category)
   if (filters.price_type && filters.price_type !== 'all')
     params.set('price_type', filters.price_type)
+  if (filters.happening_soon) params.set('happening_soon', 'true')
+  if (filters.sort_lat != null) params.set('sort_lat', String(filters.sort_lat))
+  if (filters.sort_lng != null) params.set('sort_lng', String(filters.sort_lng))
   params.set('page',  String(filters.page  ?? 1))
   params.set('limit', String(filters.limit ?? 50))
 

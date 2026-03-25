@@ -80,6 +80,9 @@ export interface EventFilters {
   date_to?:    string   // range end (inclusive)
   category?:   string
   price_type?: string
+  happening_soon?: boolean
+  sort_lat?:   number
+  sort_lng?:   number
   page?:       number
   limit?:      number
 }

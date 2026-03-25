@@ -63,6 +63,9 @@ export interface EventFilters {
   category?:   string
   price_type?: string
   bbox?:       string   // 'minLng,minLat,maxLng,maxLat'
+  happening_soon?: boolean  // events starting within next 2h
+  sort_lat?:   number       // sort by distance from this point
+  sort_lng?:   number
   page?:       number
   limit?:      number
 }
