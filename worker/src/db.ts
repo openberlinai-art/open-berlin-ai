@@ -1,4 +1,5 @@
 import type { EventRow, EventFilters } from './types'
+import { normalizedSimilarity, haversineDistance } from './dedupe'
 
 export interface EventsResult {
   events: EventRow[]
@@ -234,55 +235,98 @@ export async function ensureLocationsForEvents(db: D1Database): Promise<number> 
 
   if (!rows.results.length) return 0
 
+  // Load all existing locations for fuzzy matching (~0.00045° ≈ 50m search box)
+  const DELTA = 0.005 // ~500m box to fetch candidates
+  const MATCH_DIST = 150 // metres — venues can have slightly different pin positions
+  const MIN_SIM = 0.55 // name similarity threshold
+
+  let linked = 0
   let created = 0
   const CHUNK = 25
+
   for (let i = 0; i < rows.results.length; i += CHUNK) {
     const chunk = rows.results.slice(i, i + CHUNK)
     const stmts: D1PreparedStatement[] = []
 
     for (const v of chunk) {
-      // Generate stable ID from venue name (slugified)
-      const slug = v.location_name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 80)
-      const locId = `venue:${slug}`
+      // Pass 1: Try to match against existing Kulturdaten/venue locations
+      let matchedLocId: string | null = null
+      try {
+        const nearby = await db.prepare(`
+          SELECT id, name, lat, lng FROM locations
+          WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+            AND name IS NOT NULL
+        `).bind(
+          v.lat - DELTA, v.lat + DELTA,
+          v.lng - DELTA, v.lng + DELTA,
+        ).all<{ id: string; name: string; lat: number; lng: number }>()
 
-      // Infer category from venue name
-      const name = v.location_name.toLowerCase()
-      const category = /theater|theatre|bühne|schaubühne/.test(name) ? 'theatre'
-        : /kino|cinema|filmtheater/.test(name) ? 'cinema'
-        : /museum/.test(name) ? 'museum'
-        : /galerie|gallery/.test(name) ? 'gallery'
-        : /bibliothek|bücherei/.test(name) ? 'library'
-        : /club|lounge/.test(name) ? 'club'
-        : /konzerthaus|philharmonie|arena|halle|stadion/.test(name) ? 'concert_hall'
-        : 'other'
+        let bestScore = 0
+        for (const loc of nearby.results) {
+          const dist = haversineDistance(v.lat, v.lng, loc.lat, loc.lng)
+          if (dist > MATCH_DIST) continue
+          const sim = normalizedSimilarity(v.location_name, loc.name)
+          if (sim < MIN_SIM) continue
+          // Combined score: weight name similarity heavily, penalise distance
+          const score = sim * 0.8 + (1 - dist / MATCH_DIST) * 0.2
+          if (score > bestScore) {
+            bestScore = score
+            matchedLocId = loc.id
+          }
+        }
+      } catch {
+        // If lookup fails, fall through to venue creation
+      }
 
-      // Upsert location (don't overwrite existing enriched data)
-      stmts.push(db.prepare(`
-        INSERT INTO locations (id, name, lat, lng, category, address, borough, is_virtual, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
-        ON CONFLICT(id) DO UPDATE SET
-          lat = COALESCE(locations.lat, excluded.lat),
-          lng = COALESCE(locations.lng, excluded.lng),
-          address = COALESCE(locations.address, excluded.address),
-          borough = COALESCE(locations.borough, excluded.borough),
-          updated_at = datetime('now')
-      `).bind(locId, v.location_name, v.lat, v.lng, category, v.address, v.borough))
+      if (matchedLocId) {
+        // Link events to the existing location
+        stmts.push(db.prepare(`
+          UPDATE events SET location_id = ?
+          WHERE location_id IS NULL AND location_name = ? AND lat = ? AND lng = ?
+        `).bind(matchedLocId, v.location_name, v.lat, v.lng))
+        linked++
+      } else {
+        // Pass 2: Create a synthetic venue record
+        const slug = v.location_name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 80)
+        const locId = `venue:${slug}`
 
-      // Backfill location_id on matching events
-      stmts.push(db.prepare(`
-        UPDATE events SET location_id = ?
-        WHERE location_id IS NULL AND location_name = ? AND lat = ? AND lng = ?
-      `).bind(locId, v.location_name, v.lat, v.lng))
+        const name = v.location_name.toLowerCase()
+        const category = /theater|theatre|bühne|schaubühne/.test(name) ? 'theatre'
+          : /kino|cinema|filmtheater/.test(name) ? 'cinema'
+          : /museum/.test(name) ? 'museum'
+          : /galerie|gallery/.test(name) ? 'gallery'
+          : /bibliothek|bücherei/.test(name) ? 'library'
+          : /club|lounge/.test(name) ? 'club'
+          : /konzerthaus|philharmonie|arena|halle|stadion/.test(name) ? 'concert_hall'
+          : 'other'
 
-      created++
+        stmts.push(db.prepare(`
+          INSERT INTO locations (id, name, lat, lng, category, address, borough, is_virtual, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET
+            lat = COALESCE(locations.lat, excluded.lat),
+            lng = COALESCE(locations.lng, excluded.lng),
+            address = COALESCE(locations.address, excluded.address),
+            borough = COALESCE(locations.borough, excluded.borough),
+            updated_at = datetime('now')
+        `).bind(locId, v.location_name, v.lat, v.lng, category, v.address, v.borough))
+
+        stmts.push(db.prepare(`
+          UPDATE events SET location_id = ?
+          WHERE location_id IS NULL AND location_name = ? AND lat = ? AND lng = ?
+        `).bind(locId, v.location_name, v.lat, v.lng))
+
+        created++
+      }
     }
 
-    await db.batch(stmts)
+    if (stmts.length) await db.batch(stmts)
   }
 
-  return created
+  console.log(`[ensure-locations] linked=${linked} to existing, created=${created} new`)
+  return linked + created
 }
