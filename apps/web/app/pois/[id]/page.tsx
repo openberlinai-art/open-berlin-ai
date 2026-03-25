@@ -52,13 +52,26 @@ export default async function POIPage({ params }: Props) {
 
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Place',
+    '@type': poi.category_group === 'heritage' ? 'LandmarksOrHistoricalBuildings'
+      : poi.category_group === 'worship' ? 'PlaceOfWorship'
+      : poi.category_group === 'culture' ? 'CivicStructure'
+      : 'Place',
     name: poi.name ?? label,
-    ...(poi.address && { address: poi.address }),
+    ...(poi.address && {
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: poi.address,
+        addressLocality: 'Berlin',
+        addressCountry: 'DE',
+      },
+    }),
     ...(poi.description && { description: poi.description }),
     geo: { '@type': 'GeoCoordinates', latitude: poi.lat, longitude: poi.lng },
+    ...(poi.website && { url: poi.website }),
+    ...(poi.phone && { telephone: poi.phone }),
+    ...(poi.image_url && { image: poi.image_url }),
     url: `https://citizen.berlin/pois/${id}`,
-    image: `/api/og?type=poi&id=${id}`,
+    ...(!poi.image_url && { image: `/api/og?type=poi&id=${id}` }),
   }
 
   return (

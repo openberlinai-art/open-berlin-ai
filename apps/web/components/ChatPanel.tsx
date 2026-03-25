@@ -10,10 +10,15 @@ function renderMarkdown(raw: string): string {
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   // Italic *text* (not inside bold)
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-  // Links [text](url)
+  // External links [text](https://...)
   s = s.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer" class="underline text-blue-600 hover:text-blue-800 break-all">$1</a>'
+  )
+  // Internal links [text](/events/...) or [text](/locations/...) or [text](/pois/...)
+  s = s.replace(
+    /\[([^\]]+)\]\((\/(?:events|locations|pois|parks|playgrounds)\/[^\)]+)\)/g,
+    '<a href="$2" class="underline text-blue-600 hover:text-blue-800">$1</a>'
   )
   // Bullet list items at line start
   s = s.replace(/^[*-] (.+)$/gm, '<span class="flex gap-1.5 mt-0.5"><span class="shrink-0">·</span><span>$1</span></span>')

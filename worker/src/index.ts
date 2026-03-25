@@ -1371,9 +1371,9 @@ app.post('/api/chat', async c => {
           const ids = matches.map(m => m.id)
           const placeholders = ids.map(() => '?').join(',')
           return c.env.DB.prepare(`
-            SELECT name, category AS category, region AS borough, address
+            SELECT id, name, category AS category, region AS borough, address
             FROM pois WHERE id IN (${placeholders})
-          `).bind(...ids).all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+          `).bind(...ids).all<{ id: string; name: string | null; category: string | null; borough: string | null; address: string | null }>()
         }).catch(() => null)
       : Promise.resolve(null)
     ).then(vectorRes => {
@@ -1382,16 +1382,16 @@ app.post('/api/chat', async c => {
       if (keywords.length > 0) {
         const kw = `%${keywords[0]}%`
         return c.env.DB.prepare(`
-          SELECT name, category, region AS borough, address FROM pois
+          SELECT id, name, category, region AS borough, address FROM pois
           WHERE name LIKE ? OR category LIKE ? OR category_group LIKE ?
           LIMIT 25
-        `).bind(kw, kw, kw).all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+        `).bind(kw, kw, kw).all<{ id: string; name: string | null; category: string | null; borough: string | null; address: string | null }>()
       }
       // Final fallback: random locations
       return c.env.DB
-        .prepare(`SELECT name, category, borough, address FROM locations
+        .prepare(`SELECT id, name, category, borough, address FROM locations
                   WHERE lat IS NOT NULL ORDER BY RANDOM() LIMIT 25`)
-        .all<{ name: string | null; category: string | null; borough: string | null; address: string | null }>()
+        .all<{ id: string; name: string | null; category: string | null; borough: string | null; address: string | null }>()
     }),
     // Total locations count
     c.env.DB.prepare(`SELECT COUNT(*) as n FROM locations`).first<{ n: number }>(),
@@ -1403,19 +1403,19 @@ app.post('/api/chat', async c => {
     // Viewport-filtered events
     viewportBbox
       ? c.env.DB.prepare(`
-          SELECT title, category, time_start, location_name, borough
+          SELECT id, title, category, time_start, location_name, borough
           FROM events
           WHERE date_start = ? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
           LIMIT 15
         `).bind(date, viewportBbox.minLat, viewportBbox.maxLat, viewportBbox.minLng, viewportBbox.maxLng)
-          .all<{ title: string; category: string | null; time_start: string | null; location_name: string | null; borough: string | null }>()
+          .all<{ id: string; title: string; category: string | null; time_start: string | null; location_name: string | null; borough: string | null }>()
       : Promise.resolve(null),
   ])
 
   const { events, total } = eventsRes
 
   const eventsList = events.slice(0, 40).map(e =>
-    `- ${e.title} | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'} | ${e.price_type}`
+    `- [${e.title}](/events/${encodeURIComponent(e.id)}) | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'} | ${e.price_type}`
   ).join('\n')
 
   const categoryBreakdown = catRes.results
@@ -1423,7 +1423,16 @@ app.post('/api/chat', async c => {
     .join(', ')
 
   const venuesList = venuesRes.results
-    .map(v => `- ${v.name ?? '?'} (${v.category ?? 'other'}) — ${v.borough ?? '?'}`)
+    .map(v => {
+      const id = (v as { id?: string }).id
+      const path = id
+        ? (id.includes('/') ? `/pois/${id.replace('/', '_')}` : `/locations/${id}`)
+        : null
+      const name = v.name ?? '?'
+      return path
+        ? `- [${name}](${path}) (${v.category ?? 'other'}) — ${v.borough ?? '?'}`
+        : `- ${name} (${v.category ?? 'other'}) — ${v.borough ?? '?'}`
+    })
     .join('\n')
 
   const totalLocations = locationCountRes?.n ?? 0
@@ -1433,7 +1442,7 @@ app.post('/api/chat', async c => {
   let viewportSection = ''
   if (viewportEventsRes?.results?.length) {
     viewportSection = `\n\n## EVENTS IN CURRENT MAP VIEW\n${viewportEventsRes.results.map(e =>
-      `- ${e.title} | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'}`
+      `- [${e.title}](/events/${encodeURIComponent(e.id)}) | ${e.category ?? 'Other'} | ${e.time_start?.slice(0,5) ?? 'all day'} | ${e.location_name ?? '?'}, ${e.borough ?? '?'}`
     ).join('\n')}`
   }
 
@@ -1463,9 +1472,9 @@ ${venuesList}${viewportSection}
 
 ## INSTRUCTIONS
 - Answer questions about events, venues, parks, and playgrounds in Berlin.
-- Suggest specific events or venues from the lists above when relevant.
+- When mentioning events or venues, ALWAYS use the markdown link format from the lists above, e.g. [Event Name](/events/id) or [Venue Name](/pois/id). This creates clickable links for the user.
 - For parks/playgrounds, explain users can see them on the map by enabling the Parks or Playgrounds toggle.
-- Keep answers concise (2-4 sentences). Do not repeat the full event list unless asked.
+- Keep answers concise (2-4 sentences). Use bullet points with linked names when listing multiple suggestions.
 - If asked about something outside Berlin culture, politely redirect.${userPrefsSection}${weatherSection}`
 
   const messages = [

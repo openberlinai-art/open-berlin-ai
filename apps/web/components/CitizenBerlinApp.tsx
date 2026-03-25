@@ -774,7 +774,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
         {/* ── Day Navigation Strip + Happening Soon ──────────────── */}
         {mode === 'events' && (
-          <div className="flex items-center border-b-2 border-[var(--border-primary)]">
+          <div className="flex items-center">
             <div className="flex-1 min-w-0">
               <DayStrip
                 dateFrom={dateFrom}
