@@ -4,6 +4,7 @@ import { getEvents, getEvent } from './db'
 import { ingestEvents } from './ingest'
 import { ingestTicketmaster } from './ingest-ticketmaster'
 import { ingestSongkick } from './ingest-songkick'
+import { ingestOpenLigaDB } from './ingest-openligadb'
 import { geocodeAll, geocodeAllLocations } from './geocoder'
 import { ingestLocations } from './ingest-locations'
 import { refreshGeodata } from './geodata'
@@ -2167,6 +2168,21 @@ app.post('/api/ingest-ticketmaster', async c => {
   return c.json({ ok: true, message: `Ticketmaster ingest started: ${days} days` })
 })
 
+// ─── POST /api/ingest-openligadb (protected) ──────────────────────────────────
+
+app.post('/api/ingest-openligadb', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  c.executionCtx.waitUntil(
+    ingestOpenLigaDB(c.env)
+      .then(n => console.log(`[ingest:openligadb:manual] done — ${n} events`))
+      .catch(err => console.error('[ingest:openligadb:manual] failed:', err))
+  )
+  return c.json({ ok: true, message: 'OpenLigaDB ingest started' })
+})
+
 // ─── POST /api/ingest-locations (protected) ───────────────────────────────────
 
 app.post('/api/ingest-locations', async c => {
@@ -2503,6 +2519,12 @@ export default {
               .catch(err => console.error('[ingest:songkick]', err))
           )
         }
+        // OpenLigaDB — no API key needed
+        ctx.waitUntil(
+          ingestOpenLigaDB(env)
+            .then(n => console.log(`[ingest:openligadb] ${n} events`))
+            .catch(err => console.error('[ingest:openligadb]', err))
+        )
       }
     } else if (event.cron === '0 2 * * *') {
       // Daily geodata refresh (R2) + location sync (D1) + image enrichment + DB cleanup + POI Berlin + smart notifications
