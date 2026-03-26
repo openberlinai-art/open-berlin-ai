@@ -2,6 +2,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import {
   fetchParks,
   fetchPlaygrounds,
+  fetchCherryBlossoms,
   fetchVenuesByBbox,
   fetchVenuesList,
   fetchTransitStopsVBB,
@@ -28,6 +29,15 @@ export function usePlaygrounds(enabled: boolean) {
   return useQuery({
     queryKey:  ['playgrounds'],
     queryFn:   fetchPlaygrounds,
+    enabled,
+    staleTime: Infinity,
+  })
+}
+
+export function useCherryBlossoms(enabled: boolean) {
+  return useQuery({
+    queryKey:  ['cherry-blossoms'],
+    queryFn:   fetchCherryBlossoms,
     enabled,
     staleTime: Infinity,
   })

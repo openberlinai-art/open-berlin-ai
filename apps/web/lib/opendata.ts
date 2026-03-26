@@ -37,6 +37,12 @@ export async function fetchPlaygrounds(): Promise<GeoJSON.FeatureCollection> {
   return res.json() as Promise<GeoJSON.FeatureCollection>
 }
 
+export async function fetchCherryBlossoms(): Promise<GeoJSON.FeatureCollection> {
+  const res = await fetch(`${WORKER}/api/geodata/cherry-blossoms`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json() as Promise<GeoJSON.FeatureCollection>
+}
+
 export async function fetchVenuesList(bbox: string, category?: string): Promise<GeoJSON.FeatureCollection> {
   const params = new URLSearchParams({ bbox, limit: '2000' })
   if (category) params.set('category', category)

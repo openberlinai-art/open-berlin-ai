@@ -6,7 +6,7 @@ import { isCategoryVisibleAtZoom } from './zoom-tiers'
 import {
   Castle, Milestone, Church, Camera, TreePine, Train,
   UtensilsCrossed, Dumbbell, Building2, Wine, ShoppingBag, Bed,
-  Palette, Heart, GraduationCap, Sparkles, HeartPulse,
+  Palette, Heart, GraduationCap, Sparkles, HeartPulse, Flower,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -112,6 +112,7 @@ export const FILTER_GROUPS: UnifiedGroup[] = [
     categories: [
       vc('parks',            'Parks',              '#16a34a', '#14532d', 'geodata', 'parks'),
       vc('playgrounds',      'Playgrounds',        '#e879f9', '#86198f', 'geodata', 'playgrounds'),
+      vc('cherry_blossoms',  'Cherry Blossoms',    '#f472b6', '#db2777', 'geodata', 'cherry_blossoms'),
       vc('lake',             'Lakes',              '#0284c7', '#0369a1', 'poi', 'lake'),
       vc('garden',           'Gardens',            '#16a34a', '#15803d', 'poi', 'garden'),
       vc('forest',           'Forests',            '#15803d', '#14532d', 'poi', 'forest'),
@@ -551,10 +552,12 @@ export interface FilterChip {
   icon:   LucideIcon
   color:  string       // active chip background
   groups: string[]     // which FILTER_GROUPS keys this controls
+  filterKeys?: string[] // override: only these specific filter keys (instead of all categories in groups)
 }
 
 /** Single scrollable row of quick-access chips (replaces CHIP_CONFIG + MORE_CHIPS) */
 export const QUICK_CHIPS: FilterChip[] = [
+  { key: 'cherry_blossoms', label: 'Cherry Blossoms', icon: Flower, color: '#f472b6', groups: ['outdoors'], filterKeys: ['outdoors:cherry_blossoms'] },
   { key: 'culture',       label: 'Culture',     icon: Palette,         color: '#7c3aed', groups: ['culture'] },
   { key: 'food_drink',    label: 'Restaurants',  icon: UtensilsCrossed, color: '#dc2626', groups: ['food_drink'] },
   { key: 'nightlife',     label: 'Nightlife',   icon: Wine,            color: '#9333ea', groups: ['nightlife'] },
@@ -579,6 +582,7 @@ export const CHIP_CONFIG = QUICK_CHIPS
 export const MORE_CHIPS: FilterChip[] = []
 
 export function getChipFilterKeys(chip: FilterChip): string[] {
+  if (chip.filterKeys) return chip.filterKeys
   return chip.groups.flatMap(gk => {
     const g = FILTER_GROUPS.find(fg => fg.key === gk)
     return g ? g.categories.map(c => `${gk}:${c.key}`) : []

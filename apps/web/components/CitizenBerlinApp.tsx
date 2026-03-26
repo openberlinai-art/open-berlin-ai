@@ -11,7 +11,7 @@ import { fetchEvents }          from '@/lib/api'
 import { formatDayHeader, getCategoryStyle } from '@/lib/utils'
 import type { Event }           from '@/lib/types'
 import EventCard                from './EventCard'
-import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
+import { useVenuesList, useOSMVenues, useParks, usePlaygrounds, useCherryBlossoms, usePOIsBatch, useListings } from '@/hooks/useCulturalData'
 import { getPOIColor, getPOILabel } from '@/lib/poi-config'
 import {
   FILTER_GROUPS, LITE_DEFAULTS, resolveActiveFiltersForZoom,
@@ -232,6 +232,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
   // Always fetch parks + playgrounds (for search); map visibility from resolved.geodataLayers
   const { data: parksData }       = useParks(true)
   const { data: playgroundsData } = usePlaygrounds(true)
+  const { data: cherryData }      = useCherryBlossoms(resolved.geodataLayers.has('cherry_blossoms'))
 
   // Filter venue features to only active venue categories
   const venueFeatures = useMemo(() => {
@@ -368,21 +369,25 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     setLoading(true)
     try {
       const sendPriceType = price === 'free' ? 'free' : undefined
+      // Treat "all categories selected" same as no filter
+      const activeCats = cats.length >= CATEGORIES.length ? [] : cats
       const res = await fetchEvents({
         date_from:  from,
         date_to:    to,
         limit:      500,
         price_type: sendPriceType,
-        category:   cats.length === 1 ? cats[0] : undefined,
+        category:   activeCats.length === 1 ? activeCats[0] : undefined,
       })
-      if (price === 'paid') {
-        const filtered = res.data.filter(ev => ev.price_type !== 'free')
-        setEvents(filtered)
-        setTotal(filtered.length)
-      } else {
-        setEvents(res.data)
-        setTotal(res.pagination.total)
+      let results = res.data
+      // Client-side category filter when multiple (but not all) categories selected
+      if (activeCats.length > 1) {
+        results = results.filter(ev => ev.category && activeCats.includes(ev.category))
       }
+      if (price === 'paid') {
+        results = results.filter(ev => ev.price_type !== 'free')
+      }
+      setEvents(results)
+      setTotal(activeCats.length > 1 || price === 'paid' ? results.length : res.pagination.total)
     } finally {
       setLoading(false)
     }
@@ -1459,6 +1464,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             osmData={mode === 'events' ? {} : osmData}
             parksData={mode === 'events' ? undefined : parksData}
             playgroundsData={mode === 'events' ? undefined : playgroundsData}
+            cherryData={cherryData}
             listingsData={listingsGeo}
             onMobilePopup={setMobileSheetPopup}
           />

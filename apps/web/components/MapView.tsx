@@ -91,6 +91,7 @@ interface Props {
   osmData?:        Record<string, GeoJSON.FeatureCollection>  // keyed by osm category key
   parksData?:      GeoJSON.FeatureCollection
   playgroundsData?: GeoJSON.FeatureCollection
+  cherryData?:     GeoJSON.FeatureCollection
   listingsData?:   GeoJSON.FeatureCollection
   onMobilePopup?:  (popup: VenuePopupState | null) => void
 }
@@ -189,7 +190,7 @@ export default function MapView({
   venueGeoJSON, mode, onBboxChange, flyTo, openVenuePopup,
   liveRadar = false,
   poiData = {}, osmData = {},
-  parksData, playgroundsData,
+  parksData, playgroundsData, cherryData,
   listingsData,
   onMobilePopup,
 }: Props) {
@@ -241,6 +242,7 @@ export default function MapView({
 
   const showParks       = resolvedFilters.geodataLayers.has('parks')
   const showPlaygrounds = resolvedFilters.geodataLayers.has('playgrounds')
+  const showCherry      = resolvedFilters.geodataLayers.has('cherry_blossoms')
   const showVenues      = mode === 'venues' && !!venueGeoJSON?.features?.length
 
   const activeEvent = useMemo(
@@ -510,6 +512,32 @@ export default function MapView({
       return
     }
 
+    // Cherry blossom tree → show info popup
+    if (layerId === 'cherry-point') {
+      const props  = feature.properties
+      if (!props) return
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number]
+      const name = (props.name_de as string) || 'Zierkirsche'
+      const age = props.age ? `${props.age} years` : ''
+      const height = props.height ? `${props.height}m` : ''
+      const detail = [name, height, age].filter(Boolean).join(' · ')
+      const popup: VenuePopupState = {
+        lat: coords[1], lng: coords[0],
+        name: detail,
+        category: 'Cherry Blossom',
+        address: (props.street as string) ?? undefined,
+        borough: (props.district as string) ?? undefined,
+      }
+      if (isMobileRef.current && onMobilePopupRef.current) {
+        onMobilePopupRef.current(popup)
+      } else {
+        setVenuePopup(popup)
+      }
+      setTransitPopup(null)
+      setGreenspacePopup(null)
+      return
+    }
+
     // Park / playground → show info popup
     if (layerId === 'parks-point' || layerId === 'playgrounds-point') {
       const props  = feature.properties
@@ -722,7 +750,7 @@ export default function MapView({
           'events-point', 'event-clusters',
           'transit-point',
           'venues-point', 'venue-clusters',
-          'parks-point', 'playgrounds-point',
+          'parks-point', 'playgrounds-point', 'cherry-point',
           'radar-vehicles',
           'listings-point', 'listings-clusters',
           ...osmInteractiveIds,
@@ -851,6 +879,29 @@ export default function MapView({
                 'circle-stroke-color': '#86198f',
                 'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 13, 1, 15, 2],
                 'circle-opacity':      0.9,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Cherry Blossoms ─────────────────────── */}
+        {showCherry && cherryData && (
+          <Source id="cherry" type="geojson" data={cherryData}>
+            <Layer
+              id="cherry-point"
+              type="circle"
+              paint={{
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  8, 1.5,
+                  12, 3,
+                  14, 5,
+                  16, 8,
+                ],
+                'circle-color':        '#f472b6',
+                'circle-stroke-color': '#db2777',
+                'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.3, 13, 0.8, 15, 1.5],
+                'circle-opacity':      0.85,
               }}
             />
           </Source>

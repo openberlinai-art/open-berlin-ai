@@ -42,6 +42,7 @@ import { sendPushReminders } from './push-reminders'
 import { enrichLocationsWithImages } from './enrich-images'
 import { enrichPOIImages } from './enrich-poi-images'
 import { enrichEventImages } from './enrich-event-images'
+import { ingestCherryBlossoms } from './ingest-cherry-blossoms'
 import {
   getListings, getListing, createListing, updateListing,
   deleteListing, uploadListingImage,
@@ -466,6 +467,19 @@ app.get('/api/geodata/playgrounds-points', async c => {
     headers: {
       'Content-Type':  'application/json',
       'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+    },
+  })
+})
+
+// ─── GET /api/geodata/cherry-blossoms ─────────────────────────────────────────
+
+app.get('/api/geodata/cherry-blossoms', async c => {
+  const obj = await c.env.GEODATA.get('cherry-blossoms.geojson')
+  if (!obj) return c.json({ error: 'Not yet generated — trigger /api/ingest-cherry-blossoms' }, 503)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type':  'application/json',
+      'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
     },
   })
 })
@@ -2312,6 +2326,17 @@ app.post('/api/enrich-poi-images', async c => {
   }
   const count = await enrichPOIImages(c.env.DB)
   return c.json({ ok: true, enriched: count })
+})
+
+// ─── POST /api/ingest-cherry-blossoms (protected) ───────────────────────────
+
+app.post('/api/ingest-cherry-blossoms', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const count = await ingestCherryBlossoms(c.env)
+  return c.json({ ok: true, trees: count })
 })
 
 // ─── POST /api/enrich-event-images (protected) ──────────────────────────────
