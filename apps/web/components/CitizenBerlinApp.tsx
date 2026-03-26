@@ -39,7 +39,6 @@ import { useFavorites } from '@/hooks/useFavorites'
 import { Heart, Share2, Check, Navigation, Sparkles } from 'lucide-react'
 import DayStrip from './DayStrip'
 import { isOpenNow } from '@/lib/opening-hours'
-import { useWeather } from '@/hooks/useCulturalData'
 
 const MapView       = dynamic(() => import('./MapView'),       { ssr: false })
 const AuthModal     = dynamic(() => import('./AuthModal'),     { ssr: false })
@@ -51,54 +50,6 @@ const CATEGORIES = [
   'Kids','Sports','Dance','Talks','Tours','Film','Other',
 ]
 
-const WMO_EMOJI: Record<number, string> = {
-  0: '☀️', 1: '🌤', 2: '🌤', 3: '☁️', 45: '🌫', 48: '🌫',
-  51: '🌧', 53: '🌧', 55: '🌧', 61: '🌧', 63: '🌧', 65: '🌧',
-  66: '🌧', 67: '🌧', 71: '❄️', 73: '❄️', 75: '❄️', 77: '❄️',
-  80: '🌦', 81: '🌦', 82: '🌦', 95: '⛈', 96: '⛈', 99: '⛈',
-}
-
-function getWeatherNudge(code: number, temp: number): string {
-  if (code >= 95) return 'Stormy — great for indoor events'
-  if (code >= 71 && code <= 77) return 'Snowy — cozy indoor picks today'
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'Rainy — indoor events recommended'
-  if (code >= 45 && code <= 48) return 'Foggy — explore indoor venues'
-  if (temp < 5) return 'Freezing — stay cozy inside'
-  if (temp < 12) return 'Chilly — indoor events recommended'
-  if (temp >= 22) return 'Perfect weather for outdoor events'
-  if (temp >= 15) return 'Great day to explore outdoors'
-  return 'Mild — check out what\'s on'
-}
-
-function WeatherNudge({ onExpand }: { onExpand: () => void }) {
-  const { data } = useWeather()
-  const [dismissed, setDismissed] = useState(false)
-  const current = data?.current as Record<string, number> | undefined
-  if (!current || dismissed) return null
-
-  const temp = Math.round(current.temperature_2m)
-  const code = current.weather_code
-  const emoji = WMO_EMOJI[code] ?? '🌤'
-  const nudge = getWeatherNudge(code, temp)
-
-  return (
-    <div className="flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-secondary)]">
-      <button
-        onClick={onExpand}
-        className="flex-1 flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-left"
-      >
-        <span>{emoji}</span>
-        <span>{temp}°C — {nudge}</span>
-      </button>
-      <button
-        onClick={() => setDismissed(true)}
-        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5"
-      >
-        <X size={10} />
-      </button>
-    </div>
-  )
-}
 
 interface Props {
   initialEvents: Event[]
@@ -1281,11 +1232,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             />
           ) : mode === 'events' ? (
             <>
-            {/* ── Weather nudge bar ───────────────────────────────── */}
-            <WeatherNudge onExpand={() => {
-              setDiscoverExpanded(true)
-              try { localStorage.setItem('citizen-discover-expanded', 'true') } catch {}
-            }} />
             {/* ── Collapsible Discover bar ──────────────────────── */}
             <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--border-secondary)]">
               <button

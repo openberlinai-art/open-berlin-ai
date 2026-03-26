@@ -25,33 +25,40 @@ function weatherEmoji(code: number): string {
   return '🌤'
 }
 
-function useBerlinClock() {
-  const [time, setTime] = useState('')
+export default function WeatherWidget() {
+  const { data } = useWeather()
+  const [mounted, setMounted] = useState(false)
+  const [clock, setClock] = useState('')
+
   useEffect(() => {
+    setMounted(true)
     function tick() {
-      setTime(new Date().toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+      setClock(new Date().toLocaleTimeString('de-DE', {
+        timeZone: 'Europe/Berlin',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }))
     }
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
-  return time
-}
 
-export default function WeatherWidget() {
-  const { data } = useWeather()
-  const clock = useBerlinClock()
+  // Don't render clock on server to avoid hydration mismatch
+  if (!mounted) return null
+
   const current = data?.current as Record<string, number> | undefined
 
   if (!current) return (
-    <span className="text-xs text-gray-400 ml-1.5 font-mono">{clock}</span>
+    <span className="text-xs text-[var(--text-muted)] ml-1.5 font-mono">{clock}</span>
   )
 
   const temp  = Math.round(current.temperature_2m)
   const emoji = weatherEmoji(current.weather_code)
 
   return (
-    <span className="text-xs text-gray-400 ml-1.5">
+    <span className="text-xs text-[var(--text-muted)] ml-1.5">
       {emoji} {temp}°C <span className="font-mono">{clock}</span>
     </span>
   )
