@@ -164,15 +164,16 @@ export async function enrichEventImages(db: D1Database): Promise<number> {
  * copy the location's image_urls as fallback with venue credit.
  */
 async function applyLocationFallback(db: D1Database): Promise<number> {
-  const { results: events } = await db.prepare(`
+  // Match events with no images (NULL or empty []) that have a location with images
+  const { results: withImages } = await db.prepare(`
     SELECT e.id, e.location_id, e.location_name, l.image_urls AS loc_images
     FROM events e
     JOIN locations l ON e.location_id = l.id
-    WHERE e.image_urls = '[]'
+    WHERE (e.image_urls IS NULL OR e.image_urls = '[]')
       AND e.date_start >= date('now')
       AND l.image_urls IS NOT NULL
       AND l.image_urls != '[]'
-    LIMIT 200
+    LIMIT 500
   `).all<{
     id: string
     location_id: string
@@ -180,13 +181,12 @@ async function applyLocationFallback(db: D1Database): Promise<number> {
     loc_images: string
   }>()
 
-  if (!events.length) return 0
-
   const CHUNK = 50
   let count = 0
 
-  for (let i = 0; i < events.length; i += CHUNK) {
-    const chunk = events.slice(i, i + CHUNK)
+  // Apply location images
+  for (let i = 0; i < withImages.length; i += CHUNK) {
+    const chunk = withImages.slice(i, i + CHUNK)
     const stmts = chunk.map(e => {
       count++
       const credit = e.location_name
@@ -198,6 +198,16 @@ async function applyLocationFallback(db: D1Database): Promise<number> {
     })
     await db.batch(stmts)
   }
+
+  // Mark remaining NULL events (no source URL, no location image) as checked
+  const { meta } = await db.prepare(`
+    UPDATE events SET image_urls = '[]'
+    WHERE image_urls IS NULL
+      AND date_start >= date('now')
+      AND (source_url IS NULL AND source_links IS NULL)
+  `).run()
+  const marked = (meta as { changes: number }).changes
+  if (marked > 0) console.log(`[enrich-event-images] marked ${marked} events as no-image-available`)
 
   return count
 }
