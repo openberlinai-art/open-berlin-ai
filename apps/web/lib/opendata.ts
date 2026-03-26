@@ -443,9 +443,21 @@ export async function buildRouteDisplay(journey: Journey): Promise<RouteDisplayD
 
     let geometry: GeoJSON.Feature<GeoJSON.LineString> | null = null
 
-    if (leg.polyline) {
-      // BVG API returns polyline as a FeatureCollection of Point features
-      // — collect all coordinates into a single LineString
+    // Walking legs: always use OSRM for proper street-following routes
+    // (BVG walking polylines are often just straight lines between points)
+    if (leg.walking && leg.originCoords && leg.destinationCoords) {
+      const walkCoords = await fetchWalkingRoute(leg.originCoords, leg.destinationCoords)
+      if (walkCoords) {
+        geometry = {
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: walkCoords },
+        }
+      }
+    }
+
+    // Transit legs: use BVG polyline data
+    if (!geometry && !leg.walking && leg.polyline) {
       const coords: [number, number][] = []
       for (const f of leg.polyline.features ?? []) {
         if (f.geometry?.type === 'Point') {
@@ -461,18 +473,6 @@ export async function buildRouteDisplay(journey: Journey): Promise<RouteDisplayD
           type: 'Feature',
           properties: {},
           geometry: { type: 'LineString', coordinates: coords },
-        }
-      }
-    }
-
-    // Walking leg without polyline: use OSRM for a proper street-following route
-    if (!geometry && leg.walking && leg.originCoords && leg.destinationCoords) {
-      const walkCoords = await fetchWalkingRoute(leg.originCoords, leg.destinationCoords)
-      if (walkCoords) {
-        geometry = {
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'LineString', coordinates: walkCoords },
         }
       }
     }
