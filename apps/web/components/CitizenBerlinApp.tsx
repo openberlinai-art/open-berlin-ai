@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Filter, ChevronDown, ChevronLeft, ChevronRight, BookMarked, User, Search, X,
+  Filter, ChevronDown, BookMarked, User, Search, X,
   List, Map, CalendarDays, MoreHorizontal,
 } from 'lucide-react'
 
@@ -64,7 +64,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   const [events,   setEvents]   = useState<Event[]>(initialEvents)
   const [total,    setTotal]    = useState(initialTotal)
-  const [page,     setPage]     = useState(1)
   const [loading,  setLoading]  = useState(false)
 
   const [dateFrom, setDateFrom] = useState(initialDate)
@@ -365,19 +364,14 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
     features: venueFeatures,
   }), [venueFeatures])
 
-  const LIMIT = 50
-
-  const load = useCallback(async (from: string, to: string, p: number) => {
+  const load = useCallback(async (from: string, to: string) => {
     setLoading(true)
     try {
-      // "Paid" filter: fetch all events, then exclude free client-side
-      // (the DB only has 'free'/'unknown'/'paid'; unknown often means paid/untagged)
       const sendPriceType = price === 'free' ? 'free' : undefined
       const res = await fetchEvents({
         date_from:  from,
         date_to:    to,
-        page:       p,
-        limit:      price === 'paid' ? 500 : LIMIT,
+        limit:      500,
         price_type: sendPriceType,
         category:   cats.length === 1 ? cats[0] : undefined,
       })
@@ -396,8 +390,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   // Always fetch fresh data from Worker (initialEvents are for first-paint only)
   useEffect(() => {
-    load(dateFrom, dateTo, page)
-  }, [dateFrom, dateTo, page, load])
+    load(dateFrom, dateTo)
+  }, [dateFrom, dateTo, load])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -456,10 +450,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
 
   function toggleCat(c: string) {
     setCats(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
-    setPage(1)
   }
-
-  const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   // Shared button classes
   const btn = 'text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 bg-[var(--bg-primary)] text-[var(--text-primary)] hover:bg-[var(--accent)] hover:text-[var(--accent-text)]'
@@ -686,7 +677,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
               {(['all', 'free', 'paid'] as const).map((p, i) => (
                 <button
                   key={p}
-                  onClick={() => { setPrice(p); setPage(1) }}
+                  onClick={() => setPrice(p)}
                   className={`text-xs border-2 border-[var(--border-primary)] px-2.5 py-1 ${i > 0 ? '-ml-0.5' : ''} ${
                     price === p
                       ? 'bg-[var(--accent)] text-[var(--accent-text)] z-[1] relative'
@@ -702,7 +693,7 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
             {(price !== 'all' || cats.length > 0) && (
               <button
                 onClick={() => {
-                  setPrice('all'); setCats([]); setPage(1)
+                  setPrice('all'); setCats([])
                 }}
                 className={btn}
                 title="Clear all filters"
@@ -719,8 +710,8 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           <DayStrip
             dateFrom={dateFrom}
             dateTo={dateTo}
-            onSelectDay={(iso) => { setDateFrom(iso); setDateTo(iso); setPage(1) }}
-            onSelectRange={(from, to) => { setDateFrom(from); setDateTo(to); setPage(1) }}
+            onSelectDay={(iso) => { setDateFrom(iso); setDateTo(iso) }}
+            onSelectRange={(from, to) => { setDateFrom(from); setDateTo(to) }}
           />
         )}
 
@@ -1432,26 +1423,6 @@ function AppInner({ initialEvents, initialTotal, initialDate }: Props) {
           )}
         </div>
 
-        {/* Pagination */}
-        {mode === 'events' && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2 pb-[calc(0.5rem+3.5rem)] md:pb-2 border-t-2 border-[var(--border-primary)] text-xs">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(p => p - 1)}
-              className="flex items-center gap-1 border-2 border-[var(--border-primary)] px-2 py-1 disabled:opacity-30 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              <ChevronLeft size={12} /> Prev
-            </button>
-            <span className="font-semibold">{page} / {totalPages}</span>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => p + 1)}
-              className="flex items-center gap-1 border-2 border-[var(--border-primary)] px-2 py-1 disabled:opacity-30 hover:bg-[var(--accent)] hover:text-[var(--accent-text)]"
-            >
-              Next <ChevronRight size={12} />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── Map ─────────────────────────────────────────── */}
