@@ -39,6 +39,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
   const langs: string[] = (() => { try { return event.languages ? JSON.parse(event.languages) : [] } catch { return [] } })()
   const nonDeLangs = langs.filter(l => l !== 'de')
   const thumbUrl: string | null = (() => { try { const urls = event.image_urls ? JSON.parse(event.image_urls) : []; return urls[0] ?? null } catch { return null } })()
+  const imageCredit = event.image_credit ?? null
 
   return (
     <div
@@ -113,7 +114,7 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
 
       {/* Thumbnail */}
       {thumbUrl && (
-        <div className="mb-2">
+        <div className="mb-2 relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={thumbUrl}
@@ -121,6 +122,11 @@ export default function EventCard({ event, active, onClick, onNeedAuth }: Props)
             loading="lazy"
             className="w-full h-24 object-cover border border-[var(--border-primary)]"
           />
+          {imageCredit && (
+            <span className="absolute bottom-0 right-0 text-[8px] text-white/80 bg-black/50 px-1 py-0.5 leading-none">
+              {imageCredit}
+            </span>
+          )}
         </div>
       )}
 

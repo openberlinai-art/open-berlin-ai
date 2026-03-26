@@ -28,6 +28,7 @@ export interface Event {
   registration_type: string | null  // 'required' | 'notRequired'
   languages:         string | null  // JSON: string[] e.g. ["de","en"]
   image_urls:        string | null  // JSON: string[]
+  image_credit:      string | null  // attribution text for image source
   created_at:        string
   updated_at:        string
 }

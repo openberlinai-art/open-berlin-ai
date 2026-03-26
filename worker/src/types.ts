@@ -50,6 +50,7 @@ export interface EventRow {
   registration_type: string | null  // 'required' | 'notRequired'
   languages:         string | null  // JSON: string[] e.g. ["de","en"]
   image_urls:        string | null  // JSON: string[] from attraction media
+  image_credit:      string | null  // attribution text for the image source
   created_at:        string
   updated_at:        string
 }

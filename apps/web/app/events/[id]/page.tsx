@@ -250,6 +250,11 @@ export default async function EventPage({ params }: Props) {
                 />
               </a>
             ))}
+            {ev.image_credit && (
+              <p className="col-span-full text-[9px] text-gray-400 mt-0.5">
+                Source: {ev.image_credit}
+              </p>
+            )}
           </div>
         )}
 

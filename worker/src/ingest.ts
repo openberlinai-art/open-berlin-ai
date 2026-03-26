@@ -266,7 +266,11 @@ function transformEvent(
     ? JSON.stringify(attraction.inLanguages)
     : null
 
-  const imageUrls: string[] = (attraction?.media ?? [])
+  const mediaItems = attraction?.media ?? []
+  if (mediaItems.length > 0) {
+    console.log(`[ingest] ⚡ Kulturdaten media field populated for attraction ${attraction?.identifier} (${mediaItems.length} items)`)
+  }
+  const imageUrls: string[] = mediaItems
     .filter(m => m.encodingFormat?.startsWith('image/') || m.type?.toLowerCase() === 'imageobject')
     .map(m => m.contentUrl ?? m.url)
     .filter((u): u is string => !!u)

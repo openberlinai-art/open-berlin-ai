@@ -206,7 +206,7 @@ export async function upsertEvents(
           source_links = excluded.source_links,
           registration_type = excluded.registration_type,
           languages = excluded.languages,
-          image_urls = excluded.image_urls,
+          image_urls = COALESCE(excluded.image_urls, image_urls),
           updated_at = datetime('now')
       `).bind(
         e.id, e.title, e.description, e.date_start, e.date_end, e.time_start, e.time_end, e.door_time,

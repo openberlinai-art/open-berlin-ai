@@ -41,6 +41,7 @@ import { generateSmartNotifications } from './smart-notifications'
 import { sendPushReminders } from './push-reminders'
 import { enrichLocationsWithImages } from './enrich-images'
 import { enrichPOIImages } from './enrich-poi-images'
+import { enrichEventImages } from './enrich-event-images'
 import {
   getListings, getListing, createListing, updateListing,
   deleteListing, uploadListingImage,
@@ -2313,6 +2314,17 @@ app.post('/api/enrich-poi-images', async c => {
   return c.json({ ok: true, enriched: count })
 })
 
+// ─── POST /api/enrich-event-images (protected) ──────────────────────────────
+
+app.post('/api/enrich-event-images', async c => {
+  const auth = c.req.header('Authorization')
+  if (!auth || auth !== `Bearer ${c.env.INGEST_SECRET}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const count = await enrichEventImages(c.env.DB)
+  return c.json({ ok: true, enriched: count })
+})
+
 // ─── POST /api/refresh-geodata (protected) ────────────────────────────────────
 
 app.post('/api/refresh-geodata', async c => {
@@ -2783,6 +2795,8 @@ export default {
           refreshGeodata(env).catch(e => console.error('[geodata]', e)),
           ingestLocations(env)
             .then(() => enrichLocationsWithImages(env.DB))
+            .then(() => enrichEventImages(env.DB))
+            .then(n => console.log(`[enrich-event-images:cron] ${n} events enriched`))
             .catch(e => console.error('[locations/enrich]', e)),
           // Purge expired auth tokens (15-min TTL) and stale rate-limit windows (all <24h old)
           env.DB.batch([

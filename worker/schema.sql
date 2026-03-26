@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS events (
   registration_type TEXT,                   -- 'required'|'optional'|null
   languages       TEXT,                      -- JSON array of ISO language codes
   image_urls      TEXT,                      -- JSON array of image URLs
+  image_credit    TEXT,                      -- attribution text for image source
   raw_json        TEXT,                      -- full source for debugging
   created_at      TEXT    DEFAULT (datetime('now')),
   updated_at      TEXT    DEFAULT (datetime('now'))
