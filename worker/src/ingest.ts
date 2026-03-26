@@ -376,8 +376,10 @@ export async function ingestEvents(env: Env, days = 30, offsetDays = 0): Promise
         const addr = location.address
           ? [location.address.streetAddress, location.address.postalCode].filter(Boolean).join(', ')
           : ''
-        if (addr) {
-          try { coords = await geocode(env.DB, addr) } catch { /* geocode limit */ }
+        // Fall back to venue name when no street address available
+        const geocodeQuery = addr || (location.title?.de ?? location.title?.en ?? '')
+        if (geocodeQuery) {
+          try { coords = await geocode(env.DB, geocodeQuery) } catch { /* geocode limit */ }
         }
       }
 

@@ -38,18 +38,21 @@ export async function geocode(
   return result
 }
 
-/** Geocode one batch of events that have an address but no coordinates. */
+/** Geocode one batch of events that have an address or venue name but no coordinates. */
 export async function geocodeAll(db: D1Database, offset = 0): Promise<number> {
   const rows = await db
-    .prepare(`SELECT id, address FROM events WHERE lat IS NULL AND address IS NOT NULL LIMIT 20 OFFSET ?`)
+    .prepare(`SELECT id, address, location_name FROM events WHERE lat IS NULL AND (address IS NOT NULL OR location_name IS NOT NULL) LIMIT 20 OFFSET ?`)
     .bind(offset)
-    .all<{ id: string; address: string }>()
+    .all<{ id: string; address: string | null; location_name: string | null }>()
 
   if (!rows.results?.length) return 0
 
   let total = 0
   await Promise.all(rows.results.map(async row => {
-    const coords = await geocode(db, row.address)
+    // Prefer address, fall back to venue name
+    const query = row.address || row.location_name
+    if (!query) return
+    const coords = await geocode(db, query)
     if (coords) {
       await db
         .prepare(`UPDATE events SET lat = ?, lng = ? WHERE id = ?`)
